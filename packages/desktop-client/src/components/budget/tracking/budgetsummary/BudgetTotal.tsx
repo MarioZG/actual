@@ -47,13 +47,9 @@ export function BudgetTotal<
       <ProgressComponent current={current} target={target} />
 
       <View style={{ marginLeft: 10 }}>
-        <View>
-          <Text style={{ color: theme.pageTextLight }}>{title}</Text>
-        </View>
-
-        <Text>
+        <Text>{title}{ ": "}
           <Trans
-            i18nKey="<allocatedAmount /> <italic>of <totalAmount /></italic>"
+            i18nKey="<allocatedAmount /> / <totalAmount />"
             components={{
               allocatedAmount: <CellValue binding={current} type="financial" />,
               italic: (
