@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import { currentMonth,sheetForMonth } from '../../shared/months';
 import { safeNumber } from '../../shared/util';
 import * as sheet from '../sheet';
 import { resolveName } from '../spreadsheet/util';
@@ -60,7 +61,7 @@ export async function createCategory(cat, sheetName, prevSheetName) {
   sheet.get().createStatic(sheetName, `carryover-${cat.id}`, false);
 }
 
-export function createSummary(groups, categories, sheetName) {
+export function createSummary(groups, categories, sheetName, prevSheetName) {
   const incomeGroup = groups.filter(group => group.is_income)[0];
   const expenseCategories = categories.filter(cat => !cat.is_income);
 
@@ -76,7 +77,7 @@ export function createSummary(groups, categories, sheetName) {
     initialValue: 0,
     refresh: true,
     dependencies: expenseCategories.map(
-      cat => `${sheetName}!spent-with-carryover-${cat.id}`,
+      cat => `${sheetName}!sum-amount-${cat.id}`,
     ),
     run: sumAmounts,
   });
@@ -114,4 +115,23 @@ export function createSummary(groups, categories, sheetName) {
       return safeNumber(income - -spent);
     },
   });
+
+  sheet.get().createDynamic(sheetName, 'cashflow', {
+    initialValue: 10,
+    dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
+    run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent) => {
+      console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent)})`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(prefcashflow + budgetedIncome - budgetedSpent);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(prefcashflow + income - -spent);
+
+      }
+    },
+  });  
+
 }

@@ -186,6 +186,7 @@ handlers['tracking-budget-month'] = async function ({ month }) {
     value('total-spent'),
     value('real-saved'),
     value('total-leftover'),
+    value('cashflow'),
   ];
 
   for (const group of groups) {
