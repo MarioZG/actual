@@ -26,7 +26,7 @@ function getNumPossibleMonths(width: number) {
     return 5;
   }
 
-  return 6;
+  return 12;
 }
 
 type DynamicBudgetTableInnerProps = {
