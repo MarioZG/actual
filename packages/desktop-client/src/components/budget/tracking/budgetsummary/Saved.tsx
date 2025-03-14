@@ -15,6 +15,10 @@ import { PrivacyFilter } from '../../../PrivacyFilter';
 import { useFormat } from '../../../spreadsheet/useFormat';
 import { makeAmountFullStyle } from '../../util';
 import { useTrackingSheetValue } from '../TrackingBudgetComponents';
+import { childrenToReact } from 'react-markdown/lib/ast-to-react';
+import { CellValue, CellValueText } from '../../../spreadsheet/CellValue';
+import { Row } from 'react-stately';
+import { border } from '../../../../style/colors';
 
 type SavedProps = {
   projected: boolean;
@@ -29,54 +33,16 @@ export function Saved({ projected, style }: SavedProps) {
   const saved = projected ? budgetedSaved : totalSaved;
   const isNegative = saved < 0;
   const diff = totalSaved - budgetedSaved;
+  const cashflow  = useTrackingSheetValue(trackingBudget.cashflow) || 0;
 
   return (
     <View style={{ alignItems: 'center', fontSize: 14, ...style }}>
       {projected ? (
-        <Text style={{ color: theme.pageTextLight }}>
-          <Trans>Projected savings:</Trans>
-        </Text>
-      ) : (
-        <View style={{ color: theme.pageTextLight }}>
-          {isNegative ? t('Overspent:') : t('Saved:')}
-        </View>
-      )}
-
-      <Tooltip
-        style={{ ...styles.tooltip, fontSize: 14, padding: 10 }}
-        content={
-          <>
-            <AlignedText
-              left={t('Projected savings:')}
-              right={
-                <Text
-                  style={{
-                    ...makeAmountFullStyle(budgetedSaved),
-                    ...styles.tnum,
-                  }}
-                >
-                  {format(budgetedSaved, 'financial-with-sign')}
-                </Text>
-              }
-            />
-            <AlignedText
-              left={t('Difference:')}
-              right={
-                <Text style={{ ...makeAmountFullStyle(diff), ...styles.tnum }}>
-                  {format(diff, 'financial-with-sign')}
-                </Text>
-              }
-            />
-          </>
-        }
-        placement="bottom"
-        triggerProps={{
-          isDisabled: Boolean(projected),
-        }}
-      >
-        <View
+        <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
+          { t('Projected balance:')}
+                  <View style={{ flexDirection: 'row', paddingLeft: 5}}
           className={css({
-            fontSize: 25,
+            fontSize: 15,
             color: projected
               ? theme.warningText
               : isNegative
@@ -86,7 +52,62 @@ export function Saved({ projected, style }: SavedProps) {
         >
           <PrivacyFilter>{format(saved, 'financial')}</PrivacyFilter>
         </View>
-      </Tooltip>
+        </View>
+      ) : (
+        <View style={{ color: theme.pageTextLight, flexDirection: 'row' }}>
+          { t('Balance: ')} 
+          <View style={{ flexDirection: 'row', paddingLeft: 5}}
+          className={css({
+            fontSize: 15,
+            color: projected
+              ? theme.warningText
+              : isNegative
+                ? theme.errorTextDark
+                : theme.upcomingText,
+          })}
+        >
+          <PrivacyFilter>{format(saved, 'financial')}</PrivacyFilter>
+        </View>
+        </View>
+      )}
+
+      {projected ? (
+        <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
+          { t('Projected EOM:')}
+                  <View style={{ flexDirection: 'row', paddingLeft: 5}}
+          className={css({
+            fontSize: 20,
+            color: projected
+              ? theme.warningText
+              : isNegative
+                ? theme.errorTextDark
+                : theme.upcomingText,
+          })}
+        >
+          <PrivacyFilter>{format(cashflow, 'financial')}</PrivacyFilter>
+        </View>
+        </View>
+      ) : (
+        <View style={{ color: theme.pageTextLight, flexDirection: 'row' }}>
+          { t('Cash at EOM: ')} 
+          <View style={{ flexDirection: 'row', paddingLeft: 5}}
+          className={css({
+            fontSize: 20,
+            color: projected
+              ? theme.warningText
+              : isNegative
+                ? theme.errorTextDark
+                : theme.upcomingText,
+          })}
+        >
+          <PrivacyFilter>{format(cashflow, 'financial')}</PrivacyFilter>
+        </View>
+        </View>
+      )}
+
+
     </View>
+
+    
   );
 }
