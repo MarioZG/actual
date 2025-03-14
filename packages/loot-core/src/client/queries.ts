@@ -306,7 +306,7 @@ export const trackingBudget = {
   totalIncome: 'total-income',
   totalSpent: 'total-spent',
   totalSaved: 'real-saved',
-
+  cashflow: 'cashflow',
   totalLeftover: 'total-leftover',
   groupSumAmount: trackingParametrizedField('group-sum-amount'),
   groupIncomeReceived: 'total-income',

@@ -1,5 +1,6 @@
 // @ts-strict-ignore
 import * as monthUtils from '../../shared/months';
+import { currentMonth,sheetForMonth } from '../../shared/months';
 import { safeNumber } from '../../shared/util';
 import * as db from '../db';
 import * as sheet from '../sheet';
@@ -88,7 +89,7 @@ export function createCategoryGroup(group, sheetName) {
   });
 }
 
-export function createSummary(groups, sheetName) {
+export function createSummary(groups, categories, sheetName, prevSheetName) {
   const incomeGroup = groups.filter(group => group.is_income)[0];
   const expenseGroups = groups.filter(
     group => !group.is_income && !group.hidden,
@@ -140,6 +141,25 @@ export function createSummary(groups, sheetName) {
       return safeNumber(income - -spent);
     },
   });
+
+  sheet.get().createDynamic(sheetName, 'cashflow', {
+    initialValue: 10,
+    dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
+    run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent) => {
+      console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent)})`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(prefcashflow + budgetedIncome - budgetedSpent);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(prefcashflow + income - -spent);
+
+      }
+    },
+  });  
+
 }
 
 export function handleCategoryChange(months, oldValue, newValue) {
