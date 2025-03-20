@@ -29,10 +29,10 @@ export function RenderMonths({
   style,
 }: RenderMonthsProps) {
   const { months } = useContext(MonthsContext);
+  console.log(`uuuu args  (${args})`);
 
   return months.map((month, index) => {
     const editing = editingMonth === month;
-
     return (
       <NamespaceContext.Provider
         key={index}

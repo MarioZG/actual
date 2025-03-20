@@ -113,6 +113,42 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
   );
 });
 
+export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        flexDirection: 'column',
+        marginRight: styles.monthRightPadding,
+        paddingTop: 10,
+        paddingBottom: 10,
+      }}
+    >
+      <View style={headerLabelStyle}>
+        <TrackingCellValue
+          binding={trackingBudget.cashflow}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyle}>
+        <TrackingCellValue binding={trackingBudget.totalLeftover} type="financial">
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyle}>
+        <TrackingCellValue
+          binding={trackingBudget.totalSaved}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>
+    </View>
+  );
+});
+
 export function IncomeHeaderMonth() {
   return (
     <View

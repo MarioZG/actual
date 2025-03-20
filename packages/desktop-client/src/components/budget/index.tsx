@@ -45,6 +45,7 @@ type TrackingReportComponents = {
   IncomeCategoryComponent: typeof trackingBudget.IncomeCategoryMonth;
   IncomeGroupComponent: typeof trackingBudget.IncomeGroupMonth;
   BudgetTotalsComponent: typeof trackingBudget.BudgetTotalsMonth;
+  BudgetTotalsComponentRunning: typeof trackingBudget.BudgetTotalsMonthRunning;
   IncomeHeaderComponent: typeof trackingBudget.IncomeHeaderMonth;
 };
 
@@ -55,6 +56,7 @@ type EnvelopeBudgetComponents = {
   IncomeCategoryComponent: typeof envelopeBudget.IncomeCategoryMonth;
   IncomeGroupComponent: typeof envelopeBudget.IncomeGroupMonth;
   BudgetTotalsComponent: typeof envelopeBudget.BudgetTotalsMonth;
+  BudgetTotalsComponentRunning: typeof trackingBudget.BudgetTotalsMonthRunning;
   IncomeHeaderComponent: typeof envelopeBudget.IncomeHeaderMonth;
 };
 
@@ -403,6 +405,7 @@ export function Budget() {
       IncomeCategoryComponent: trackingBudget.IncomeCategoryMonth,
       IncomeGroupComponent: trackingBudget.IncomeGroupMonth,
       BudgetTotalsComponent: trackingBudget.BudgetTotalsMonth,
+      BudgetTotalsComponentRunning: trackingBudget.BudgetTotalsMonthRunning,
       IncomeHeaderComponent: trackingBudget.IncomeHeaderMonth,
     }),
     [trackingBudget],
@@ -416,6 +419,7 @@ export function Budget() {
       IncomeCategoryComponent: envelopeBudget.IncomeCategoryMonth,
       IncomeGroupComponent: envelopeBudget.IncomeGroupMonth,
       BudgetTotalsComponent: envelopeBudget.BudgetTotalsMonth,
+      BudgetTotalsComponentRunning: trackingBudget.BudgetTotalsMonthRunning,
       IncomeHeaderComponent: envelopeBudget.IncomeHeaderMonth,
     }),
     [envelopeBudget],

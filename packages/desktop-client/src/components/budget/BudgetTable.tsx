@@ -21,6 +21,7 @@ import { type DropPosition } from '../sort';
 import { BudgetCategories } from './BudgetCategories';
 import { BudgetSummaries } from './BudgetSummaries';
 import { BudgetTotals } from './BudgetTotals';
+import { BudgetTotalsMonthly } from './BudgetTotalsMonthly';
 import { type MonthBounds, MonthsProvider } from './MonthsContext';
 import {
   findSortDown,
@@ -28,6 +29,9 @@ import {
   getScrollbarWidth,
   separateGroups,
 } from './util';
+
+import { RenderMonths } from './RenderMonths';
+import { noop } from 'lodash';
 
 type BudgetTableProps = {
   type: string;
@@ -42,6 +46,9 @@ type BudgetTableProps = {
     BudgetTotalsComponent: ComponentPropsWithoutRef<
       typeof BudgetTotals
     >['MonthComponent'];
+    BudgetTotalsComponentRunning: ComponentPropsWithoutRef<
+    typeof BudgetTotalsMonthly
+  >['MonthComponent'];
   };
   onSaveCategory: (category: CategoryEntity) => void;
   onDeleteCategory: (id: CategoryEntity['id']) => void;
@@ -269,6 +276,12 @@ export function BudgetTable(props: BudgetTableProps) {
         monthBounds={monthBounds}
         type={type}
       >
+
+        <BudgetTotalsMonthly
+          MonthComponent={dataComponents.BudgetTotalsComponentRunning}
+        />
+        tutaj!!!
+            
         <BudgetTotals
           MonthComponent={dataComponents.BudgetTotalsComponent}
           toggleHiddenCategories={toggleHiddenCategories}

@@ -73,7 +73,7 @@ export function Saved({ projected, style }: SavedProps) {
 
       {projected ? (
         <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
-          { t('Projected EOM:')}
+          { t('EOM:')}
                   <View style={{ flexDirection: 'row', paddingLeft: 5}}
           className={css({
             fontSize: 20,
@@ -89,7 +89,7 @@ export function Saved({ projected, style }: SavedProps) {
         </View>
       ) : (
         <View style={{ color: theme.pageTextLight, flexDirection: 'row' }}>
-          { t('Cash at EOM: ')} 
+          { t('EOM: ')} 
           <View style={{ flexDirection: 'row', paddingLeft: 5}}
           className={css({
             fontSize: 20,
