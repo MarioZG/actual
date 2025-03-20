@@ -143,7 +143,7 @@ export function createSummary(groups, categories, sheetName, prevSheetName) {
   });
 
   sheet.get().createDynamic(sheetName, 'cashflow', {
-    initialValue: 10,
+    initialValue: 0,
     dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
     run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent) => {
       console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent)})`);
@@ -159,6 +159,56 @@ export function createSummary(groups, categories, sheetName, prevSheetName) {
       }
     },
   });  
+
+  sheet.get().createDynamic(sheetName, 'running-income', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!running-income`, 'total-income', 'total-budget-income'],
+    run: (runningIncome, income, budgetedIncome) => {
+      console.log(`calc running-income  (${sheetName}-${runningIncome}-${income}-${budgetedIncome})`);
+      if (sheetName.endsWith("04")) {
+        runningIncome = 0;
+      }
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(runningIncome + budgetedIncome);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(runningIncome + income);
+
+      }
+    },
+  }); 
+
+  sheet.get().createDynamic(sheetName, 'running-spend', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!running-spend`, 'total-spent', 'total-budgeted'],
+    run: (runningSpend, spend, budgetedSpend) => {
+      console.log(`calc running-spend'  (${sheetName}-${runningSpend}-${spend}-${budgetedSpend})`);
+      if (sheetName.endsWith("04")) {
+        runningSpend = 0;
+      }
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(runningSpend - budgetedSpend);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(runningSpend + spend);
+
+      }
+    },
+  }); 
+  sheet.get().createDynamic(sheetName, 'running-cashflow', {
+    initialValue: 0,
+    dependencies: ['running-income', 'running-spend'],
+    run: ( runningIncome, runningSpend) => {
+      console.log(`calc running-cashflow ${sheetName} (${runningIncome}-${runningSpend})`);
+      return safeNumber(runningIncome + runningSpend);
+    },
+  }); 
 
 }
 

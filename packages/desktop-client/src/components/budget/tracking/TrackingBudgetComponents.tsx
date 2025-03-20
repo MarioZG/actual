@@ -63,9 +63,41 @@ const headerLabelStyle: CSSProperties = {
   textAlign: 'right',
 };
 
+const headerLabelStyleTotal: CSSProperties = {
+  flex: 1,
+  padding: '0 5px',
+  textAlign: 'right',
+  borderTop: '1px solid ',
+};
+
+const headerLabelStyleBreak: CSSProperties = {
+  flex: 1,
+  padding: '0 5px',
+  textAlign: 'right',
+  borderTop: '1px solid ',
+  marginBottom: '15px'
+};
+
 const cellStyle: CSSProperties = {
   color: theme.pageTextLight,
   fontWeight: 600,
+};
+
+const cellStyleRed: CSSProperties = {
+  color: 'red',
+  fontWeight: 600,
+};
+
+const cellStyleGreen: CSSProperties = {
+  color: 'green',
+  fontWeight: 600,
+};
+
+const cellStyleTotal: CSSProperties= {
+  color: theme.pageTextLight,
+  fontWeight: 600,
+  borderTop: '1px solid ',
+  marginBottom: '15px'
 };
 
 export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
@@ -126,20 +158,52 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
     >
       <View style={headerLabelStyle}>
         <TrackingCellValue
-          binding={trackingBudget.cashflow}
+          binding={trackingBudget.totalIncome}
           type="financial"
         >
           {props => <CellValueText {...props} style={cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyle}>
-        <TrackingCellValue binding={trackingBudget.totalLeftover} type="financial">
+        <TrackingCellValue binding={trackingBudget.totalSpent} type="financial">
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyleBreak}>
+        <TrackingCellValue
+          binding={trackingBudget.totalSaved}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>      
+      {/* <View style={headerLabelStyleBreak}>
+        <TrackingCellValue
+          binding={trackingBudget.cashflow}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View> */}
+      <View style={headerLabelStyle}>
+        <TrackingCellValue
+          binding={trackingBudget.runningIncome}
+          type="financial"
+        >
           {props => <CellValueText {...props} style={cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyle}>
         <TrackingCellValue
-          binding={trackingBudget.totalSaved}
+          binding={trackingBudget.runningSpend}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyleTotal}>
+        <TrackingCellValue
+          binding={trackingBudget.cashflow}
           type="financial"
         >
           {props => <CellValueText {...props} style={cellStyle} />}

@@ -219,6 +219,10 @@ async function trackingBudgetMonth({ month }: { month: string }) {
     value('total-spent'),
     value('real-saved'),
     value('total-leftover'),
+    value('cashflow'),
+    value('running-income'),
+    value('running-spend'),
+    value('running-cashflow'),
   ];
 
   for (const group of groups) {

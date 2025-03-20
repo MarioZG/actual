@@ -122,6 +122,7 @@ export function Graph() {
             current.count--;
           }
           cur = iter.next();
+          
         }
       } else {
         if (!visited.has(current.value)) {

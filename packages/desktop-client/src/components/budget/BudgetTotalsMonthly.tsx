@@ -55,16 +55,27 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
 
         <View style={{ flexGrow: '1', flexDirection: 'column' }}>
           <View style={{ flexGrow: '1', flexDirection: 'column', display: 'inline' }}>
-            <View style={{ flexGrow: '1', flexDirection: 'column' }}>
-              <Trans>Cash at EOM</Trans>
+          <View style={{ flexGrow: '1', flexDirection: 'column' }}>
+              <Trans>Income</Trans>
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column' }}>
-              <Trans>Budget balance (bud - act)</Trans>
+              <Trans>Spend</Trans>
+            </View>
+            <View style={{ flexGrow: '1', flexDirection: 'column', borderTop: '1px solid ', paddingBottom: '5px' }}>
+              <Trans>Moth balance</Trans>
             </View> 
+            {/* <View style={{ flexGrow: '1', flexDirection: 'column' , paddingBottom: '5px'}}>
+              <Trans>Cash at EOM</Trans>
+            </View>             */}
             <View style={{ flexGrow: '1', flexDirection: 'column' }}>
-              <Trans>Monthly balance</Trans>
+              <Trans>Y. Income</Trans>
             </View>
-
+            <View style={{ flexGrow: '1', flexDirection: 'column' }}>
+              <Trans>Y. Spend</Trans>
+            </View>
+            <View style={{ flexGrow: '1', flexDirection: 'column', borderTop: '1px solid ', paddingBottom: '5px' }}>
+              <Trans>Cash at EOY</Trans>
+            </View> 
           </View>
         </View>
 
