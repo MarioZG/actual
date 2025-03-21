@@ -14,6 +14,7 @@ import * as monthUtils from 'loot-core/shared/months';
 import { NamespaceContext } from '../spreadsheet/NamespaceContext';
 
 import { MonthsContext } from './MonthsContext';
+import { useBudgetMode } from '../../hooks/useBudgetMode';
 
 type RenderMonthsProps = {
   component?: ComponentType<{ month: string; editing: boolean }>;
@@ -33,6 +34,11 @@ export function RenderMonths({
 
   return months.map((month, index) => {
     const editing = editingMonth === month;
+
+      const isBudgetModeEnabled = useBudgetMode();    
+    
+
+      const flex = !isBudgetModeEnabled && month.endsWith("03") ? 2 : 1;
     return (
       <NamespaceContext.Provider
         key={index}
@@ -40,7 +46,7 @@ export function RenderMonths({
       >
         <View
           style={{
-            flex: 1,
+            flex: flex,
             borderLeft: '1px solid ' + theme.tableBorder,
             ...style,
           }}

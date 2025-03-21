@@ -277,11 +277,13 @@ export function BudgetTable(props: BudgetTableProps) {
         type={type}
       >
 
-        <BudgetTotalsMonthly
+mycashflow
+<BudgetTotalsMonthly
           MonthComponent={dataComponents.BudgetTotalsComponentRunning}
         />
-        tutaj!!!
-            
+
+        
+   ...         
         <BudgetTotals
           MonthComponent={dataComponents.BudgetTotalsComponent}
           toggleHiddenCategories={toggleHiddenCategories}
@@ -294,7 +296,7 @@ export function BudgetTable(props: BudgetTableProps) {
             overflowAnchor: 'none',
             flex: 1,
             paddingLeft: 5,
-            paddingRight: 5,
+            paddingRight: 0,
           }}
         >
           <View
@@ -322,6 +324,9 @@ export function BudgetTable(props: BudgetTableProps) {
             />
           </View>
         </View>
+
+        
+
       </MonthsProvider>
     </View>
   );

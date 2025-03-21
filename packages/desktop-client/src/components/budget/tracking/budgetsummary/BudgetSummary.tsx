@@ -231,7 +231,7 @@ export function BudgetSummary({ month }: BudgetSummaryProps) {
           </View>
         </View>
 
-        {!collapsed && (
+        {/* {!collapsed && (
           <Stack
             spacing={2}
             style={{
@@ -264,7 +264,7 @@ export function BudgetSummary({ month }: BudgetSummaryProps) {
             projected={month >= currentMonth}
             style={{ marginTop: 13, marginBottom: 20 }}
           />
-        )}
+        )} */}
       </NamespaceContext.Provider>
     </View>
   );

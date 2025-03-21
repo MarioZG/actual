@@ -37,7 +37,7 @@ export function Saved({ projected, style }: SavedProps) {
 
   return (
     <View style={{ alignItems: 'center', fontSize: 14, ...style }}>
-      {projected ? (
+      {/* {projected ? (
         <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
           { t('Projected balance:')}
                   <View style={{ flexDirection: 'row', paddingLeft: 5}}
@@ -69,9 +69,9 @@ export function Saved({ projected, style }: SavedProps) {
           <PrivacyFilter>{format(saved, 'financial')}</PrivacyFilter>
         </View>
         </View>
-      )}
+      )} */}
 
-      {projected ? (
+      {/* {projected ? (
         <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
           { t('EOM:')}
                   <View style={{ flexDirection: 'row', paddingLeft: 5}}
@@ -103,7 +103,7 @@ export function Saved({ projected, style }: SavedProps) {
           <PrivacyFilter>{format(cashflow, 'financial')}</PrivacyFilter>
         </View>
         </View>
-      )}
+      )} */}
 
 
     </View>

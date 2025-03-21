@@ -18,6 +18,7 @@ export type SyncedPrefs = Partial<
     | 'numberFormat'
     | 'hideFraction'
     | 'isPrivacyEnabled'
+    | 'isBudgetModeEnabled'
     | `show-balances-${string}`
     | `show-extra-balances-${string}`
     | `hide-cleared-${string}`

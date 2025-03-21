@@ -36,6 +36,7 @@ import { makeAmountGrey } from '../util';
 
 import { BalanceMenu } from './BalanceMenu';
 import { BudgetMenu } from './BudgetMenu';
+import { useBudgetMode } from '../../../hooks/useBudgetMode';
 
 export const useTrackingSheetValue = <
   FieldName extends SheetFields<'tracking-budget'>,
@@ -100,7 +101,15 @@ const cellStyleTotal: CSSProperties= {
   marginBottom: '15px'
 };
 
-export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
+type BudgetTotalsMonthProps = {
+  month: string;
+  editing: boolean;
+};
+
+export const BudgetTotalsMonth = memo(function BudgetTotalsMonth(month: BudgetTotalsMonthProps) {
+
+  const isBudgetModeEnabled = useBudgetMode();    
+  console.log('isBudgetModeEnabled', isBudgetModeEnabled);
   return (
     <View
       style={{
@@ -122,15 +131,15 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
           {props => <CellValueText {...props} style={cellStyle} />}
         </TrackingCellValue>
       </View>
-      <View style={headerLabelStyle}>
+      {isBudgetModeEnabled && (<View style={headerLabelStyle}>
         <Text style={{ color: theme.pageTextLight }}>
           <Trans>Spent</Trans>
         </Text>
         <TrackingCellValue binding={trackingBudget.totalSpent} type="financial">
           {props => <CellValueText {...props} style={cellStyle} />}
         </TrackingCellValue>
-      </View>
-      <View style={headerLabelStyle}>
+      </View> )}
+      {(isBudgetModeEnabled || month.month.endsWith("03")) && (<View style={headerLabelStyle}>
         <Text style={{ color: theme.pageTextLight }}>
           <Trans>Balance</Trans>
         </Text>
@@ -140,7 +149,7 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth() {
         >
           {props => <CellValueText {...props} style={cellStyle} />}
         </TrackingCellValue>
-      </View>
+      </View>)}
     </View>
   );
 });
@@ -214,6 +223,9 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
 });
 
 export function IncomeHeaderMonth() {
+
+  const isBudgetModeEnabled = useBudgetMode();    
+
   return (
     <View
       style={{
@@ -227,11 +239,11 @@ export function IncomeHeaderMonth() {
           <Trans>Budgeted</Trans>
         </Text>
       </View>
-      <View style={headerLabelStyle}>
+      {isBudgetModeEnabled && ( <View style={headerLabelStyle}>
         <Text style={{ color: theme.pageTextLight }}>
           <Trans>Received</Trans>
         </Text>
-      </View>
+      </View> )}
     </View>
   );
 }
@@ -245,6 +257,7 @@ export const GroupMonth = memo(function GroupMonth({
   group,
 }: GroupMonthProps) {
   const { id } = group;
+  const isBudgetModeEnabled = useBudgetMode();    
 
   return (
     <View
@@ -266,7 +279,7 @@ export const GroupMonth = memo(function GroupMonth({
           type: 'financial',
         }}
       />
-      <TrackingSheetCell
+      {isBudgetModeEnabled && (<TrackingSheetCell
         name="spent"
         width="flex"
         textAlign="right"
@@ -275,8 +288,9 @@ export const GroupMonth = memo(function GroupMonth({
           binding: trackingBudget.groupSumAmount(id),
           type: 'financial',
         }}
-      />
-      {!group.is_income && (
+      /> )}
+      
+      {!group.is_income && ( isBudgetModeEnabled || month.endsWith("03")) && (
         <TrackingSheetCell
           name="balance"
           width="flex"
@@ -325,6 +339,7 @@ export const CategoryMonth = memo(function CategoryMonth({
   };
 
   const { showUndoNotification } = useUndo();
+  const isBudgetModeEnabled = useBudgetMode();    
 
   return (
     <View
@@ -466,7 +481,7 @@ export const CategoryMonth = memo(function CategoryMonth({
           }}
         />
       </View>
-      <Field name="spent" width="flex" style={{ textAlign: 'right' }}>
+      {isBudgetModeEnabled &&(<Field name="spent" width="flex" style={{ textAlign: 'right' }}>
         <span
           data-testid="category-month-spent"
           onClick={() => onShowActivity(category.id, month)}
@@ -489,9 +504,9 @@ export const CategoryMonth = memo(function CategoryMonth({
             )}
           </TrackingCellValue>
         </span>
-      </Field>
+      </Field> )}
 
-      {!category.is_income && (
+      {!category.is_income && (isBudgetModeEnabled || month.endsWith("03")) && (
         <Field
           name="balance"
           width="flex"

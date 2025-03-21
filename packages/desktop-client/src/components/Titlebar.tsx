@@ -104,6 +104,41 @@ function PrivacyButton({ style }: PrivacyButtonProps) {
   );
 }
 
+function BudgetModeButton({ style }: PrivacyButtonProps) {
+  const [isBudgetModeEnabledPref, setBudgetModeEnabledPref] =
+    useSyncedPref('isBudgetModeEnabled');
+  const isBudgetModeEnabled = String(isBudgetModeEnabledPref) === 'true';
+
+  const iconStyle = { width: 15, height: 15 , color: 'red'};
+
+  useHotkeys(
+    'shift+ctrl+b, shift+cmd+b, shift+meta+b',
+    () => {
+      setBudgetModeEnabledPref(String(!isBudgetModeEnabled));
+    },
+    {
+      preventDefault: true,
+      scopes: ['app'],
+    },
+    [setBudgetModeEnabledPref, isBudgetModeEnabled],
+  );
+
+  return (
+    <Button
+      variant="bare"
+      aria-label={`${isBudgetModeEnabled ? 'Disable' : 'Enable'} privacy mode`}
+      onPress={() => setBudgetModeEnabledPref(String(!isBudgetModeEnabled))}
+      style={style}
+    >
+      {isBudgetModeEnabled ? (
+        <SvgViewHide style={iconStyle} />
+      ) : (
+        <SvgViewShow style={iconStyle} />
+      )}
+    </Button>
+  );
+}
+
 type SyncButtonProps = {
   style?: CSSProperties;
   isMobile?: boolean;
@@ -347,6 +382,7 @@ export function Titlebar({ style }: TitlebarProps) {
           <ThemeSelector />
         )}
         <PrivacyButton />
+        <BudgetModeButton />
         {serverURL ? <SyncButton /> : null}
         <LoggedInUser />
         {!isElectron() && <HelpMenu />}
