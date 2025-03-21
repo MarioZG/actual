@@ -20,6 +20,7 @@ import {
   type SheetFields,
   type Spreadsheets,
 } from '.';
+import { number } from 'loot-core/server/spreadsheet/globals';
 
 type CellValueProps<
   SheetName extends SheetNames,
@@ -85,11 +86,19 @@ export function CellValueText<
   ...props
 }: CellValueTextProps<SheetName, FieldName>) {
   const format = useFormat();
+
+  const styleclone = { ...style };
+  if(name.endsWith("!cashflow") && number(value) <0 ) {
+    styleclone.color = 'red';
+  }
+  else   if(name.endsWith("!cashflow") && number(value) > 0 ) {
+    styleclone.color = 'green';
+  }
   return (
     <Text
       style={{
         ...(type === 'financial' && styles.tnum),
-        ...style,
+        ...styleclone,
       }}
       data-testid={name}
       data-cellname={name}

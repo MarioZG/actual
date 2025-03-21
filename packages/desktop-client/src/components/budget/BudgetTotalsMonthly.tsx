@@ -54,8 +54,11 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
       >
 
         <View style={{ flexGrow: '1', flexDirection: 'column' }}>
-          <View style={{ flexGrow: '1', flexDirection: 'column', display: 'inline' }}>
-          <View style={{ flexGrow: '1', flexDirection: 'column' }}>
+          <View style={{ flexGrow: '1', flexDirection: 'column', fontWeight: 'bold' }}>
+            <Trans>Monthly</Trans>
+          </View>
+          <View style={{ flexGrow: '1', flexDirection: 'column', display: 'inline',  paddingLeft: '5px' }}>
+            <View style={{ flexGrow: '1', flexDirection: 'column' }}>
               <Trans>Income</Trans>
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column' }}>
@@ -63,7 +66,12 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column', borderTop: '1px solid ', paddingBottom: '5px' }}>
               <Trans>Moth balance</Trans>
-            </View> 
+            </View>
+          </View>
+          <View style={{ flexGrow: '1', flexDirection: 'column', fontWeight: 'bold' }}>
+          <Trans>Year running</Trans>
+          </View>
+          <View style={{ flexGrow: '1', flexDirection: 'column', display: 'inline',  paddingLeft: '5px' }}>
             {/* <View style={{ flexGrow: '1', flexDirection: 'column' , paddingBottom: '5px'}}>
               <Trans>Cash at EOM</Trans>
             </View>             */}
@@ -74,8 +82,8 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
               <Trans>Y. Spend</Trans>
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column', borderTop: '1px solid ', paddingBottom: '5px' }}>
-              <Trans>Cash at EOY</Trans>
-            </View> 
+              <Trans>Cash at EOM</Trans>
+            </View>
           </View>
         </View>
 

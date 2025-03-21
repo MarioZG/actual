@@ -278,7 +278,7 @@ export function BudgetTable(props: BudgetTableProps) {
       >
 
 mycashflow
-<BudgetTotalsMonthly
+      <BudgetTotalsMonthly
           MonthComponent={dataComponents.BudgetTotalsComponentRunning}
         />
 

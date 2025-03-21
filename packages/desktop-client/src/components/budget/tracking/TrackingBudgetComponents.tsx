@@ -84,16 +84,6 @@ const cellStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-const cellStyleRed: CSSProperties = {
-  color: 'red',
-  fontWeight: 600,
-};
-
-const cellStyleGreen: CSSProperties = {
-  color: 'green',
-  fontWeight: 600,
-};
-
 const cellStyleTotal: CSSProperties= {
   color: theme.pageTextLight,
   fontWeight: 600,
