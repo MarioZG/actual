@@ -44,6 +44,8 @@ import { useServerURL } from './ServerContext';
 import { useSidebar } from './sidebar/SidebarProvider';
 import { useSheetValue } from './spreadsheet/useSheetValue';
 import { ThemeSelector } from './ThemeSelector';
+import { SvgBudgetView } from '../../../component-library/src/icons/v2/BudgetView';
+import { red100 } from '../style/palette';
 
 function UncategorizedButton() {
   const count: number | null = useSheetValue(queries.uncategorizedCount());
@@ -131,9 +133,9 @@ function BudgetModeButton({ style }: PrivacyButtonProps) {
       style={style}
     >
       {isBudgetModeEnabled ? (
-        <SvgViewHide style={iconStyle} />
+        <SvgBudgetView style={iconStyle} />
       ) : (
-        <SvgViewShow style={iconStyle} />
+        <SvgBudgetView style={iconStyle} />
       )}
     </Button>
   );

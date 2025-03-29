@@ -18,6 +18,7 @@ import { useResizeObserver } from '../../hooks/useResizeObserver';
 import { Link } from '../common/Link';
 
 import { type MonthBounds } from './MonthsContext';
+import { SvgCalendarNext, SvgCalendarPrev } from '../../../../component-library/src/icons/v2/Calendar';
 
 type MonthPickerProps = {
   startMonth: string;
@@ -41,6 +42,11 @@ export const MonthPicker = ({
 
   const currentMonth = monthUtils.currentMonth();
   const firstSelectedMonth = startMonth;
+
+
+  const prevYear = `202${String.fromCharCode(firstSelectedMonth.charCodeAt(3)-1)}-04`;
+  const nextYear = `202${String.fromCharCode(firstSelectedMonth.charCodeAt(3)+1)}-04`;
+  
 
   const lastSelectedMonth = monthUtils.addMonths(
     firstSelectedMonth,
@@ -90,6 +96,44 @@ export const MonthPicker = ({
           justifyContent: 'center',
         }}
       >
+      <Link
+          variant="button"
+          buttonVariant="bare"
+          onPress={() => onSelect(prevYear)}
+          style={{
+            padding: '3px 3px',
+            marginRight: '12px',
+          }}
+        >
+          <View title={t(prevYear)}>
+            <SvgCalendarPrev
+              style={{
+                width: 16,
+                height: 16,
+              }}
+            />
+          </View>
+        </Link>
+
+        <Link
+          variant="button"
+          buttonVariant="bare"
+          onPress={() => onSelect(nextYear)}
+          style={{
+            padding: '3px 3px',
+            marginRight: '12px',
+          }}
+        >
+          <View title={t(nextYear)}>
+            <SvgCalendarNext
+              style={{
+                width: 16,
+                height: 16,
+              }}
+            />
+          </View>
+        </Link>
+
         <Link
           variant="button"
           buttonVariant="bare"

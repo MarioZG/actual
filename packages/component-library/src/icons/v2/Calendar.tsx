@@ -16,3 +16,53 @@ export const SvgCalendar = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
+
+export const SvgCalendarNext = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    {...props}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 64 64"
+    style={{
+      color: 'inherit',
+      ...props.style,
+    }}
+  >
+<g>
+	<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="46" y1="10" x2="18" y2="10"/>
+	<polyline fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" points="12,10 1,10 1,58 63,58 63,10 52,10 	"/>
+	<rect x="12" y="6" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="6" height="8"/>
+	<rect x="46" y="6" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="6" height="8"/>
+</g>
+<polyline fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="bevel" stroke-miterlimit="10" points="34,30 42,38 
+	34,46 "/>
+<g>
+	<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="42" y1="38" x2="22" y2="38"/>
+</g>
+<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="1" y1="18" x2="63" y2="18"/>
+  </svg>
+);
+
+
+
+export const SvgCalendarPrev = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    {...props}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 64 64"
+    style={{
+      color: 'inherit',
+      ...props.style,
+    }}
+  >
+<g>
+	<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="46" y1="10" x2="18" y2="10"/>
+	<polyline fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" points="12,10 1,10 1,58 63,58 63,10 52,10 	"/>
+	<rect x="12" y="6" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="6" height="8"/>
+	<rect x="46" y="6" fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" width="6" height="8"/>
+</g>
+<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="1" y1="18" x2="63" y2="18"/>
+<polyline fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="bevel" stroke-miterlimit="10" points="30.001,46 
+	22.001,38 30.001,30 "/>
+<line fill="none" stroke="#000000" stroke-width="2" stroke-miterlimit="10" x1="22.001" y1="38" x2="42.001" y2="38"/>
+ </svg>
+);
