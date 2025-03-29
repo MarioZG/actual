@@ -136,9 +136,17 @@ export function createSummary(groups, categories, sheetName, prevSheetName) {
 
   sheet.get().createDynamic(sheetName, 'real-saved', {
     initialValue: 0,
-    dependencies: ['total-income', 'total-spent'],
-    run: (income, spent) => {
-      return safeNumber(income - -spent);
+    dependencies: ['total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
+    run: (income, spent, budgetedIncome, budgetedSpent) => {
+      console.log(`calc real-saved  (${income}, ${spent}, ${budgetedIncome}, ${budgetedSpent}, )`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(budgetedIncome - budgetedSpent);
+
+      }
+      else {
+        return safeNumber(income - -spent);
+      }
     },
   });
 

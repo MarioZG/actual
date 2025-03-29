@@ -84,11 +84,10 @@ const cellStyle: CSSProperties = {
   fontWeight: 600,
 };
 
-const cellStyleTotal: CSSProperties= {
-  color: theme.pageTextLight,
+const cellStyleBudget: CSSProperties = {
+  color: 'lightgrey',
+  filter: 'brightness(90%)',
   fontWeight: 600,
-  borderTop: '1px solid ',
-  marginBottom: '15px'
 };
 
 type BudgetTotalsMonthProps = {
@@ -144,7 +143,9 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth(month: BudgetTo
   );
 });
 
-export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
+export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth(month: BudgetTotalsMonthProps) {
+  const useBudgets = monthUtils.currentMonth() <= month.month;
+
   return (
     <View
       style={{
@@ -157,15 +158,15 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
     >
       <View style={headerLabelStyle}>
         <TrackingCellValue
-          binding={trackingBudget.totalIncome}
+          binding={useBudgets ? trackingBudget.totalBudgetedIncome : trackingBudget.totalIncome}
           type="financial"
         >
-          {props => <CellValueText {...props} style={cellStyle} />}
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyle}>
-        <TrackingCellValue binding={trackingBudget.totalSpent} type="financial">
-          {props => <CellValueText {...props} style={cellStyle} />}
+        <TrackingCellValue binding={useBudgets ? trackingBudget.totalBudgetedExpense : trackingBudget.totalSpent} type="financial">
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyleBreak}>
@@ -173,7 +174,7 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
           binding={trackingBudget.totalSaved}
           type="financial"
         >
-          {props => <CellValueText {...props} style={cellStyle} />}
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>      
       {/* <View style={headerLabelStyleBreak}>
@@ -189,7 +190,7 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
           binding={trackingBudget.runningIncome}
           type="financial"
         >
-          {props => <CellValueText {...props} style={cellStyle} />}
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyle}>
@@ -197,7 +198,7 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
           binding={trackingBudget.runningSpend}
           type="financial"
         >
-          {props => <CellValueText {...props} style={cellStyle} />}
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
       <View style={headerLabelStyleTotal}>
@@ -205,7 +206,7 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth() {
           binding={trackingBudget.cashflow}
           type="financial"
         >
-          {props => <CellValueText {...props} style={cellStyle} />}
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
     </View>
