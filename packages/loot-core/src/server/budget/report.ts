@@ -87,6 +87,20 @@ export function createCategoryGroup(group, sheetName) {
       .map(cat => `leftover-${cat.id}`),
     run: sumAmounts,
   });
+
+  //create annual expenses leftover amount
+  if(group.name.startsWith("Annual")) {
+    
+    console.log(`createCategoryGroup group-leftover-annual  (${group}, ${sheetName}, )`);
+
+    sheet.get().createDynamic(sheetName, 'group-leftover-annual', {
+      initialValue: 0,
+      dependencies: group.categories
+        .filter(cat => !cat.hidden)
+        .map(cat => `leftover-${cat.id}`),
+      run: sumAmounts,
+    });
+  }
 }
 
 export function createSummary(groups, categories, sheetName, prevSheetName) {
@@ -167,6 +181,24 @@ export function createSummary(groups, categories, sheetName, prevSheetName) {
       }
     },
   });  
+
+  sheet.get().createDynamic(sheetName, 'cashflow-annual', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted', 'group-leftover-annual'],
+    run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent, groupLeftoverAnnual) => {
+      console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent - groupLeftoverAnnual)})`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(prefcashflow + budgetedIncome - budgetedSpent- groupLeftoverAnnual);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(prefcashflow + income - -spent - groupLeftoverAnnual);
+
+      }
+    },
+  });
 
   sheet.get().createDynamic(sheetName, 'running-income', {
     initialValue: 0,

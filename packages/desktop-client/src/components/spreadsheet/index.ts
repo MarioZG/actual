@@ -45,9 +45,11 @@ export type Spreadsheets = {
     'group-budget': number;
     'group-leftover': number;
     cashflow: number;
+    cashflowAnnual: number;
     runningIncome: number;
     runningSpend: number;
     runningCashflow: number;
+    groupLeftoverAnnual: number;
     budget: number;
     'sum-amount': number;
     leftover: number;
@@ -72,9 +74,11 @@ export type Spreadsheets = {
     'group-budget': number;
     'group-leftover': number;
     cashflow: number;
+    'cashflow-annual': number;
     'running-income': number;
     'running-spend': number;
     'running-cashflow': number;
+    'group-leftover-annual': number;
     budget: number;
     'sum-amount': number;
     leftover: number;

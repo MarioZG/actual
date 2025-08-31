@@ -152,8 +152,7 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth(month: B
         flex: 1,
         flexDirection: 'column',
         marginRight: styles.monthRightPadding,
-        paddingTop: 10,
-        paddingBottom: 10,
+
       }}
     >
       <View style={headerLabelStyle}>
@@ -204,6 +203,22 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth(month: B
       <View style={headerLabelStyleTotal}>
         <TrackingCellValue
           binding={trackingBudget.cashflow}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyle}>
+        <TrackingCellValue
+          binding={trackingBudget.groupLeftoverAnnual}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
+        </TrackingCellValue>
+      </View>
+      <View style={headerLabelStyleTotal}>
+        <TrackingCellValue
+          binding={trackingBudget.cashflowAnnual}
           type="financial"
         >
           {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}

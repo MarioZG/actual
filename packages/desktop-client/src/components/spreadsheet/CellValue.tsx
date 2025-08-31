@@ -88,10 +88,10 @@ export function CellValueText<
   const format = useFormat();
 
   const styleclone = { ...style };
-  if(name.endsWith("!cashflow") && number(value) <0 ) {
+  if(name.includes("!cashflow") && number(value) <0 ) {
     styleclone.color = 'red';
   }
-  else   if(name.endsWith("!cashflow") && number(value) > 0 ) {
+  else   if(name.includes("!cashflow") && number(value) > 0 ) {
     styleclone.color = 'green';
   }
   return (

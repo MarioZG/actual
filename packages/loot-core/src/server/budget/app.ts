@@ -220,6 +220,7 @@ async function trackingBudgetMonth({ month }: { month: string }) {
     value('real-saved'),
     value('total-leftover'),
     value('cashflow'),
+    value('cashflow-annual'),
     value('running-income'),
     value('running-spend'),
     value('running-cashflow'),
