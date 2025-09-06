@@ -48,8 +48,7 @@ const DynamicBudgetTableInner = ({
   ...props
 }: DynamicBudgetTableInnerProps) => {
   const { setDisplayMax } = useBudgetMonthCount();
-  const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState =  0;
 
   const numPossible = getNumPossibleMonths(
     width,

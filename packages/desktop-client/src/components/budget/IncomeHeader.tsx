@@ -17,8 +17,7 @@ export function IncomeHeader({
   MonthComponent,
   onShowNewGroup,
 }: IncomeHeaderProps) {
-  const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState =  0;
   return (
     <View style={{ flexDirection: 'row', flex: 1 }}>
       <View

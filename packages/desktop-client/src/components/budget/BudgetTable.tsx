@@ -93,8 +93,7 @@ export function BudgetTable(props: BudgetTableProps) {
   const [showHiddenCategories, setShowHiddenCategoriesPef] = useLocalPref(
     'budget.showHiddenCategories',
   );
-  const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState = 0;
   const [editing, setEditing] = useState<{ id: string; cell: string } | null>(
     null,
   );

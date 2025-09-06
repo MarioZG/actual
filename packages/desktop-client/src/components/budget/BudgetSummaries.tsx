@@ -17,6 +17,8 @@ import { useResizeObserver } from '../../hooks/useResizeObserver';
 import { type BudgetSummary as EnvelopeBudgetSummary } from './envelope/budgetsummary/BudgetSummary';
 import { MonthsContext } from './MonthsContext';
 import { type BudgetSummary as TrackingBudgetSummary } from './tracking/budgetsummary/BudgetSummary';
+import { useBudgetMode } from '../../hooks/useBudgetMode';
+
 
 type BudgetSummariesProps = {
   SummaryComponent: typeof TrackingBudgetSummary | typeof EnvelopeBudgetSummary;
@@ -37,11 +39,14 @@ export function BudgetSummaries({ SummaryComponent }: BudgetSummariesProps) {
     }, []),
   );
 
+  const isBudgetModeEnabled = useBudgetMode();    
+
+
   const prevMonth0 = useRef(months[0]);
   const allMonths = [...months];
   allMonths.unshift(subMonths(months[0], 1));
   allMonths.push(addMonths(months[months.length - 1], 1));
-  const monthWidth = widthState / months.length;
+  const monthWidth = widthState / (months.length + (!isBudgetModeEnabled ? 1 : 0)); //(if march we nned two slots)
 
   useLayoutEffect(() => {
     const prevMonth = prevMonth0.current;
@@ -65,6 +70,7 @@ export function BudgetSummaries({ SummaryComponent }: BudgetSummariesProps) {
     spring.start({ from: { x: -monthWidth }, to: { x: -monthWidth } });
   }, [monthWidth]);
 
+
   return (
     <div
       className={css([
@@ -87,11 +93,17 @@ export function BudgetSummaries({ SummaryComponent }: BudgetSummariesProps) {
         }}
       >
         {allMonths.map(month => {
+
+          console.log(allMonths.length + "juhu"+month);
+          console.log(months.length + "juhu"+month);
+          const monthWidth1 = !isBudgetModeEnabled && (allMonths[0] != month) && month.endsWith("03") ? 2*monthWidth : monthWidth;
+
+
           return (
             <View
               key={month}
               style={{
-                flex: `0 0 ${monthWidth}px`,
+                flex: `0 0 ${monthWidth1}px`,
                 paddingLeft: 4,
                 paddingRight: 4,
               }}

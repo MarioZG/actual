@@ -17,8 +17,7 @@ type BudgetPageHeaderProps = {
 
 export const BudgetPageHeader = memo<BudgetPageHeaderProps>(
   ({ startMonth, onMonthSelect, numMonths, monthBounds }) => {
-    const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-    const categoryExpandedState = categoryExpandedStatePref ?? 0;
+    const categoryExpandedState = 0;
     const offsetMultipleMonths = numMonths === 1 ? 4 : 0;
 
     return (

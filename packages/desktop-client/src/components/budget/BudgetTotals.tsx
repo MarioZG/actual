@@ -33,25 +33,18 @@ export const BudgetTotals = memo(function BudgetTotals({
   collapseAllCategories,
 }: BudgetTotalsProps) {
   const { t } = useTranslation();
-  const [categoryExpandedStatePref, setCategoryExpandedStatePref] =
-    useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState = 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef(null);
 
   const cycleExpandedState = () => {
-    const nextState = (categoryExpandedState + 1) % 3;
-    setCategoryExpandedStatePref(nextState);
+    //do nothing we want it sweet and short or short and sweet 
   };
 
   const getExpandStateLabel = () => {
     switch (categoryExpandedState) {
       case 0:
         return t('Expand');
-      case 1:
-        return t('Fully Expand');
-      case 2:
-        return t('Collapse');
       default:
         return t('Expand');
     }

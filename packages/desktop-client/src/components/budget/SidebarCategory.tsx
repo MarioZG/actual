@@ -56,8 +56,7 @@ export function SidebarCategory({
 }: SidebarCategoryProps) {
   const { t } = useTranslation();
   const goalTemplatesUIEnabled = useFeatureFlag('goalTemplatesUIEnabled');
-  const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState =  0;
 
   const temporary = category.id === 'new';
   const { setMenuOpen, menuOpen, handleContextMenu, resetPosition, position } =

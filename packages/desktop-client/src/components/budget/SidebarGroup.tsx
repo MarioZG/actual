@@ -57,8 +57,7 @@ export function SidebarGroup({
 }: SidebarGroupProps) {
   const { t } = useTranslation();
   const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
-  const [categoryExpandedStatePref] = useGlobalPref('categoryExpandedState');
-  const categoryExpandedState = categoryExpandedStatePref ?? 0;
+  const categoryExpandedState =  0;
 
   const temporary = group.id === 'new';
   const { setMenuOpen, menuOpen, handleContextMenu, resetPosition, position } =
