@@ -85,7 +85,10 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
               <Trans>Cash at EOM</Trans>
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column', paddingBottom: '5px' }}>
-              <Trans>Annual expenses</Trans>
+              <Trans>Annual expenses spend</Trans>
+            </View>
+            <View style={{ flexGrow: '1', flexDirection: 'column', paddingBottom: '5px' }}>
+              <Trans>Annual expenses planned</Trans>
             </View>
             <View style={{ flexGrow: '1', flexDirection: 'column', borderTop: '1px solid ', paddingBottom: '5px' }}>
               <Trans>Cash at EOY</Trans>

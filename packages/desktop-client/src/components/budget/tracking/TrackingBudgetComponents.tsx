@@ -208,6 +208,14 @@ export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth(month: B
           {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
         </TrackingCellValue>
       </View>
+    <View style={headerLabelStyle}>
+        <TrackingCellValue
+          binding={trackingBudget.groupSpendAnnual}
+          type="financial"
+        >
+          {props => <CellValueText {...props} style={useBudgets ? cellStyleBudget : cellStyle} />}
+        </TrackingCellValue>
+      </View>
       <View style={headerLabelStyle}>
         <TrackingCellValue
           binding={trackingBudget.groupLeftoverAnnual}

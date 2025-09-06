@@ -91,8 +91,18 @@ export function createCategoryGroup(group, sheetName) {
   //create annual expenses leftover amount
   if(group.name.startsWith("Annual")) {
     
-    console.log(`createCategoryGroup group-leftover-annual  (${group}, ${sheetName}, )`);
+    console.log(`createCategoryGroup sum-amount-annual and group-leftover-annual  (${group}, ${sheetName}, )`);
 
+    //spend in annual category
+    sheet.get().createDynamic(sheetName, 'sum-amount-annual', {
+      initialValue: 0,
+      dependencies: group.categories
+        .filter(cat => !cat.hidden)
+        .map(cat => `sum-amount-${cat.id}`),
+      run: sumAmounts,
+    });
+
+    //budgeted in annual category
     sheet.get().createDynamic(sheetName, 'group-leftover-annual', {
       initialValue: 0,
       dependencies: group.categories
