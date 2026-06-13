@@ -30,4 +30,4 @@ if [ "$SKIP_TRANSLATIONS" = false ]; then
   packages/desktop-client/bin/remove-untranslated-languages
 fi
 
-lage build:browser --to=@actual-app/web
+yarn exec lage build:browser --to=@actual-app/web
