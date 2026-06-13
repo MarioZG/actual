@@ -12,6 +12,14 @@ export function sumAmounts(...amounts) {
   );
 }
 
+export function sumAmountsgt0(...amounts) {
+  return safeNumber(
+    amounts.reduce((total, amount) => {
+      return total + (number(amount) > 0 ? number(amount) : 0);
+    }, 0),
+  );
+}
+
 export function flatten2(arr) {
   return Array.prototype.concat.apply([], arr);
 }

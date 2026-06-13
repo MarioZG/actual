@@ -7,7 +7,7 @@ import * as sheet from '../sheet';
 import { resolveName } from '../spreadsheet/util';
 
 import { createCategory as createCategoryFromBase } from './base';
-import { number, sumAmounts } from './util';
+import { number, sumAmounts, sumAmountsgt0 } from './util';
 
 export async function createCategory(cat, sheetName, prevSheetName) {
   sheet.get().createStatic(sheetName, `budget-${cat.id}`, 0);
@@ -102,13 +102,13 @@ export function createCategoryGroup(group, sheetName) {
       run: sumAmounts,
     });
 
-    //budgeted in annual category
+    //budgeted left in annual category
     sheet.get().createDynamic(sheetName, 'group-leftover-annual', {
       initialValue: 0,
       dependencies: group.categories
         .filter(cat => !cat.hidden)
         .map(cat => `leftover-${cat.id}`),
-      run: sumAmounts,
+      run: sumAmountsgt0,
     });
   }
 }
