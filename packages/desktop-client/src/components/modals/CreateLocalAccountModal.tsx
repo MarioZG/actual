@@ -1,7 +1,8 @@
 // @ts-strict-ignore
-import { type FormEvent, useState } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Form } from 'react-aria-components';
-import { useTranslation, Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { FormError } from '@actual-app/components/form-error';
@@ -11,30 +12,29 @@ import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { toRelaxedNumber } from '@actual-app/core/shared/util';
 
-import { closeModal } from 'loot-core/client/modals/modalsSlice';
-import { createAccount } from 'loot-core/client/queries/queriesSlice';
-import { toRelaxedNumber } from 'loot-core/shared/util';
-
-import * as useAccounts from '../../hooks/useAccounts';
-import { useNavigate } from '../../hooks/useNavigate';
-import { useDispatch } from '../../redux';
-import { Link } from '../common/Link';
+import { useCreateAccountMutation } from '#accounts';
+import { Link } from '#components/common/Link';
 import {
   Modal,
   ModalButtons,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
-} from '../common/Modal';
-import { Checkbox } from '../forms';
-import { validateAccountName } from '../util/accountValidation';
+} from '#components/common/Modal';
+import { Checkbox } from '#components/forms';
+import { validateAccountName } from '#components/util/accountValidation';
+import { useAccounts } from '#hooks/useAccounts';
+import { useNavigate } from '#hooks/useNavigate';
+import { closeModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 export function CreateLocalAccountModal() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const accounts = useAccounts.useAccounts();
+  const { data: accounts = [] } = useAccounts();
   const [name, setName] = useState('');
   const [offbudget, setOffbudget] = useState(false);
   const [balance, setBalance] = useState('0');
@@ -54,6 +54,8 @@ export function CreateLocalAccountModal() {
     }
   };
 
+  const createAccount = useCreateAccountMutation();
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -63,26 +65,30 @@ export function CreateLocalAccountModal() {
     setBalanceError(balanceError);
 
     if (!nameError && !balanceError) {
-      dispatch(closeModal());
-      const id = await dispatch(
-        createAccount({
+      createAccount.mutate(
+        {
           name,
           balance: toRelaxedNumber(balance),
           offBudget: offbudget,
-        }),
-      ).unwrap();
-      navigate('/accounts/' + id);
+        },
+        {
+          onSuccess: id => {
+            dispatch(closeModal());
+            void navigate('/accounts/' + id);
+          },
+        },
+      );
     }
   };
   return (
     <Modal name="add-local-account">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={
               <ModalTitle title={t('Create Local Account')} shrinkOnOverflow />
             }
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View>
             <Form onSubmit={onSubmit}>
@@ -91,9 +97,9 @@ export function CreateLocalAccountModal() {
                   <Input
                     name="name"
                     value={name}
-                    onChange={event => setName(event.target.value)}
-                    onBlur={event => {
-                      const name = event.target.value.trim();
+                    onChangeValue={setName}
+                    onUpdate={value => {
+                      const name = value.trim();
                       validateAndSetName(name);
                     }}
                     style={{ flex: 1 }}
@@ -166,9 +172,9 @@ export function CreateLocalAccountModal() {
                   name="balance"
                   inputMode="decimal"
                   value={balance}
-                  onChange={event => setBalance(event.target.value)}
-                  onBlur={event => {
-                    const balance = event.target.value.trim();
+                  onChangeValue={setBalance}
+                  onUpdate={value => {
+                    const balance = value.trim();
                     setBalance(balance);
                     if (validateBalance(balance) && balanceError) {
                       setBalanceError(false);
@@ -179,18 +185,20 @@ export function CreateLocalAccountModal() {
               </InlineField>
               {balanceError && (
                 <FormError style={{ marginLeft: 75 }}>
-                  {t('Balance must be a number')}
+                  <Trans>Balance must be a number</Trans>
                 </FormError>
               )}
 
               <ModalButtons>
-                <Button onPress={close}>{t('Back')}</Button>
+                <Button onPress={() => state.close()}>
+                  <Trans>Back</Trans>
+                </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   style={{ marginLeft: 10 }}
                 >
-                  {t('Create')}
+                  <Trans>Create</Trans>
                 </Button>
               </ModalButtons>
             </Form>

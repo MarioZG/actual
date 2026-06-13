@@ -1,18 +1,14 @@
-import React, {
-  type ComponentProps,
-  type ComponentType,
-  type CSSProperties,
-  useCallback,
-  useState,
-} from 'react';
+import React, { useCallback, useState } from 'react';
+import type { ComponentProps, ComponentType, CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router-dom';
-import { useSpring, animated, config } from 'react-spring';
+import { NavLink } from 'react-router';
+import { animated, config, useSpring } from 'react-spring';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import {
   SvgAdd,
   SvgCog,
+  SvgCreditCard,
   SvgPiggyBank,
   SvgReports,
   SvgStoreFront,
@@ -25,7 +21,9 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { useDrag } from '@use-gesture/react';
 
-import { useScrollListener } from '../ScrollProvider';
+import { useIsTestEnv } from '#hooks/useIsTestEnv';
+import { useScrollListener } from '#hooks/useScrollListener';
+import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
 
 const COLUMN_COUNT = 3;
 const PILL_HEIGHT = 15;
@@ -40,6 +38,9 @@ export const MOBILE_NAV_HEIGHT = ROW_HEIGHT + PILL_HEIGHT;
 export function MobileNavTabs() {
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
+  const syncServerStatus = useSyncServerStatus();
+  const isTestEnv = useIsTestEnv();
+  const isUsingServer = syncServerStatus !== 'no-server' || isTestEnv;
   const [navbarState, setNavbarState] = useState<'default' | 'open' | 'hidden'>(
     'default',
   );
@@ -48,46 +49,47 @@ export function MobileNavTabs() {
     flex: `1 1 ${100 / COLUMN_COUNT}%`,
     height: ROW_HEIGHT,
     padding: 10,
+    maxWidth: `${100 / COLUMN_COUNT}%`,
   };
 
-  const [{ y }, api] = useSpring(() => ({ y: OPEN_DEFAULT_Y }));
+  const [{ y }, api] = useSpring(() => ({ from: { y: OPEN_DEFAULT_Y } }), []);
 
   const openFull = useCallback(
     ({ canceled }: { canceled?: boolean }) => {
       // when cancel is true, it means that the user passed the upwards threshold
       // so we change the spring config to create a nice wobbly effect
       setNavbarState('open');
-      api.start({
-        y: OPEN_FULL_Y,
-        immediate: false,
+      void api.start({
+        to: { y: OPEN_FULL_Y },
+        immediate: isTestEnv,
         config: canceled ? config.wobbly : config.stiff,
       });
     },
-    [api, OPEN_FULL_Y],
+    [api, isTestEnv],
   );
 
   const openDefault = useCallback(
     (velocity = 0) => {
       setNavbarState('default');
-      api.start({
-        y: OPEN_DEFAULT_Y,
-        immediate: false,
+      void api.start({
+        to: { y: OPEN_DEFAULT_Y },
+        immediate: isTestEnv,
         config: { ...config.stiff, velocity },
       });
     },
-    [api, OPEN_DEFAULT_Y],
+    [api, isTestEnv],
   );
 
   const hide = useCallback(
     (velocity = 0) => {
       setNavbarState('hidden');
-      api.start({
-        y: HIDDEN_Y,
-        immediate: false,
+      void api.start({
+        to: { y: HIDDEN_Y },
+        immediate: isTestEnv,
         config: { ...config.stiff, velocity },
       });
     },
-    [api, HIDDEN_Y],
+    [api, isTestEnv],
   );
 
   const navTabs = [
@@ -116,23 +118,33 @@ export function MobileNavTabs() {
       Icon: SvgReports,
     },
     {
-      name: t('Schedules (Soon)'),
-      path: '/schedules/soon',
+      name: t('Schedules'),
+      path: '/schedules',
       style: navTabStyle,
       Icon: SvgCalendar3,
     },
     {
-      name: t('Payees (Soon)'),
-      path: '/payees/soon',
+      name: t('Payees'),
+      path: '/payees',
       style: navTabStyle,
       Icon: SvgStoreFront,
     },
     {
-      name: t('Rules (Soon)'),
-      path: '/rules/soon',
+      name: t('Rules'),
+      path: '/rules',
       style: navTabStyle,
       Icon: SvgTuning,
     },
+    ...(isUsingServer
+      ? [
+          {
+            name: t('Bank Sync'),
+            path: '/bank-sync',
+            style: navTabStyle,
+            Icon: SvgCreditCard,
+          },
+        ]
+      : []),
     {
       name: t('Settings'),
       path: '/settings',
@@ -148,13 +160,18 @@ export function MobileNavTabs() {
     <div key={idx} style={navTabStyle} />
   ));
 
-  useScrollListener(({ isScrolling, hasScrolledToEnd }) => {
-    if (isScrolling('down') && !hasScrolledToEnd('up')) {
-      hide();
-    } else if (isScrolling('up') && !hasScrolledToEnd('down')) {
-      openDefault();
-    }
-  });
+  useScrollListener(
+    useCallback(
+      ({ isScrolling, hasScrolledToEnd }) => {
+        if (isScrolling('down') && !hasScrolledToEnd('up')) {
+          hide();
+        } else if (isScrolling('up') && !hasScrolledToEnd('down')) {
+          openDefault();
+        }
+      },
+      [hide, openDefault],
+    ),
+  );
 
   const bind = useDrag(
     ({
@@ -182,7 +199,7 @@ export function MobileNavTabs() {
       } else {
         // when the user keeps dragging, we just move the sheet according to
         // the cursor position
-        api.start({ y: oy, immediate: true });
+        void api.start({ to: { y: oy }, immediate: true });
       }
     },
     {
@@ -195,7 +212,6 @@ export function MobileNavTabs() {
   );
 
   return (
-    // @ts-expect-error react-spring types currently do not support React v19 (but they soon will..)
     <animated.div
       role="navigation"
       {...bind()}
@@ -244,6 +260,7 @@ export function MobileNavTabs() {
 type NavTabIconProps = {
   width: number;
   height: number;
+  style?: CSSProperties;
 };
 
 type NavTabProps = {
@@ -266,12 +283,13 @@ function NavTab({ Icon: TabIcon, name, path, style, onClick }: NavTabProps) {
         flexDirection: 'column',
         textDecoration: 'none',
         textAlign: 'center',
+        textWrap: 'balance',
         userSelect: 'none',
         ...style,
       })}
       onClick={onClick}
     >
-      <TabIcon width={22} height={22} />
+      <TabIcon width={22} height={22} style={{ minHeight: '22px' }} />
       {name}
     </NavLink>
   );

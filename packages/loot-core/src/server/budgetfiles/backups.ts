@@ -1,13 +1,15 @@
+import type { Database } from '@jlongster/sql.js';
 // @ts-strict-ignore
+import AdmZip from 'adm-zip';
 import * as dateFns from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
 
-import * as connection from '../../platform/server/connection';
-import * as fs from '../../platform/server/fs';
-import * as sqlite from '../../platform/server/sqlite';
-import * as monthUtils from '../../shared/months';
-import * as cloudStorage from '../cloud-storage';
-import * as prefs from '../prefs';
+import * as connection from '#platform/server/connection';
+import * as fs from '#platform/server/fs';
+import { logger } from '#platform/server/log';
+import * as sqlite from '#platform/server/sqlite';
+import * as cloudStorage from '#server/cloud-storage';
+import * as prefs from '#server/prefs';
+import * as monthUtils from '#shared/months';
 
 // A special backup that represents the latest version of the db that
 // can be reverted to after loading a backup
@@ -25,7 +27,7 @@ async function getBackups(id: string): Promise<BackupWithDate[]> {
   let paths = [];
   if (await fs.exists(backupDir)) {
     paths = await fs.listDir(backupDir);
-    paths = paths.filter(file => file.match(/\.sqlite$/));
+    paths = paths.filter(file => file.match(/\.zip$/));
   }
 
   const backups = await Promise.all(
@@ -111,20 +113,42 @@ export async function makeBackup(id: string) {
     await fs.removeFile(fs.join(fs.getBudgetDir(id), LATEST_BACKUP_FILENAME));
   }
 
-  const backupId = `${uuidv4()}.sqlite`;
+  const backupId = `${dateFns.format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}.zip`;
   const backupPath = fs.join(budgetDir, 'backups', backupId);
 
   if (!(await fs.exists(fs.join(budgetDir, 'backups')))) {
     await fs.mkdir(fs.join(budgetDir, 'backups'));
   }
 
-  await fs.copyFile(fs.join(budgetDir, 'db.sqlite'), backupPath);
+  // Copy db to a temp path so we can clean CRDT messages before zipping
+  const tempDbPath = fs.join(
+    budgetDir,
+    'backups',
+    `db.${Date.now()}.sqlite.tmp`,
+  );
 
-  // Remove all the messages from the backup
-  const db = sqlite.openDatabase(backupPath);
-  await sqlite.runQuery(db, 'DELETE FROM messages_crdt');
-  await sqlite.runQuery(db, 'DELETE FROM messages_clock');
-  sqlite.closeDatabase(db);
+  await fs.copyFile(fs.join(budgetDir, 'db.sqlite'), tempDbPath);
+
+  let db: Database | undefined;
+
+  try {
+    // Remove all the messages from the backup
+    db = await sqlite.openDatabase(tempDbPath);
+    sqlite.runQuery(db, 'DELETE FROM messages_crdt');
+    sqlite.runQuery(db, 'DELETE FROM messages_clock');
+    // Zip up the cleaned db and metadata into a single backup file
+    const zip = new AdmZip();
+    zip.addLocalFile(tempDbPath, '', 'db.sqlite');
+    zip.addLocalFile(fs.join(budgetDir, 'metadata.json'));
+    zip.writeZip(backupPath);
+  } finally {
+    if (db) {
+      sqlite.closeDatabase(db);
+    }
+    if (await fs.exists(tempDbPath)) {
+      await fs.removeFile(tempDbPath);
+    }
+  }
 
   const toRemove = await updateBackups(await getBackups(id));
   for (const id of toRemove) {
@@ -159,7 +183,7 @@ export async function loadBackup(id: string, backupId: string) {
   }
 
   if (backupId === LATEST_BACKUP_FILENAME) {
-    console.log('Reverting backup');
+    logger.log('Reverting backup');
 
     // If reverting back to the latest, copy and delete the latest
     // backup
@@ -177,10 +201,10 @@ export async function loadBackup(id: string, backupId: string) {
     // Re-upload the new file
     try {
       await cloudStorage.upload();
-    } catch (e) {}
+    } catch {}
     prefs.unloadPrefs();
   } else {
-    console.log('Loading backup', backupId);
+    logger.log('Loading backup', backupId);
 
     // This function is only ever called when a budget isn't loaded,
     // so it's safe to load our prefs in. We need to forget about any
@@ -196,14 +220,13 @@ export async function loadBackup(id: string, backupId: string) {
     // Re-upload the new file
     try {
       await cloudStorage.upload();
-    } catch (e) {}
+    } catch {}
 
     prefs.unloadPrefs();
 
-    await fs.copyFile(
-      fs.join(budgetDir, 'backups', backupId),
-      fs.join(budgetDir, 'db.sqlite'),
-    );
+    const zip = new AdmZip(fs.join(budgetDir, 'backups', backupId));
+    zip.extractEntryTo('db.sqlite', budgetDir, false, true);
+    zip.extractEntryTo('metadata.json', budgetDir, false, true);
   }
 }
 
@@ -215,7 +238,7 @@ export function startBackupService(id: string) {
   // Make a backup every 15 minutes
   serviceInterval = setInterval(
     async () => {
-      console.log('Making backup');
+      logger.log('Making backup');
       await makeBackup(id);
     },
     1000 * 60 * 15,

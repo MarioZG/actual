@@ -1,29 +1,33 @@
 // @ts-strict-ignore
 import {
-  serializeClock,
   deserializeClock,
   getClock,
-  Timestamp,
   merkle,
+  serializeClock,
+  Timestamp,
 } from '@actual-app/crdt';
 
-import { captureException } from '../../platform/exceptions';
-import * as asyncStorage from '../../platform/server/asyncStorage';
-import * as connection from '../../platform/server/connection';
-import { logger } from '../../platform/server/log';
-import { sequential, once } from '../../shared/async';
-import { setIn, getIn } from '../../shared/util';
-import { type MetadataPrefs } from '../../types/prefs';
-import { triggerBudgetChanges, setType as setBudgetType } from '../budget/base';
-import * as db from '../db';
-import { PostError, SyncError } from '../errors';
-import { app } from '../main-app';
-import { runMutator } from '../mutators';
-import { postBinary } from '../post';
-import * as prefs from '../prefs';
-import { getServer } from '../server-config';
-import * as sheet from '../sheet';
-import * as undo from '../undo';
+import { captureException } from '#platform/exceptions';
+import * as asyncStorage from '#platform/server/asyncStorage';
+import * as connection from '#platform/server/connection';
+import { logger } from '#platform/server/log';
+import {
+  setType as setBudgetType,
+  triggerBudgetChanges,
+} from '#server/budget/base';
+import * as db from '#server/db';
+import { PostError, SyncError } from '#server/errors';
+import { app } from '#server/main-app';
+import { runMutator } from '#server/mutators';
+import { postBinary } from '#server/post';
+import * as prefs from '#server/prefs';
+import { getServer } from '#server/server-config';
+import * as sheet from '#server/sheet';
+import { resolveName } from '#server/spreadsheet/util';
+import * as undo from '#server/undo';
+import { once, sequential } from '#shared/async';
+import { getIn, setIn } from '#shared/util';
+import type { MetadataPrefs } from '#types/prefs';
 
 import * as encoder from './encoder';
 import { rebuildMerkleHash } from './repair';
@@ -134,7 +138,7 @@ async function fetchAll(table, ids) {
     sql += partIds.map(() => `${column} = ?`).join(' OR ');
 
     try {
-      const rows = await db.runQuery(sql, partIds, true);
+      const rows = db.runQuery(sql, partIds, true);
       results = results.concat(rows);
     } catch (error) {
       throw new SyncError('invalid-schema', {
@@ -233,7 +237,7 @@ function applyMessagesForImport(messages: Message[]): void {
       if (!msg.old) {
         try {
           apply(msg);
-        } catch (e) {
+        } catch {
           apply(msg, true);
         }
 
@@ -277,7 +281,7 @@ export const applyMessages = sequential(async (messages: Message[]) => {
     return 0;
   });
 
-  const idsPerTable = {};
+  const idsPerTable: Record<string, string[]> = {};
   messages.forEach(msg => {
     if (msg.dataset === 'prefs') {
       return;
@@ -362,7 +366,7 @@ export const applyMessages = sequential(async (messages: Message[]) => {
 
       // Special treatment for some synced prefs
       if (dataset === 'preferences' && row === 'budgetType') {
-        setBudgetType(value);
+        void setBudgetType(value);
       }
     }
 
@@ -388,7 +392,7 @@ export const applyMessages = sequential(async (messages: Message[]) => {
 
   // Save any synced prefs
   if (Object.keys(prefsToSet).length > 0) {
-    prefs.savePrefs(prefsToSet, { avoidSync: true });
+    void prefs.savePrefs(prefsToSet, { avoidSync: true });
     connection.send('prefs-updated');
   }
 
@@ -401,6 +405,26 @@ export const applyMessages = sequential(async (messages: Message[]) => {
     triggerBudgetChanges(oldData, newData);
     sheet.get().triggerDatabaseChanges(oldData, newData);
     sheet.endTransaction();
+
+    // Transfers insert the source row in one sync batch and the counterparty in
+    // a second. triggerDatabaseChanges should dirty aggregate query cells, but
+    // explicitly recompute global account totals so the second batch always
+    // refreshes sidebar "All accounts" / On budget / etc. (see bindings.ts).
+    if (idsPerTable.transactions?.length) {
+      const s = sheet.get();
+      const globalAggregateCells = [
+        'accounts-balance',
+        'onbudget-accounts-balance',
+        'offbudget-accounts-balance',
+        'closed-accounts-balance',
+      ] as const;
+      for (const cellName of globalAggregateCells) {
+        const fullName = resolveName('__global', cellName);
+        if (s.hasCell(fullName)) {
+          s.recompute(fullName);
+        }
+      }
+    }
 
     // Allow the cache to be used in the future. At this point it's guaranteed
     // to be up-to-date because we are done mutating any other data
@@ -421,33 +445,51 @@ export const applyMessages = sequential(async (messages: Message[]) => {
 });
 
 export function receiveMessages(messages: Message[]): Promise<Message[]> {
-  messages.forEach(msg => {
-    Timestamp.recv(msg.timestamp);
-  });
+  try {
+    messages.forEach(msg => {
+      Timestamp.recv(msg.timestamp);
+    });
+  } catch (e) {
+    if (e instanceof Timestamp.ClockDriftError) {
+      throw new SyncError('clock-drift');
+    }
+    throw e;
+  }
 
   return runMutator(() => applyMessages(messages));
+}
+
+async function errorHandler(e: Error) {
+  captureException(e);
+
+  if (e instanceof SyncError) {
+    if (e.reason === 'invalid-schema') {
+      // We know this message came from a local modification, and it
+      // couldn't apply, which doesn't make any sense. Must be a bug
+      // in the code. Send a specific error type for it for a custom
+      // message.
+      app.events.emit('sync', {
+        type: 'error',
+        subtype: 'apply-failure',
+        meta: e.meta,
+      });
+    } else {
+      app.events.emit('sync', { type: 'error', meta: e.meta });
+    }
+  } else if (e instanceof Timestamp.ClockDriftError) {
+    app.events.emit('sync', {
+      type: 'error',
+      subtype: 'clock-drift',
+      meta: { message: e.message },
+    });
+  }
 }
 
 async function _sendMessages(messages: Message[]): Promise<void> {
   try {
     await applyMessages(messages);
   } catch (e) {
-    if (e instanceof SyncError) {
-      if (e.reason === 'invalid-schema') {
-        // We know this message came from a local modification, and it
-        // couldn't apply, which doesn't make any sense. Must be a bug
-        // in the code. Send a specific error type for it for a custom
-        // message.
-        app.events.emit('sync', {
-          type: 'error',
-          subtype: 'apply-failure',
-          meta: e.meta,
-        });
-      } else {
-        app.events.emit('sync', { type: 'error', meta: e.meta });
-      }
-    }
-
+    void errorHandler(e);
     throw e;
   }
 
@@ -467,7 +509,9 @@ export async function batchMessages(func: () => Promise<void>): Promise<void> {
 
   try {
     await func();
-    // TODO: if it fails, it shouldn't apply them?
+  } catch (e) {
+    void errorHandler(e);
+    throw e;
   } finally {
     IS_BATCHING = false;
     batched = _BATCHED;
@@ -560,7 +604,7 @@ export const fullSync = once(async function (): Promise<
   try {
     messages = await _fullSync(null, 0, null);
   } catch (e) {
-    console.log(e);
+    logger.log(e);
 
     if (e instanceof SyncError) {
       if (e.reason === 'out-of-sync') {
@@ -586,16 +630,22 @@ export const fullSync = once(async function (): Promise<
           subtype: e.reason,
           meta: e.meta,
         });
+      } else if (e.reason === 'clock-drift') {
+        app.events.emit('sync', {
+          type: 'error',
+          subtype: 'clock-drift',
+          meta: e.meta,
+        });
       } else {
         app.events.emit('sync', { type: 'error', meta: e.meta });
       }
     } else if (e instanceof PostError) {
-      console.log(e);
+      logger.log(e);
       if (e.reason === 'unauthorized') {
         app.events.emit('sync', { type: 'unauthorized' });
 
         // Set the user into read-only mode
-        asyncStorage.setItem('readOnly', 'true');
+        void asyncStorage.setItem('readOnly', 'true');
       } else if (e.reason === 'network-failure') {
         app.events.emit('sync', { type: 'error', subtype: 'network' });
       } else {
@@ -625,11 +675,20 @@ async function _fullSync(
   count: number,
   prevDiffTime: number,
 ): Promise<Message[]> {
-  const { cloudFileId, groupId, lastSyncedTimestamp } = prefs.getPrefs() || {};
+  const {
+    id: currentId,
+    cloudFileId,
+    groupId,
+    lastSyncedTimestamp,
+  } = prefs.getPrefs() || {};
 
   clearFullSyncTimeout();
 
-  if (checkSyncingMode('disabled') || checkSyncingMode('offline')) {
+  if (
+    checkSyncingMode('disabled') ||
+    checkSyncingMode('offline') ||
+    !currentId
+  ) {
     return [];
   }
 
@@ -715,7 +774,7 @@ async function _fullSync(
 
       const rebuiltMerkle = rebuildMerkleHash();
 
-      console.log(
+      logger.log(
         count,
         'messages:',
         messages.length,
@@ -748,10 +807,10 @@ async function _fullSync(
           'SELECT * FROM messages_clock',
         );
         if (clocks.length !== 1) {
-          console.log('Bad number of clocks:', clocks.length);
+          logger.log('Bad number of clocks:', clocks.length);
         }
         const hash = deserializeClock(clocks[0].clock).merkle.hash;
-        console.log('Merkle hash in db:', hash);
+        logger.log('Merkle hash in db:', hash);
       }
 
       throw new SyncError('out-of-sync');

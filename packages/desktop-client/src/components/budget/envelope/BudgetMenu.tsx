@@ -1,9 +1,10 @@
-import React, { type ComponentPropsWithoutRef } from 'react';
+import React from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Menu } from '@actual-app/components/menu';
 
-import { useFeatureFlag } from '../../../hooks/useFeatureFlag';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
 
 type BudgetMenuProps = Omit<
   ComponentPropsWithoutRef<typeof Menu>,
@@ -51,7 +52,7 @@ export function BudgetMenu({
       items={[
         {
           name: 'copy-single-last',
-          text: t('Copy last month’s budget'),
+          text: t("Copy last month's budget"),
         },
         {
           name: 'set-single-3-avg',
@@ -69,7 +70,7 @@ export function BudgetMenu({
           ? [
               {
                 name: 'apply-single-category-template',
-                text: t('Apply budget template'),
+                text: t('Overwrite with template'),
               },
             ]
           : []),

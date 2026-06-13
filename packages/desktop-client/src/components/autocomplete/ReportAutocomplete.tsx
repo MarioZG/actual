@@ -1,7 +1,9 @@
-import React, { type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 
-import { useReports } from 'loot-core/client/data-hooks/reports';
-import { type CustomReportEntity } from 'loot-core/types/models';
+import type { CustomReportEntity } from '@actual-app/core/types/models';
+
+import { useReports } from '#hooks/useReports';
 
 import { Autocomplete } from './Autocomplete';
 import { ReportList } from './ReportList';
@@ -14,12 +16,12 @@ export function ReportAutocomplete({
   embedded,
   ...props
 }: ReportAutocompleteProps) {
-  const { data: reports } = useReports();
+  const { data: reports = [] } = useReports();
 
   return (
     <Autocomplete
-      strict={true}
-      highlightFirst={true}
+      strict
+      highlightFirst
       embedded={embedded}
       suggestions={reports}
       renderItems={(items, getItemProps, highlightedIndex) => (

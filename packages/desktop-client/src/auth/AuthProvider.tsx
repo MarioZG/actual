@@ -1,9 +1,10 @@
-import React, { createContext, useContext, type ReactNode } from 'react';
+import React, { createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
 
-import { useServerURL } from '../components/ServerContext';
-import { useSelector } from '../redux';
+import { useServerURL } from '#components/ServerContext';
+import { useSelector } from '#redux';
 
-import { type Permissions } from './types';
+import type { Permissions } from './types';
 
 type AuthContextType = {
   hasPermission: (permission?: Permissions) => boolean;

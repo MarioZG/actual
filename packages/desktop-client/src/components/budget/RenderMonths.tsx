@@ -1,49 +1,30 @@
-// @ts-strict-ignore
-import React, {
-  useContext,
-  type CSSProperties,
-  type ComponentType,
-  type JSX,
-} from 'react';
+import React, { useContext } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 
-import * as monthUtils from 'loot-core/shared/months';
-
-import { NamespaceContext } from '../spreadsheet/NamespaceContext';
+import { SheetNameProvider } from '#hooks/useSheetName';
 
 import { MonthsContext } from './MonthsContext';
 import { useBudgetMode } from '../../hooks/useBudgetMode';
 
 type RenderMonthsProps = {
-  component?: ComponentType<{ month: string; editing: boolean }>;
-  editingMonth?: string;
-  args?: object;
+  children: ReactNode | (({ month }: { month: string }) => ReactNode);
   style?: CSSProperties;
 };
 
-export function RenderMonths({
-  component: Component,
-  editingMonth,
-  args,
-  style,
-}: RenderMonthsProps) {
+export function RenderMonths({ children, style }: RenderMonthsProps) {
   const { months } = useContext(MonthsContext);
   //onsole.log(`uuuu args  (${args})`);
 
   return months.map((month, index) => {
-    const editing = editingMonth === month;
-
-      const isBudgetModeEnabled = useBudgetMode();    
-    
-
-      const flex = !isBudgetModeEnabled && month.endsWith("03") ? 2 : 1;
+    const isBudgetModeEnabled = useBudgetMode();    
+    const flex = !isBudgetModeEnabled && month.endsWith("03") ? 2 : 1;
+    //console.log(`uuuu month  (${month})`);
     return (
-      <NamespaceContext.Provider
-        key={index}
-        value={monthUtils.sheetForMonth(month)}
-      >
+      <SheetNameProvider key={index} name={monthUtils.sheetForMonth(month)}>
         <View
           style={{
             flex: flex,
@@ -51,9 +32,9 @@ export function RenderMonths({
             ...style,
           }}
         >
-          <Component month={month} editing={editing} {...args} />
+          {typeof children === 'function' ? children({ month }) : children}
         </View>
-      </NamespaceContext.Provider>
+      </SheetNameProvider>
     );
-  }) as unknown as JSX.Element;
+  });
 }

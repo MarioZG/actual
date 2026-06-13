@@ -1,14 +1,14 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
-import { isAdmin } from './account-db.js';
-import * as UserService from './services/user-service.js';
+import { isAdmin } from './account-db';
+import * as UserService from './services/user-service';
 import {
   errorMiddleware,
   requestLoggerMiddleware,
   validateSessionMiddleware,
-} from './util/middlewares.js';
-import { validateSession } from './util/validate-user.js';
+} from './util/middlewares';
+import { validateSession } from './util/validate-user';
 
 const app = express();
 app.use(express.json());
@@ -21,7 +21,7 @@ app.get('/owner-created/', (req, res) => {
   try {
     const ownerCount = UserService.getOwnerCount();
     res.json(ownerCount > 0);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to retrieve owner count' });
   }
 });
@@ -47,7 +47,7 @@ app.post('/users', validateSessionMiddleware, async (req, res) => {
     return;
   }
 
-  const { userName, role, displayName, enabled } = req.body;
+  const { userName, role, displayName, enabled } = req.body || {};
 
   if (!userName || !role) {
     res.status(400).send({
@@ -99,7 +99,7 @@ app.patch('/users', validateSessionMiddleware, async (req, res) => {
     return;
   }
 
-  const { id, userName, role, displayName, enabled } = req.body;
+  const { id, userName, role, displayName, enabled } = req.body || {};
 
   if (!userName || !role) {
     res.status(400).send({
@@ -151,7 +151,7 @@ app.delete('/users', validateSessionMiddleware, async (req, res) => {
     return;
   }
 
-  const ids = req.body.ids;
+  const { ids } = req.body || {};
   let totalDeleted = 0;
   ids.forEach(item => {
     const ownerId = UserService.getOwnerId();
@@ -301,7 +301,7 @@ app.delete('/access', (req, res) => {
     return;
   }
 
-  const ids = req.body.ids;
+  const { ids } = req.body || {};
   const totalDeleted = UserService.deleteUserAccessByFileId(ids, fileId);
 
   if (ids.length === totalDeleted) {

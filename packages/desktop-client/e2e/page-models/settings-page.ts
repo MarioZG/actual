@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export class SettingsPage {
   readonly page: Page;
@@ -42,17 +42,22 @@ export class SettingsPage {
   }
 
   async enableExperimentalFeature(featureName: string) {
-    if (await this.advancedSettingsButton.isVisible()) {
-      await this.advancedSettingsButton.click();
-    }
+    await this.advancedSettingsButton.waitFor({
+      state: 'visible',
+      timeout: 2000,
+    });
+    await this.advancedSettingsButton.click();
 
-    if (await this.experimentalSettingsButton.isVisible()) {
-      await this.experimentalSettingsButton.click();
-    }
+    await this.experimentalSettingsButton.waitFor({
+      state: 'visible',
+      timeout: 2000,
+    });
+    await this.experimentalSettingsButton.click();
 
     const featureCheckbox = this.page.getByRole('checkbox', {
       name: featureName,
     });
+    await featureCheckbox.waitFor({ state: 'visible' });
     if (!(await featureCheckbox.isChecked())) {
       await featureCheckbox.click();
     }

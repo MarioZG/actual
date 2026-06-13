@@ -8,19 +8,9 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-
-import { useDispatch } from '../../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
-
-function getErrorMessage(error: 'not-ynab4' | boolean) {
-  switch (error) {
-    case 'not-ynab4':
-      return 'This file is not valid. Please select a .ynab4 file';
-    default:
-      return 'An unknown error occurred while importing. Please report this as a new issue on GitHub.';
-  }
-}
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 export function ImportModal() {
   const { t } = useTranslation();
@@ -43,6 +33,16 @@ export function ImportModal() {
     }
   }
 
+  function getErrorMessage(error: 'not-ynab4' | boolean) {
+    switch (error) {
+      case 'not-ynab4':
+        return t('This file is not valid. Please select a .ynab4 file');
+      default:
+        return t(
+          'An unknown error occurred while importing. Please report this as a new issue on GitHub.',
+        );
+    }
+  }
   const itemStyle = {
     padding: 10,
     border: '1px solid ' + theme.tableBorder,
@@ -53,11 +53,11 @@ export function ImportModal() {
 
   return (
     <Modal name="import" containerProps={{ style: { width: 400 } }}>
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Import From')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ ...styles.smallText, lineHeight: 1.5 }}>
             {error && (
@@ -68,7 +68,7 @@ export function ImportModal() {
 
             <Text style={{ marginBottom: 15 }}>
               <Trans>
-                Select an app to import from, and we’ll guide you through the
+                Select an app to import from, and we'll guide you through the
                 process.
               </Trans>
             </Text>

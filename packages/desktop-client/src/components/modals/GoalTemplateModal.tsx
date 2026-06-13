@@ -4,20 +4,20 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { Link } from '../common/Link';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { TableHeader, Row, Field } from '../table';
+import { Link } from '#components/common/Link';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Field, Row, TableHeader } from '#components/table';
 
 export function GoalTemplateModal() {
   const { t } = useTranslation();
 
   return (
     <Modal name="goal-templates" containerProps={{ style: { width: 850 } }}>
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Goal Templates')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View>
             <TableHeader>
@@ -30,7 +30,7 @@ export function GoalTemplateModal() {
             </TableHeader>
             <Row style={{ backgroundColor: theme.tableBackground }}>
               <Field width="flex">
-                #template $10 repeat every week starting 2025-01-03
+                #template 10 repeat every week starting 2025-01-03
               </Field>
               <Field width="flex">
                 <Trans>$10 a week</Trans>
@@ -38,7 +38,7 @@ export function GoalTemplateModal() {
             </Row>
             <Row style={{ backgroundColor: theme.tableBackground }}>
               <Field width="flex">
-                #template $10 repeat every week starting 2025-01-03 up to $80
+                #template 10 repeat every week starting 2025-01-03 up to 80
               </Field>
               <Field width="flex">
                 <Trans>$10 a week, up to a maximum of $80</Trans>
@@ -56,13 +56,13 @@ export function GoalTemplateModal() {
               </Field>
             </TableHeader>
             <Row style={{ backgroundColor: theme.tableBackground }}>
-              <Field width="flex">#template $50</Field>
+              <Field width="flex">#template 50</Field>
               <Field width="flex">
                 <Trans>$50 each month</Trans>
               </Field>
             </Row>
             <Row style={{ backgroundColor: theme.tableBackground }}>
-              <Field width="flex">#template up to $150</Field>
+              <Field width="flex">#template up to 150</Field>
               <Field width="flex">
                 <Trans>
                   Up to $150 each month, and remove extra funds over $150
@@ -70,7 +70,7 @@ export function GoalTemplateModal() {
               </Field>
             </Row>
             <Row style={{ backgroundColor: theme.tableBackground }}>
-              <Field width="flex">#template up to $150 hold</Field>
+              <Field width="flex">#template up to 150 hold</Field>
               <Field width="flex">
                 <Trans>
                   Up to $150 each month, but retain any funds over $150
@@ -90,7 +90,7 @@ export function GoalTemplateModal() {
             </TableHeader>
             <Row style={{ backgroundColor: theme.tableBackground }}>
               <Field width="flex">
-                #template $500 by 2025-03 repeat every 6 months
+                #template 500 by 2025-03 repeat every 6 months
               </Field>
               <Field width="flex">
                 <Trans>
@@ -100,7 +100,7 @@ export function GoalTemplateModal() {
             </Row>
             <Row style={{ backgroundColor: theme.tableBackground }}>
               <Field width="flex">
-                #template $500 by 2025-03 repeat every year
+                #template 500 by 2025-03 repeat every year
               </Field>
               <Field width="flex">
                 <Trans>
@@ -110,7 +110,7 @@ export function GoalTemplateModal() {
             </Row>
             <Row style={{ backgroundColor: theme.tableBackground }}>
               <Field width="flex">
-                #template $500 by 2025-03 repeat every 2 years
+                #template 500 by 2025-03 repeat every 2 years
               </Field>
               <Field width="flex">
                 <Trans>

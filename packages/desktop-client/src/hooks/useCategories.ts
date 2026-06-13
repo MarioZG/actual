@@ -1,21 +1,20 @@
-import { useEffect } from 'react';
+import { groupById } from '@actual-app/core/shared/util';
+import { useQuery } from '@tanstack/react-query';
 
-import { getCategories } from 'loot-core/client/queries/queriesSlice';
-
-import { useSelector, useDispatch } from '../redux';
-
-import { useInitialMount } from './useInitialMount';
+import { categoryQueries } from '#budget';
 
 export function useCategories() {
-  const dispatch = useDispatch();
-  const categoriesLoaded = useSelector(state => state.queries.categoriesLoaded);
-  const isInitialMount = useInitialMount();
+  return useQuery(categoryQueries.list());
+}
 
-  useEffect(() => {
-    if (isInitialMount && !categoriesLoaded) {
-      dispatch(getCategories());
-    }
-  }, [categoriesLoaded, dispatch, isInitialMount]);
-
-  return useSelector(state => state.queries.categories);
+export function useCategoriesById() {
+  return useQuery({
+    ...categoryQueries.list(),
+    select: data => {
+      return {
+        list: groupById(data.list),
+        grouped: groupById(data.grouped),
+      };
+    },
+  });
 }

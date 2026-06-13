@@ -1,14 +1,13 @@
-import * as monthUtils from 'loot-core/shared/months';
-import { amountToInteger, integerToAmount } from 'loot-core/shared/util';
-import {
-  type GroupedEntity,
-  type IntervalEntity,
-} from 'loot-core/types/models';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  GroupedEntity,
+  IntervalEntity,
+} from '@actual-app/core/types/models';
 
-import {
-  type UncategorizedEntity,
-  type QueryDataEntity,
-} from '../ReportOptions';
+import type {
+  QueryDataEntity,
+  UncategorizedEntity,
+} from '#components/reports/ReportOptions';
 
 import { filterHiddenItems } from './filterHiddenItems';
 
@@ -59,7 +58,7 @@ export function recalculate({
             (asset[groupByLabel] === (item.id ?? null) ||
               (item.uncategorized_id && groupsByCategory)),
         )
-        .reduce((a, v) => (a = a + v.amount), 0);
+        .reduce((a, v) => a + v.amount, 0);
       totalAssets += intervalAssets;
 
       const intervalDebts = filterHiddenItems(
@@ -76,21 +75,21 @@ export function recalculate({
             (debt[groupByLabel] === (item.id ?? null) ||
               (item.uncategorized_id && groupsByCategory)),
         )
-        .reduce((a, v) => (a = a + v.amount), 0);
+        .reduce((a, v) => a + v.amount, 0);
       totalDebts += intervalDebts;
 
       const intervalTotals = intervalAssets + intervalDebts;
 
-      const change = last
-        ? intervalTotals - amountToInteger(last.totalTotals)
-        : 0;
+      const change = last ? intervalTotals - last.totalTotals : 0;
 
       arr.push({
-        totalAssets: integerToAmount(intervalAssets),
-        totalDebts: integerToAmount(intervalDebts),
-        netAssets: intervalTotals > 0 ? integerToAmount(intervalTotals) : 0,
-        netDebts: intervalTotals < 0 ? integerToAmount(intervalTotals) : 0,
-        totalTotals: integerToAmount(intervalTotals),
+        date: intervalItem,
+        totalAssets: intervalAssets,
+        totalDebts: intervalDebts,
+        netAssets: intervalTotals > 0 ? intervalTotals : 0,
+        netDebts: intervalTotals < 0 ? intervalTotals : 0,
+        totalTotals: intervalTotals,
+        totalBudgeted: intervalTotals,
         change,
         intervalStartDate: index === 0 ? startDate : intervalItem,
         intervalEndDate:
@@ -109,11 +108,13 @@ export function recalculate({
   return {
     id: item.id || '',
     name: item.name,
-    totalAssets: integerToAmount(totalAssets),
-    totalDebts: integerToAmount(totalDebts),
-    netAssets: totalTotals > 0 ? integerToAmount(totalTotals) : 0,
-    netDebts: totalTotals < 0 ? integerToAmount(totalTotals) : 0,
-    totalTotals: integerToAmount(totalTotals),
+    uncategorizedId: item.uncategorized_id,
+    totalAssets,
+    totalDebts,
+    netAssets: totalTotals > 0 ? totalTotals : 0,
+    netDebts: totalTotals < 0 ? totalTotals : 0,
+    totalTotals,
+    totalBudgeted: totalTotals,
     intervalData,
   };
 }

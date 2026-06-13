@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTransition, animated } from 'react-spring';
+import { animated, useTransition } from 'react-spring';
 
 import { Block } from '@actual-app/components/block';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
@@ -7,7 +7,7 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 
-import { useSelector } from '../redux';
+import { useSelector } from '#redux';
 
 import { Background } from './Background';
 
@@ -22,7 +22,6 @@ export function AppBackground({ isLoading }: AppBackgroundProps) {
     from: { opacity: 0, transform: 'translateY(-100px)' },
     enter: { opacity: 1, transform: 'translateY(0)' },
     leave: { opacity: 0, transform: 'translateY(100px)' },
-    unique: true,
   });
 
   return (
@@ -31,7 +30,6 @@ export function AppBackground({ isLoading }: AppBackgroundProps) {
 
       {showLoading &&
         transitions((style, item) => (
-          // @ts-expect-error react-spring types currently do not support React v19 (but they soon will..)
           <animated.div key={item} style={style}>
             <View
               className={css({

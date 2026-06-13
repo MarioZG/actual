@@ -1,26 +1,26 @@
 // @ts-strict-ignore
-import React, { type CSSProperties } from 'react';
+import React from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
 import { theme } from '@actual-app/components/theme';
 import { css } from '@emotion/css';
 import {
-  ComposedChart,
-  Line,
   Bar,
   CartesianGrid,
+  ComposedChart,
+  Line,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 
-import { amountToCurrencyNoDecimal } from 'loot-core/shared/util';
-
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { Container } from '../Container';
-import { numberFormatterTooltip } from '../numberFormatter';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useRechartsAnimation } from '#components/reports/chart-theme';
+import { Container } from '#components/reports/Container';
+import { numberFormatterTooltip } from '#components/reports/numberFormatter';
+import { useFormat } from '#hooks/useFormat';
 
 type PayloadItem = {
   payload: {
@@ -89,8 +89,10 @@ export function BarLineGraph({
   compact,
   showTooltip = true,
 }: BarLineGraphProps) {
+  const format = useFormat();
+  const animationProps = useRechartsAnimation();
   const tickFormatter = tick => {
-    return `${amountToCurrencyNoDecimal(Math.round(tick))}`; // Formats the tick values as strings with commas
+    return `${format(Math.round(tick), 'financial')}`; // Formats the tick values as strings with commas
   };
 
   return (
@@ -102,32 +104,39 @@ export function BarLineGraph({
     >
       {(width, height) =>
         data && (
-          <ResponsiveContainer>
-            <div>
-              {!compact && <div style={{ marginTop: '15px' }} />}
-              <ComposedChart
-                width={width}
-                height={height}
-                data={data.data}
-                margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-              >
-                {showTooltip && (
-                  <Tooltip
-                    content={<CustomTooltip />}
-                    formatter={numberFormatterTooltip}
-                    isAnimationActive={false}
-                  />
-                )}
-                {!compact && <CartesianGrid strokeDasharray="3 3" />}
-                {!compact && <XAxis dataKey="x" />}
-                {!compact && (
-                  <YAxis dataKey="y" tickFormatter={tickFormatter} />
-                )}
-                <Bar type="monotone" dataKey="y" fill="#8884d8" />
-                <Line type="monotone" dataKey="y" stroke="#8884d8" />
-              </ComposedChart>
-            </div>
-          </ResponsiveContainer>
+          <div>
+            {!compact && <div style={{ marginTop: '15px' }} />}
+            <ComposedChart
+              responsive
+              width={width}
+              height={height}
+              data={data.data}
+              margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+            >
+              {showTooltip && (
+                <Tooltip
+                  content={<CustomTooltip />}
+                  formatter={numberFormatterTooltip}
+                  isAnimationActive={false}
+                />
+              )}
+              {!compact && <CartesianGrid strokeDasharray="3 3" />}
+              {!compact && <XAxis dataKey="x" />}
+              {!compact && <YAxis dataKey="y" tickFormatter={tickFormatter} />}
+              <Bar
+                type="monotone"
+                dataKey="y"
+                fill="#8884d8"
+                {...animationProps}
+              />
+              <Line
+                type="monotone"
+                dataKey="y"
+                stroke="#8884d8"
+                {...animationProps}
+              />
+            </ComposedChart>
+          </div>
         )
       }
     </Container>

@@ -1,8 +1,8 @@
 // @ts-strict-ignore
 import fs from 'fs/promises';
-import { join, dirname, basename } from 'path';
+import { basename, dirname, join } from 'path';
 
-import snapshotDiff from 'snapshot-diff';
+import { diff } from 'jest-diff';
 
 export function expectSnapshotWithDiffer(
   initialValue,
@@ -14,7 +14,14 @@ export function expectSnapshotWithDiffer(
   }
   return {
     expectToMatchDiff: value => {
-      expect(snapshotDiff(currentValue, value)).toMatchSnapshot();
+      expect(
+        diff(currentValue, value, {
+          aAnnotation: 'First value',
+          bAnnotation: 'Second value',
+          contextLines: 5,
+          expand: false,
+        }),
+      ).toMatchSnapshot();
       currentValue = value;
     },
   };
@@ -61,7 +68,7 @@ export function patchFetchForSqlJS(baseURL: string) {
   vi.spyOn(global, 'fetch').mockImplementation(
     async (url: string | URL | Request) => {
       if (typeof url === 'string' && url.startsWith(baseURL)) {
-        return new Response(await fs.readFile(url), {
+        return new Response(new Uint8Array(await fs.readFile(url)), {
           status: 200,
           statusText: 'OK',
           headers: {
@@ -69,7 +76,7 @@ export function patchFetchForSqlJS(baseURL: string) {
           },
         });
       }
-      return Promise.reject(new Error(`fetch not mocked for ${url}`));
+      return Promise.reject(new Error(`fetch not mocked for ${String(url)}`));
     },
   );
 }

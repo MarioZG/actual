@@ -1,6 +1,7 @@
 import { rebuild } from '@electron/rebuild';
 import copyFiles from 'copyfiles';
-import { Arch, AfterPackContext } from 'electron-builder';
+import { Arch } from 'electron-builder';
+import type { AfterPackContext } from 'electron-builder';
 
 /* The beforePackHook runs before packing the Electron app for an architecture
 We hook in here to build anything architecture dependent - such as beter-sqlite3
@@ -23,10 +24,10 @@ const beforePackHook = async (context: AfterPackContext) => {
       electronVersion,
       force: true,
       projectRootPath,
-      onlyModules: ['better-sqlite3'],
+      onlyModules: ['better-sqlite3', 'bcrypt'],
     });
 
-    console.info(`Rebuilt better-sqlite3 with ${arch}!`);
+    console.info(`Rebuilt better-sqlite3 and bcrypt with ${arch}!`);
 
     if (context.packager.platform.name === 'windows') {
       console.info(`Windows build - copying appx files...`);
@@ -43,5 +44,5 @@ const beforePackHook = async (context: AfterPackContext) => {
   }
 };
 
-// eslint-disable-next-line import/no-default-export
+// oxlint-disable-next-line import/no-default-export
 export default beforePackHook;

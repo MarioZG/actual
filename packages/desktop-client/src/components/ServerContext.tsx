@@ -1,19 +1,20 @@
 import React, {
   createContext,
-  useState,
   useCallback,
-  useEffect,
   useContext,
-  type ReactNode,
+  useEffect,
+  useState,
 } from 'react';
+import type { ReactNode } from 'react';
 
+import { send } from '@actual-app/core/platform/client/connection';
+import * as Platform from '@actual-app/core/shared/platform';
+import type { Handlers } from '@actual-app/core/types/handlers';
 import { t } from 'i18next';
 
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { type Handlers } from 'loot-core/types/handlers';
-
-import { useDispatch } from '../redux';
+import { useOnVisible } from '#hooks/useOnVisible';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
 
 type LoginMethod = {
   method: string;
@@ -43,8 +44,12 @@ const ServerContext = createContext<ServerContextValue>({
   setURL: () => Promise.reject(new Error('ServerContext not initialized')),
   refreshLoginMethods: () =>
     Promise.reject(new Error('ServerContext not initialized')),
-  setMultiuserEnabled: () => {},
-  setLoginMethods: () => {},
+  setMultiuserEnabled: () => {
+    throw new Error('ServerContext not initialized');
+  },
+  setLoginMethods: () => {
+    throw new Error('ServerContext not initialized');
+  },
 });
 
 export const useServerURL = () => useContext(ServerContext).url;
@@ -69,6 +74,9 @@ export const useAvailableLoginMethods = () =>
   useContext(ServerContext).availableLoginMethods;
 
 async function getServerVersion() {
+  if (Platform.isPlaywright) {
+    return '99.9.9';
+  }
   const result = await send('get-server-version');
   if ('version' in result) {
     return result.version;
@@ -103,8 +111,18 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       setServerURL(serverURL);
       setVersion(await getServerVersion());
     }
-    run();
+    void run();
   }, []);
+
+  useOnVisible(
+    async () => {
+      const version = await getServerVersion();
+      setVersion(version);
+    },
+    {
+      isEnabled: !!serverURL,
+    },
+  );
 
   const refreshLoginMethods = useCallback(async () => {
     if (serverURL) {
@@ -131,7 +149,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (serverURL) {
-      send('subscribe-needs-bootstrap').then(
+      void send('subscribe-needs-bootstrap').then(
         (data: Awaited<ReturnType<Handlers['subscribe-needs-bootstrap']>>) => {
           if ('hasServer' in data && data.hasServer) {
             setAvailableLoginMethods(data.availableLoginMethods || []);

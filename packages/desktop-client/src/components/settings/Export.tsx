@@ -5,11 +5,10 @@ import { Block } from '@actual-app/components/block';
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { send } from '@actual-app/core/platform/client/connection';
 import { format } from 'date-fns';
 
-import { send } from 'loot-core/platform/client/fetch';
-
-import { useMetadataPref } from '../../hooks/useMetadataPref';
+import { useMetadataPref } from '#hooks/useMetadataPref';
 
 import { Setting } from './UI';
 
@@ -34,7 +33,7 @@ export function ExportBudget() {
     }
 
     if (response.data) {
-      window.Actual.saveFile(
+      void window.Actual.saveFile(
         response.data,
         `${format(new Date(), 'yyyy-MM-dd')}-${budgetName}.zip`,
         t('Export budget'),
@@ -48,7 +47,7 @@ export function ExportBudget() {
       primaryAction={
         <>
           <ButtonWithLoading onPress={onExport} isLoading={isLoading}>
-            {t('Export data')}
+            <Trans>Export data</Trans>
           </ButtonWithLoading>
           {error && (
             <Block style={{ color: theme.errorText, marginTop: 15 }}>
@@ -65,7 +64,7 @@ export function ExportBudget() {
           <strong>Export</strong> your data as a zip file containing{' '}
           <code>db.sqlite</code> and <code>metadata.json</code> files. It can be
           imported into another Actual instance by closing an open file (if
-          any), then clicking the “Import file” button, then choosing “Actual.”
+          any), then clicking the "Import file" button, then choosing "Actual."
         </Trans>
       </Text>
       {encryptKeyId ? (

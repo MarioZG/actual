@@ -1,26 +1,23 @@
 // @ts-strict-ignore
-import React, {
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-  type CSSProperties,
-} from 'react';
+import React from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react';
 
-import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 
-import { PrivacyFilter } from '../PrivacyFilter';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useFormat } from '#hooks/useFormat';
+import type { FormatType } from '#hooks/useFormat';
+import { useSheetName } from '#hooks/useSheetName';
+import { useSheetValue } from '#hooks/useSheetValue';
+import type {
+  Binding,
+  SheetFields,
+  SheetNames,
+  Spreadsheets,
+} from '#spreadsheet';
+import { number } from '../budget/util';
 
-import { type FormatType, useFormat } from './useFormat';
-import { useSheetName } from './useSheetName';
-import { useSheetValue } from './useSheetValue';
-
-import {
-  type Binding,
-  type SheetNames,
-  type SheetFields,
-  type Spreadsheets,
-} from '.';
-import { number } from 'loot-core/server/spreadsheet/globals';
 
 type CellValueProps<
   SheetName extends SheetNames,
@@ -63,7 +60,7 @@ const PRIVACY_FILTER_TYPES = ['financial', 'financial-with-sign'];
 type CellValueTextProps<
   SheetName extends SheetNames,
   FieldName extends SheetFields<SheetName>,
-> = Omit<ComponentPropsWithoutRef<typeof Text>, 'value'> & {
+> = Omit<ComponentPropsWithoutRef<typeof Text>, 'value' | 'as'> & {
   type?: FormatType;
   name: string;
   value: Spreadsheets[SheetName][FieldName];
@@ -94,16 +91,38 @@ export function CellValueText<
   else   if(name.includes("!cashflow") && number(value) > 0 ) {
     styleclone.color = 'green';
   }
+
+  const isFinancial =
+    type === 'financial' ||
+    type === 'financial-with-sign' ||
+    type === 'financial-no-decimals';
+  const sharedProps = {
+    style,
+    'data-testid': name,
+    'data-cellname': name,
+    ...props,
+  };
+
+  if (isFinancial) {
+    return (
+      <FinancialText
+        {...sharedProps}
+        style={{
+          whiteSpace: 'nowrap',
+          ...styleclone,
+        }}
+      >
+        <PrivacyFilter
+          activationFilters={[PRIVACY_FILTER_TYPES.includes(type)]}
+        >
+          {formatter ? formatter(value, type) : format(value, type)}
+        </PrivacyFilter>
+      </FinancialText>
+    );
+  }
+
   return (
-    <Text
-      style={{
-        ...(type === 'financial' && styles.tnum),
-        ...styleclone,
-      }}
-      data-testid={name}
-      data-cellname={name}
-      {...props}
-    >
+    <Text {...sharedProps}>
       <PrivacyFilter activationFilters={[PRIVACY_FILTER_TYPES.includes(type)]}>
         {formatter ? formatter(value, type) : format(value, type)}
       </PrivacyFilter>

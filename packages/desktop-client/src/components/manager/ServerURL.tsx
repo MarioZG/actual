@@ -4,8 +4,8 @@ import { Trans } from 'react-i18next';
 import { Text } from '@actual-app/components/text';
 import { View } from '@actual-app/components/view';
 
-import { Link } from '../common/Link';
-import { useServerURL } from '../ServerContext';
+import { Link } from '#components/common/Link';
+import { useServerURL } from '#components/ServerContext';
 
 export function ServerURL() {
   const url = useServerURL();

@@ -4,10 +4,9 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <title>Actual</title>
-    <link rel="canonical" href="/" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -17,8 +16,8 @@
       href="/site.webmanifest"
       crossorigin="use-credentials"
     />
-    <meta name="msapplication-TileColor" content="#8812E1" />
-    <meta name="theme-color" content="#8812E1" />
+    <meta name="msapplication-TileColor" content="#5c3dbb" />
+    <meta name="theme-color" content="#5c3dbb" />
 
     <style type="text/css">
       html,
@@ -32,8 +31,9 @@
       body,
       button,
       input {
-        font-family:
-          'Inter var',
+        font-family: var(
+          --font-family,
+          'Inter Variable',
           -apple-system,
           BlinkMacSystemFont,
           'Segoe UI',
@@ -46,7 +46,8 @@
           'Helvetica Neue',
           'Helvetica',
           'Arial',
-          sans-serif;
+          sans-serif
+        );
       }
 
       a {
@@ -68,8 +69,9 @@
       input,
       textarea {
         font-size: 1em;
-        font-family:
-          'Inter var',
+        font-family: var(
+          --font-family,
+          'Inter Variable',
           -apple-system,
           BlinkMacSystemFont,
           'Segoe UI',
@@ -82,7 +84,12 @@
           'Helvetica Neue',
           'Helvetica',
           'Arial',
-          sans-serif;
+          sans-serif
+        );
+        font-feature-settings:
+          'ss01',
+          'ss04',
+          'calt' 0;
       }
 
       html,
@@ -94,23 +101,12 @@
         overflow: hidden;
       }
 
-      .view {
-        align-items: stretch;
-        border-width: 0;
-        border-style: solid;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        margin: 0;
-        padding: 0;
-        position: relative;
-        /* fix flexbox bugs */
-        min-height: 0;
-        min-width: 0;
+      .cm-theme-dark {
+        height: 100%;
       }
 
-      .js-focus-visible :focus:not(.focus-visible) {
-        outline: 0;
+      .cm-theme-light {
+        height: 100%;
       }
     </style>
   </head>

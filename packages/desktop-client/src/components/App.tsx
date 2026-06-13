@@ -1,35 +1,40 @@
-// @ts-strict-ignore
 import React, { useEffect, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import {
-  ErrorBoundary,
-  useErrorBoundary,
-  type FallbackProps,
-} from 'react-error-boundary';
+import { ErrorBoundary, useErrorBoundary } from 'react-error-boundary';
+import type { FallbackProps } from 'react-error-boundary';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { useTranslation } from 'react-i18next';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 
 import { styles } from '@actual-app/components/styles';
 import { View } from '@actual-app/components/view';
+import {
+  init as initConnection,
+  send,
+} from '@actual-app/core/platform/client/connection';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { setAppState, sync } from 'loot-core/client/app/appSlice';
-import { closeBudget, loadBudget } from 'loot-core/client/budgets/budgetsSlice';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import * as Platform from 'loot-core/client/platform';
-import { loadGlobalPrefs } from 'loot-core/client/prefs/prefsSlice';
-import { SpreadsheetProvider } from 'loot-core/client/SpreadsheetProvider';
-import { signOut } from 'loot-core/client/users/usersSlice';
-import { init as initConnection, send } from 'loot-core/platform/client/fetch';
-
-import { handleGlobalEvents } from '../global-events';
-import { useMetadataPref } from '../hooks/useMetadataPref';
-import { setI18NextLanguage } from '../i18n';
-import { installPolyfills } from '../polyfills';
-import { useDispatch, useSelector, useStore } from '../redux';
-import { hasHiddenScrollbars, ThemeStyle, useTheme } from '../style';
-import { ExposeNavigate } from '../util/router-tools';
+import { setAppState, sync } from '#app/appSlice';
+import { closeBudget, loadBudget } from '#budgetfiles/budgetfilesSlice';
+import { handleGlobalEvents } from '#global-events';
+import { useIsTestEnv } from '#hooks/useIsTestEnv';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useOnVisible } from '#hooks/useOnVisible';
+import { SpreadsheetProvider } from '#hooks/useSpreadsheet';
+import { setI18NextLanguage } from '#i18n';
+import { addNotification } from '#notifications/notificationsSlice';
+import { installPolyfills } from '#polyfills';
+import { loadGlobalPrefs } from '#prefs/prefsSlice';
+import { useDispatch, useSelector, useStore } from '#redux';
+import {
+  CustomThemeStyle,
+  hasHiddenScrollbars,
+  ThemeStyle,
+  useTheme,
+} from '#style';
+import { signOut } from '#users/usersSlice';
+import { ExposeNavigate } from '#util/router-tools';
 
 import { AppBackground } from './AppBackground';
 import { BudgetMonthCountProvider } from './budget/BudgetMonthCountContext';
@@ -54,7 +59,7 @@ function AppInner() {
   }, []);
 
   useEffect(() => {
-    const maybeUpdate = async <T,>(cb?: () => T): Promise<T> => {
+    const maybeUpdate = async <T,>(cb?: () => T): Promise<T | void> => {
       if (global.Actual.isUpdateReadyForDownload()) {
         dispatch(
           setAppState({
@@ -67,10 +72,7 @@ function AppInner() {
     };
 
     async function init() {
-      const socketName = await maybeUpdate(() =>
-        global.Actual.getServerSocket(),
-      );
-
+      await maybeUpdate();
       dispatch(
         setAppState({
           loadingText: t(
@@ -78,7 +80,7 @@ function AppInner() {
           ),
         }),
       );
-      await initConnection(socketName);
+      await initConnection();
 
       // Load any global prefs
       dispatch(
@@ -110,7 +112,7 @@ function AppInner() {
         if (files) {
           const remoteFile = files.find(f => f.fileId === cloudFileId);
           if (remoteFile && remoteFile.deleted) {
-            dispatch(closeBudget());
+            void dispatch(closeBudget());
           }
         }
 
@@ -125,12 +127,8 @@ function AppInner() {
 
     initAll().catch(showErrorBoundary);
     // Removed cloudFileId & t from dependencies to prevent hard crash when closing budget in Electron
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, showErrorBoundary]);
-
-  useEffect(() => {
-    global.Actual.updateAppMenu(budgetId);
-  }, [budgetId]);
 
   useEffect(() => {
     if (userData?.tokenExpired) {
@@ -143,9 +141,9 @@ function AppInner() {
             sticky: true,
             message: t('Login expired, please log in again.'),
             button: {
-              title: t('Go to log in'),
+              title: t('Go to login'),
               action: () => {
-                dispatch(signOut());
+                void dispatch(signOut());
               },
             },
           },
@@ -168,13 +166,20 @@ function ErrorFallback({ error }: FallbackProps) {
 
 export function App() {
   const store = useStore();
+  const isTestEnv = useIsTestEnv();
+  const queryClient = useQueryClient();
 
-  useEffect(() => handleGlobalEvents(store), [store]);
+  useEffect(() => handleGlobalEvents(store, queryClient), [store, queryClient]);
 
   const [hiddenScrollbars, setHiddenScrollbars] = useState(
     hasHiddenScrollbars(),
   );
   const dispatch = useDispatch();
+
+  useOnVisible(async () => {
+    console.debug('triggering sync because of visibility change');
+    await dispatch(sync());
+  });
 
   useEffect(() => {
     function checkScrollbars() {
@@ -183,32 +188,16 @@ export function App() {
       }
     }
 
-    let isSyncing = false;
-
-    async function onVisibilityChange() {
-      if (!isSyncing) {
-        console.debug('triggering sync because of visibility change');
-        isSyncing = true;
-        await dispatch(sync());
-        isSyncing = false;
-      }
-    }
-
     window.addEventListener('focus', checkScrollbars);
-    window.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      window.removeEventListener('focus', checkScrollbars);
-      window.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [dispatch, hiddenScrollbars]);
+    return () => window.removeEventListener('focus', checkScrollbars);
+  }, [hiddenScrollbars]);
 
   const [theme] = useTheme();
 
   return (
     <BrowserRouter>
       <ExposeNavigate />
-      <HotkeysProvider initiallyActiveScopes={['*']}>
+      <HotkeysProvider initiallyActiveScopes={['app']}>
         <SpreadsheetProvider>
           <SidebarProvider>
             <BudgetMonthCountProvider>
@@ -230,12 +219,16 @@ export function App() {
                     }}
                   >
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
-                      {process.env.REACT_APP_REVIEW_ID &&
-                        !Platform.isPlaywright && <DevelopmentTopBar />}
+                      {process.env.REACT_APP_REVIEW_ID && !isTestEnv && (
+                        <DevelopmentTopBar />
+                      )}
                       <AppInner />
                     </ErrorBoundary>
                     <ThemeStyle />
-                    <Modals />
+                    <CustomThemeStyle />
+                    <ErrorBoundary FallbackComponent={FatalError}>
+                      <Modals />
+                    </ErrorBoundary>
                     <UpdateNotification />
                   </View>
                 </View>

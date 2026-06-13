@@ -1,5 +1,7 @@
 // @ts-strict-ignore
-import * as db from '../db';
+import * as db from '#server/db';
+
+import { runRules } from './transaction-rules';
 
 async function getPayee(acct) {
   return db.first<db.DbPayee>('SELECT * FROM payees WHERE transfer_acct = ?', [
@@ -56,7 +58,7 @@ export async function addTransfer(transaction, transferredAccount) {
     [transaction.account],
   );
 
-  const id = await db.insertTransaction({
+  const transferTransaction = {
     account: transferredAccount,
     amount: -transaction.amount,
     payee: fromPayee,
@@ -65,9 +67,22 @@ export async function addTransfer(transaction, transferredAccount) {
     notes: transaction.notes || null,
     schedule: transaction.schedule,
     cleared: false,
+  };
+  const { notes, cleared, schedule } = await runRules(transferTransaction);
+  const matchedSchedule = schedule ?? transaction.schedule;
+
+  const id = await db.insertTransaction({
+    ...transferTransaction,
+    notes,
+    cleared,
+    schedule: matchedSchedule,
   });
 
-  await db.updateTransaction({ id: transaction.id, transfer_id: id });
+  await db.updateTransaction({
+    id: transaction.id,
+    transfer_id: id,
+    ...(matchedSchedule ? { schedule: matchedSchedule } : {}),
+  });
   const categoryCleared = await clearCategory(transaction, transferredAccount);
 
   return {
@@ -111,7 +126,6 @@ export async function updateTransfer(transaction, transferredAccount) {
     // Make sure to update the payee on the other side in case the
     // user moved this transaction into another account
     payee: payee.id,
-    date: transaction.date,
     notes: transaction.notes,
     amount: -transaction.amount,
     schedule: transaction.schedule,

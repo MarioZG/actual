@@ -1,13 +1,13 @@
 import React from 'react';
 import { Trans } from 'react-i18next';
-import { useTransition, animated } from 'react-spring';
+import { animated, useTransition } from 'react-spring';
 
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { useSelector } from '../redux';
+import { useSelector } from '#redux';
 
 import { AnimatedRefresh } from './AnimatedRefresh';
 
@@ -22,7 +22,6 @@ export function BankSyncStatus() {
       from: { opacity: 0, transform: 'translateY(-100px)' },
       enter: { opacity: 1, transform: 'translateY(0)' },
       leave: { opacity: 0, transform: 'translateY(-100px)' },
-      unique: true,
     },
   );
 
@@ -41,7 +40,6 @@ export function BankSyncStatus() {
       {transitions(
         (style, item) =>
           item && (
-            // @ts-expect-error react-spring types currently do not support React v19 (but they soon will..)
             <animated.div key={item} style={style}>
               <View
                 style={{

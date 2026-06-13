@@ -1,11 +1,11 @@
 // @ts-strict-ignore
 
-import * as connection from '../../platform/server/connection';
-import { Diff } from '../../shared/util';
-import { PayeeEntity, TransactionEntity } from '../../types/models';
-import * as db from '../db';
-import { incrFetch, whereIn } from '../db/util';
-import { batchMessages } from '../sync';
+import * as connection from '#platform/server/connection';
+import * as db from '#server/db';
+import { incrFetch, whereIn } from '#server/db/util';
+import { batchMessages } from '#server/sync';
+import type { Diff } from '#shared/util';
+import type { PayeeEntity, TransactionEntity } from '#types/models';
 
 import * as rules from './transaction-rules';
 import * as transfer from './transfer';
@@ -31,7 +31,7 @@ async function getTransactionsByIds(
   return incrFetch(
     (query, params) => db.selectWithSchema('transactions', query, params),
     ids,
-    // eslint-disable-next-line rulesdir/typography
+
     id => `id = '${id}'`,
     where => `SELECT * FROM v_transactions_internal WHERE ${where}`,
   );
@@ -81,8 +81,9 @@ export async function batchUpdateTransactions({
     if (added) {
       addedIds = await Promise.all(
         added.map(async t => {
+          // Offbudget account transactions and parent transactions should not have categories.
           const account = accounts.find(acct => acct.id === t.account);
-          if (account.offbudget === 1) {
+          if (t.is_parent || account?.offbudget === 1) {
             t.category = null;
           }
           return db.insertTransaction(t);
@@ -107,9 +108,9 @@ export async function batchUpdateTransactions({
         updated.map(async t => {
           if (t.account) {
             // Moving transactions off budget should always clear the
-            // category
+            // category. Parent transactions should not have categories.
             const account = accounts.find(acct => acct.id === t.account);
-            if (account.offbudget === 1) {
+            if (t.is_parent || account?.offbudget === 1) {
               t.category = null;
             }
           }
@@ -188,5 +189,8 @@ export async function batchUpdateTransactions({
     added: resultAdded,
     updated: runTransfers ? transfersUpdated : resultUpdated,
     deleted: allDeleted,
+    errors: ((added || []) as Partial<TransactionEntity>[])
+      .concat(updated || [])
+      .flatMap(t => t._ruleErrors || []),
   };
 }

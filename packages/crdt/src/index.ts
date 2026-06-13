@@ -1,4 +1,3 @@
-import * as SyncPb from './proto/sync_pb';
 export {
   merkle,
   getClock,
@@ -11,4 +10,17 @@ export {
   Timestamp,
 } from './crdt';
 
-export const SyncProtoBuf = SyncPb;
+export {
+  type EncryptedData,
+  type Message,
+  type MessageEnvelope,
+  type SyncRequest,
+  type SyncResponse,
+  EncryptedDataSchema,
+  MessageSchema,
+  MessageEnvelopeSchema,
+  SyncRequestSchema,
+  SyncResponseSchema,
+} from './proto/sync_pb';
+
+export { create, fromBinary, toBinary } from '@bufbuild/protobuf';

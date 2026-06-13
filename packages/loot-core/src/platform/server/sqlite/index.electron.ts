@@ -2,7 +2,8 @@
 import SQL from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
-import { removeFile, readFile } from '../fs';
+import { getDataDir, readFile, removeFile } from '#platform/server/fs';
+import { logger } from '#platform/server/log';
 
 import { normalise } from './normalise';
 import { unicodeLike } from './unicodeLike';
@@ -10,13 +11,15 @@ import { unicodeLike } from './unicodeLike';
 function verifyParamTypes(sql, arr) {
   arr.forEach(val => {
     if (typeof val !== 'string' && typeof val !== 'number' && val !== null) {
-      console.log(sql, arr);
+      logger.log(sql, arr);
       throw new Error('Invalid field type ' + val + ' for sql ' + sql);
     }
   });
 }
 
-export async function init() {}
+export async function init() {
+  // No need to initialise on electron
+}
 
 export function prepare(db, sql) {
   return db.prepare(sql);
@@ -36,7 +39,7 @@ export function runQuery(
   try {
     stmt = typeof sql === 'string' ? db.prepare(sql) : sql;
   } catch (e) {
-    console.log('error', sql);
+    logger.log('error', sql);
     throw e;
   }
 
@@ -45,17 +48,12 @@ export function runQuery(
       const result = stmt.all(...params);
       return result;
     } catch (e) {
-      console.log('error', sql);
+      logger.log('error', sql);
       throw e;
     }
   } else {
-    try {
-      const info = stmt.run(...params);
-      return { changes: info.changes, insertId: info.lastInsertRowid };
-    } catch (e) {
-      // console.log('error', sql);
-      throw e;
-    }
+    const info = stmt.run(...params);
+    return { changes: info.changes, insertId: info.lastInsertRowid };
   }
 }
 
@@ -102,35 +100,30 @@ function regexp(regex: string, text: string | null) {
   return new RegExp(regex).test(text || '') ? 1 : 0;
 }
 
-export function openDatabase(pathOrBuffer: string | Buffer) {
+export function openDatabase(pathOrBuffer: string | Buffer): SQL.Database {
   const db = new SQL(pathOrBuffer);
   // Define Unicode-aware LOWER, UPPER, and LIKE implementation.
   // This is necessary because better-sqlite3 uses SQLite build without ICU support.
-  // @ts-expect-error @types/better-sqlite3 does not support setting strict 3rd argument
   db.function('UNICODE_LOWER', { deterministic: true }, (arg: string | null) =>
     arg?.toLowerCase(),
   );
-  // @ts-expect-error @types/better-sqlite3 does not support setting strict 3rd argument
   db.function('UNICODE_UPPER', { deterministic: true }, (arg: string | null) =>
     arg?.toUpperCase(),
   );
-  // @ts-expect-error @types/better-sqlite3 does not support setting strict 3rd argument
   db.function('UNICODE_LIKE', { deterministic: true }, unicodeLike);
-  // @ts-expect-error @types/better-sqlite3 does not support setting strict 3rd argument
   db.function('REGEXP', { deterministic: true }, regexp);
-  // @ts-expect-error @types/better-sqlite3 does not support setting strict 3rd argument
   db.function('NORMALISE', { deterministic: true }, normalise);
   return db;
 }
 
 export function closeDatabase(db: SQL.Database) {
-  return db.close();
+  db.close();
 }
 
 export async function exportDatabase(db: SQL.Database) {
   // electron does not support better-sqlite serialize since v21
   // save to file and read in the raw data.
-  const name = `${process.env.ACTUAL_DATA_DIR}/backup-for-export-${uuidv4()}.db`;
+  const name = `${getDataDir()}/backup-for-export-${uuidv4()}.db`;
 
   await db.backup(name);
 

@@ -1,7 +1,7 @@
-import { type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
-import { type BudgetPage } from './page-models/budget-page';
+import type { BudgetPage } from './page-models/budget-page';
 import { ConfigurationPage } from './page-models/configuration-page';
 
 test.describe('Budget', () => {
@@ -9,7 +9,7 @@ test.describe('Budget', () => {
   let configurationPage: ConfigurationPage;
   let budgetPage: BudgetPage;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeEach(async ({ browser }) => {
     page = await browser.newPage();
     configurationPage = new ConfigurationPage(page);
 
@@ -22,8 +22,8 @@ test.describe('Budget', () => {
     await page.mouse.move(0, 0);
   });
 
-  test.afterAll(async () => {
-    await page.close();
+  test.afterEach(async () => {
+    await page?.close();
   });
 
   test('renders the summary information: available funds, overspent, budgeted and for next month', async () => {

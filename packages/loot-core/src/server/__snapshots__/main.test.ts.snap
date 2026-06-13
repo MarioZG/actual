@@ -58,8 +58,7 @@ exports[`Accounts > Transfers are properly updated 1`] = `
 `;
 
 exports[`Accounts > Transfers are properly updated 2`] = `
-"Snapshot Diff:
-- First value
+"- First value
 + Second value
 
 @@ -2,12 +2,12 @@
@@ -77,7 +76,7 @@ exports[`Accounts > Transfers are properly updated 2`] = `
       "id": "test-transfer",
       "imported_description": null,
       "isChild": 0,
-@@ -24,15 +24,15 @@
+@@ -24,11 +24,11 @@
       "tombstone": 0,
       "transferred_id": "id2",
       "type": null,
@@ -88,18 +87,12 @@ exports[`Accounts > Transfers are properly updated 2`] = `
       "amount": -5000,
       "category": null,
       "cleared": 0,
--     "date": 20170101,
-+     "date": 20170103,
-      "description": "transfer-one",
-      "error": null,
-      "financial_id": null,
-      "id": "id2",
-      "imported_description": null,"
+      "date": 20170101,
+      "description": "transfer-one","
 `;
 
 exports[`Accounts > Transfers are properly updated 3`] = `
-"Snapshot Diff:
-- First value
+"- First value
 + Second value
 
 @@ -19,12 +19,12 @@

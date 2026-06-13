@@ -1,67 +1,32 @@
 // @ts-strict-ignore
-import React, { type ReactNode } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import React from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Select } from '@actual-app/components/select';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { tokens } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
+import { numberFormats } from '@actual-app/core/shared/util';
+import type { SyncedPrefs } from '@actual-app/core/types/prefs';
 import { css } from '@emotion/css';
 
-import { numberFormats } from 'loot-core/shared/util';
-import { type SyncedPrefs } from 'loot-core/types/prefs';
+import { Checkbox } from '#components/forms';
+import { useSidebar } from '#components/sidebar/SidebarProvider';
+import { useDateFormat } from '#hooks/useDateFormat';
+import { useDaysOfWeek } from '#hooks/useDaysOfWeek';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 
-import { useDateFormat } from '../../hooks/useDateFormat';
-import { useSyncedPref } from '../../hooks/useSyncedPref';
-import { Checkbox } from '../forms';
-import { useSidebar } from '../sidebar/SidebarProvider';
+import { Column, Setting } from './UI';
 
-import { Setting } from './UI';
-
-// Follows Pikaday 'firstDay' numbering
-// https://github.com/Pikaday/Pikaday
-function useDaysOfWeek() {
-  const { t } = useTranslation();
-
-  const daysOfWeek: {
-    value: SyncedPrefs['firstDayOfWeekIdx'];
-    label: string;
-  }[] = [
-    { value: '0', label: t('Sunday') },
-    { value: '1', label: t('Monday') },
-    { value: '2', label: t('Tuesday') },
-    { value: '3', label: t('Wednesday') },
-    { value: '4', label: t('Thursday') },
-    { value: '5', label: t('Friday') },
-    { value: '6', label: t('Saturday') },
-  ] as const;
-
-  return { daysOfWeek };
-}
 const dateFormats: { value: SyncedPrefs['dateFormat']; label: string }[] = [
   { value: 'MM/dd/yyyy', label: 'MM/DD/YYYY' },
   { value: 'dd/MM/yyyy', label: 'DD/MM/YYYY' },
   { value: 'yyyy-MM-dd', label: 'YYYY-MM-DD' },
   { value: 'MM.dd.yyyy', label: 'MM.DD.YYYY' },
   { value: 'dd.MM.yyyy', label: 'DD.MM.YYYY' },
+  { value: 'dd-MM-yyyy', label: 'DD-MM-YYYY' },
 ];
-
-function Column({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View
-      style={{
-        alignItems: 'flex-start',
-        flexGrow: 1,
-        gap: '0.5em',
-        width: '100%',
-      }}
-    >
-      <Text style={{ fontWeight: 500 }}>{title}</Text>
-      <View style={{ alignItems: 'flex-start', gap: '1em' }}>{children}</View>
-    </View>
-  );
-}
 
 export function FormatSettings() {
   const { t } = useTranslation();
@@ -76,7 +41,7 @@ export function FormatSettings() {
   const numberFormat = _numberFormat || 'comma-dot';
   const [hideFraction, setHideFractionPref] = useSyncedPref('hideFraction');
 
-  const { daysOfWeek } = useDaysOfWeek();
+  const daysOfWeek = useDaysOfWeek();
 
   const selectButtonClassName = css({
     '&[data-hovered]': {
@@ -140,7 +105,7 @@ export function FormatSettings() {
             <Select
               value={firstDayOfWeekIdx}
               onChange={idx => setFirstDayOfWeekIdxPref(idx)}
-              options={daysOfWeek.map(f => [f.value, f.label])}
+              options={Object.entries(daysOfWeek)}
               className={selectButtonClassName}
             />
           </Column>

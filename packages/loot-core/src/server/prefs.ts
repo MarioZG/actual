@@ -1,12 +1,13 @@
 // @ts-strict-ignore
 import { Timestamp } from '@actual-app/crdt';
 
-import * as fs from '../platform/server/fs';
-import type { MetadataPrefs } from '../types/prefs';
+import * as fs from '#platform/server/fs';
+import type { MetadataPrefs } from '#types/prefs';
 
-import { Message, sendMessages } from './sync';
+import { sendMessages } from './sync';
+import type { Message } from './sync';
 
-export const BUDGET_TYPES = ['report', 'rollover'] as const;
+export const BUDGET_TYPES = ['tracking', 'envelope'] as const;
 export type BudgetType = (typeof BUDGET_TYPES)[number];
 
 export const UPCOMING_SCHEDULED_TRANSACTION_LENGTHS = [
@@ -30,7 +31,7 @@ export async function loadPrefs(id?: string): Promise<MetadataPrefs> {
 
   try {
     prefs = JSON.parse(await fs.readFile(fullpath));
-  } catch (e) {
+  } catch {
     // If the user messed something up, be flexible and allow them to
     // still load the budget database. Default the budget name to the
     // id.

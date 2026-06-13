@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, type CSSProperties } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
 import { Menu } from '@actual-app/components/menu';
@@ -9,18 +10,17 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { listen } from '@actual-app/core/platform/client/connection';
+import type { RemoteFile, SyncedLocalFile } from '@actual-app/core/types/file';
+import type { TransObjectLiteral } from '@actual-app/core/types/util';
 
-import { closeBudget } from 'loot-core/client/budgets/budgetsSlice';
-import { getUserData, signOut } from 'loot-core/client/users/usersSlice';
-import { listen } from 'loot-core/platform/client/fetch';
-import { type RemoteFile, type SyncedLocalFile } from 'loot-core/types/file';
-import { type TransObjectLiteral } from 'loot-core/types/util';
-
-import { useAuth } from '../auth/AuthProvider';
-import { Permissions } from '../auth/types';
-import { useMetadataPref } from '../hooks/useMetadataPref';
-import { useNavigate } from '../hooks/useNavigate';
-import { useSelector, useDispatch } from '../redux';
+import { useAuth } from '#auth/AuthProvider';
+import { Permissions } from '#auth/types';
+import { closeBudget } from '#budgetfiles/budgetfilesSlice';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useNavigate } from '#hooks/useNavigate';
+import { useDispatch, useSelector } from '#redux';
+import { getUserData, signOut } from '#users/usersSlice';
 
 import { PrivacyFilter } from './PrivacyFilter';
 import { useMultiuserEnabled, useServerURL } from './ServerContext';
@@ -49,14 +49,14 @@ export function LoggedInUser({
   const location = useLocation();
   const { hasPermission } = useAuth();
   const multiuserEnabled = useMultiuserEnabled();
-  const allFiles = useSelector(state => state.budgets.allFiles || []);
+  const allFiles = useSelector(state => state.budgetfiles.allFiles || []);
   const remoteFiles = allFiles.filter(
     f => f.state === 'remote' || f.state === 'synced' || f.state === 'detached',
   ) as (SyncedLocalFile | RemoteFile)[];
   const currentFile = remoteFiles.find(f => f.cloudFileId === cloudFileId);
   const hasSyncedPrefs = useSelector(state => state.prefs.synced);
 
-  const initializeUserData = async () => {
+  const initializeUserData = useCallback(async () => {
     try {
       await dispatch(getUserData());
     } catch (error) {
@@ -64,11 +64,11 @@ export function LoggedInUser({
     } finally {
       setLoading(false);
     }
-  };
+  }, [dispatch]);
 
   useEffect(() => {
-    initializeUserData();
-  }, []);
+    void initializeUserData();
+  }, [initializeUserData]);
 
   useEffect(() => {
     return listen('sync-event', ({ type }) => {
@@ -84,12 +84,12 @@ export function LoggedInUser({
           (type === 'error' && !userData.offline));
 
       if (shouldReinitialize) {
-        initializeUserData();
+        void initializeUserData();
       } else {
         setLoading(false);
       }
     });
-  }, [userData]);
+  }, [initializeUserData, userData]);
 
   async function onCloseBudget() {
     await dispatch(closeBudget());
@@ -97,7 +97,7 @@ export function LoggedInUser({
 
   async function onChangePassword() {
     await onCloseBudget();
-    navigate('/change-password');
+    void navigate('/change-password');
   }
 
   const handleMenuSelect = async (type: string) => {
@@ -105,27 +105,27 @@ export function LoggedInUser({
 
     switch (type) {
       case 'change-password':
-        onChangePassword();
+        void onChangePassword();
         break;
       case 'sign-in':
         await onCloseBudget();
-        navigate('/login');
+        void navigate('/login');
         break;
       case 'user-access':
-        navigate('/user-access');
+        void navigate('/user-access');
         break;
       case 'user-directory':
-        navigate('/user-directory');
+        void navigate('/user-directory');
         break;
       case 'index':
-        navigate('/');
+        void navigate('/');
         break;
       case 'sign-out':
-        dispatch(signOut());
+        void dispatch(signOut());
         break;
       case 'config-server':
         await onCloseBudget();
-        navigate('/config-server');
+        void navigate('/config-server');
         break;
       default:
         break;

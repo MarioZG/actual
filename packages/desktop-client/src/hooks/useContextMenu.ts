@@ -1,16 +1,12 @@
-import { type MouseEventHandler, useState } from 'react';
-
-import { useFeatureFlag } from './useFeatureFlag';
+import { useState } from 'react';
+import type { MouseEventHandler } from 'react';
 
 export function useContextMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [asContextMenu, setAsContextMenu] = useState(false);
   const [position, setPosition] = useState({ crossOffset: 0, offset: 0 });
-  const contextMenusEnabled = useFeatureFlag('contextMenus');
 
   const handleContextMenu: MouseEventHandler<HTMLElement> = e => {
-    if (!contextMenusEnabled) return;
-
     e.preventDefault();
     setAsContextMenu(true);
 

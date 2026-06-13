@@ -1,38 +1,37 @@
 // @ts-strict-ignore
-import React, {
-  type ComponentProps,
-  type CSSProperties,
-  memo,
-  useRef,
-  useState,
-} from 'react';
+import React, { memo, useRef, useState } from 'react';
+import type { ComponentProps, CSSProperties } from 'react';
 import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SvgCheveronDown } from '@actual-app/components/icons/v1';
+import {
+  SvgArrowsSynchronize,
+  SvgCalendar3,
+} from '@actual-app/components/icons/v2';
 import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 import { css } from '@emotion/css';
+import { t } from 'i18next';
 
-import { trackingBudget } from 'loot-core/client/queries';
-import { evalArithmetic } from 'loot-core/shared/arithmetic';
-import * as monthUtils from 'loot-core/shared/months';
-import { integerToCurrency, amountToInteger } from 'loot-core/shared/util';
-import {
-  type CategoryEntity,
-  type CategoryGroupEntity,
-} from 'loot-core/types/models';
-
-import { useUndo } from '../../../hooks/useUndo';
-import { type Binding, type SheetFields } from '../../spreadsheet';
-import { CellValue, CellValueText } from '../../spreadsheet/CellValue';
-import { useSheetValue } from '../../spreadsheet/useSheetValue';
-import { Field, SheetCell, type SheetCellProps } from '../../table';
-import { BalanceWithCarryover } from '../BalanceWithCarryover';
-import { makeAmountGrey } from '../util';
+import { BalanceWithCarryover } from '#components/budget/BalanceWithCarryover';
+import { makeAmountGrey } from '#components/budget/util';
+import { NotesButton } from '#components/NotesButton';
+import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
+import { Field, SheetCell } from '#components/table';
+import type { SheetCellProps } from '#components/table';
+import { useCategoryScheduleGoalTemplateIndicator } from '#hooks/useCategoryScheduleGoalTemplateIndicator';
+import { useFormat } from '#hooks/useFormat';
+import { useNavigate } from '#hooks/useNavigate';
+import { useSheetValue } from '#hooks/useSheetValue';
+import { useUndo } from '#hooks/useUndo';
+import type { Binding, SheetFields } from '#spreadsheet';
+import { trackingBudget } from '#spreadsheet/bindings';
+import type { CategoryGroupMonthProps, CategoryMonthProps } from '..';
 
 import { BalanceMenu } from './BalanceMenu';
 import { BudgetMenu } from './BudgetMenu';
@@ -96,9 +95,10 @@ type BudgetTotalsMonthProps = {
 };
 
 export const BudgetTotalsMonth = memo(function BudgetTotalsMonth(month: BudgetTotalsMonthProps) {
-
-  const isBudgetModeEnabled = useBudgetMode();    
+  const isBudgetModeEnabled = useBudgetMode();   
+   
   console.log('isBudgetModeEnabled', isBudgetModeEnabled);
+  console.log('month', month);
   return (
     <View
       style={{
@@ -110,7 +110,7 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth(month: BudgetTo
       }}
     >
       <View style={headerLabelStyle}>
-        <Text style={{ color: theme.pageTextLight }}>
+        <Text style={{ color: theme.tableHeaderText }}>
           <Trans>Budgeted</Trans>
         </Text>
         <TrackingCellValue
@@ -144,7 +144,11 @@ export const BudgetTotalsMonth = memo(function BudgetTotalsMonth(month: BudgetTo
 });
 
 export const BudgetTotalsMonthRunning = memo(function BudgetTotalsMonth(month: BudgetTotalsMonthProps) {
-  const useBudgets = monthUtils.currentMonth() <= month.month;
+  const useBudgets = monthUtils.currentMonth() <= month.month.month;
+  console.log('monthUtils.currentMonth()', monthUtils.currentMonth());
+  console.log(' month.month',  month.month);
+  console.log('useBudgets', useBudgets);
+  console.log('month', month);
 
   return (
     <View
@@ -249,7 +253,7 @@ export function IncomeHeaderMonth() {
       }}
     >
       <View style={headerLabelStyle}>
-        <Text style={{ color: theme.pageTextLight }}>
+        <Text style={{ color: theme.tableHeaderText }}>
           <Trans>Budgeted</Trans>
         </Text>
       </View>
@@ -262,14 +266,10 @@ export function IncomeHeaderMonth() {
   );
 }
 
-type GroupMonthProps = {
-  month: string;
-  group: CategoryGroupEntity;
-};
 export const GroupMonth = memo(function GroupMonth({
   month,
   group,
-}: GroupMonthProps) {
+}: CategoryGroupMonthProps) {
   const { id } = group;
   const isBudgetModeEnabled = useBudgetMode();    
 
@@ -324,14 +324,6 @@ export const GroupMonth = memo(function GroupMonth({
   );
 });
 
-type CategoryMonthProps = {
-  month: string;
-  category: CategoryEntity;
-  editing: boolean;
-  onEdit: (id: CategoryEntity['id'] | null, month?: string) => void;
-  onBudgetAction: (month: string, action: string, arg: unknown) => void;
-  onShowActivity: (id: CategoryEntity['id'], month: string) => void;
-};
 export const CategoryMonth = memo(function CategoryMonth({
   month,
   category,
@@ -342,6 +334,7 @@ export const CategoryMonth = memo(function CategoryMonth({
 }: CategoryMonthProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef(null);
+  const format = useFormat();
 
   const [balanceMenuOpen, setBalanceMenuOpen] = useState(false);
   const triggerBalanceMenuRef = useRef(null);
@@ -353,6 +346,16 @@ export const CategoryMonth = memo(function CategoryMonth({
   };
 
   const { showUndoNotification } = useUndo();
+
+  const navigate = useNavigate();
+
+  const { schedule, scheduleStatus, isScheduleRecurring, description } =
+    useCategoryScheduleGoalTemplateIndicator({
+      category,
+      month,
+    });
+
+  const showScheduleIndicator = schedule && scheduleStatus;
   const isBudgetModeEnabled = useBudgetMode();    
 
   return (
@@ -367,8 +370,18 @@ export const CategoryMonth = memo(function CategoryMonth({
           opacity: 0,
           transition: 'opacity .25s',
         },
-        '&:hover .hover-visible': {
+        '&:hover .hover-visible, & .force-visible .hover-visible': {
           opacity: 1,
+        },
+        '& .hover-expand': {
+          maxWidth: 0,
+          overflow: 'hidden',
+          transition: 'max-width 0s .25s',
+        },
+        '&:hover .hover-expand, & .hover-expand.force-visible': {
+          maxWidth: '300px',
+          overflow: 'visible',
+          transition: 'max-width 0s linear 0s',
         },
       }}
     >
@@ -379,76 +392,104 @@ export const CategoryMonth = memo(function CategoryMonth({
         }}
       >
         {!editing && (
-          <View
-            style={{
-              flexDirection: 'row',
-              flexShrink: 0,
-              paddingLeft: 3,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: theme.tableBorder,
-            }}
-          >
-            <Button
-              ref={triggerRef}
-              variant="bare"
-              onPress={() => setMenuOpen(true)}
+          <>
+            <View
               style={{
-                padding: 3,
+                paddingLeft: 3,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: theme.tableBorder,
               }}
             >
-              <SvgCheveronDown
-                width={14}
-                height={14}
-                className="hover-visible"
-                style={menuOpen && { opacity: 1 }}
+              <NotesButton
+                id={`${category.id}-${month}`}
+                defaultColor={theme.pageTextLight}
               />
-            </Button>
-
-            <Popover
-              triggerRef={triggerRef}
-              isOpen={menuOpen}
-              onOpenChange={() => setMenuOpen(false)}
-              placement="bottom start"
+            </View>
+            <View
+              className={`hover-expand ${menuOpen ? 'force-visible' : ''}`}
+              style={{
+                flexDirection: 'row',
+                flexShrink: 0,
+                paddingLeft: 3,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: theme.tableBorder,
+              }}
             >
-              <BudgetMenu
-                onCopyLastMonthAverage={() => {
-                  onMenuAction(month, 'copy-single-last', {
-                    category: category.id,
-                  });
-                  showUndoNotification({
-                    message: `Budget set to last month’s budget.`,
-                  });
+              <Button
+                ref={triggerRef}
+                variant="bare"
+                onPress={() => setMenuOpen(true)}
+                style={{
+                  padding: 3,
                 }}
-                onSetMonthsAverage={numberOfMonths => {
-                  if (
-                    numberOfMonths !== 3 &&
-                    numberOfMonths !== 6 &&
-                    numberOfMonths !== 12
-                  ) {
-                    return;
-                  }
+              >
+                <SvgCheveronDown
+                  width={14}
+                  height={14}
+                  className="hover-visible"
+                />
+              </Button>
 
-                  onMenuAction(month, `set-single-${numberOfMonths}-avg`, {
-                    category: category.id,
-                  });
-                  showUndoNotification({
-                    message: `Budget set to ${numberOfMonths}-month average.`,
-                  });
-                }}
-                onApplyBudgetTemplate={() => {
-                  onMenuAction(month, 'apply-single-category-template', {
-                    category: category.id,
-                  });
-                  showUndoNotification({
-                    message: `Budget template applied.`,
-                  });
-                }}
-              />
-            </Popover>
-          </View>
+              <Popover
+                triggerRef={triggerRef}
+                isOpen={menuOpen}
+                onOpenChange={() => setMenuOpen(false)}
+                placement="bottom start"
+              >
+                <BudgetMenu
+                  onCopyLastMonthAverage={() => {
+                    onMenuAction(month, 'copy-single-last', {
+                      category: category.id,
+                    });
+                    showUndoNotification({
+                      message: t(`Budget set to last month's budget.`),
+                    });
+                  }}
+                  onSetMonthsAverage={numberOfMonths => {
+                    if (
+                      numberOfMonths !== 3 &&
+                      numberOfMonths !== 6 &&
+                      numberOfMonths !== 12
+                    ) {
+                      return;
+                    }
+
+                    onMenuAction(month, `set-single-${numberOfMonths}-avg`, {
+                      category: category.id,
+                    });
+                    showUndoNotification({
+                      message: t(
+                        'Budget set to {{numberOfMonths}}-month average.',
+                        { numberOfMonths },
+                      ),
+                    });
+                  }}
+                  onApplyBudgetTemplate={() => {
+                    onMenuAction(month, 'apply-single-category-template', {
+                      category: category.id,
+                    });
+                    showUndoNotification({
+                      message: t(`Budget template applied.`),
+                    });
+                  }}
+                  onCopyUntilYearEnd={() => {
+                    onMenuAction(month, 'copy-until-year-end', {
+                      category: category.id,
+                    });
+                    showUndoNotification({
+                      message: t(`Budget copied until year end.`),
+                    });
+                  }}
+                />
+              </Popover>
+            </View>
+          </>
         )}
         <TrackingSheetCell
           name="budget"
@@ -464,33 +505,29 @@ export const CategoryMonth = memo(function CategoryMonth({
             padding: '0 4px',
             borderRadius: 4,
             ':hover': {
-              boxShadow: 'inset 0 0 0 1px ' + theme.mobileAccountShadow,
-              backgroundColor: theme.tableBackground,
+              boxShadow: 'inset 0 0 0 1px ' + theme.pageTextSubdued,
+              backgroundColor: theme.budgetCurrentMonth,
             },
           }}
           valueProps={{
             binding: trackingBudget.catBudgeted(category.id),
             type: 'financial',
             getValueStyle: makeAmountGrey,
-            formatExpr: expr => {
-              return integerToCurrency(expr);
-            },
-            unformatExpr: expr => {
-              return amountToInteger(evalArithmetic(expr, 0));
-            },
+            formatExpr: format.forEdit,
+            unformatExpr: format.fromEdit,
           }}
           inputProps={{
             onBlur: () => {
               onEdit(null);
             },
             style: {
-              backgroundColor: theme.tableBackground,
+              backgroundColor: theme.budgetCurrentMonth,
             },
           }}
-          onSave={amount => {
+          onSave={(parsedIntegerAmount: number | null) => {
             onBudgetAction(month, 'budget-amount', {
               category: category.id,
-              amount,
+              amount: parsedIntegerAmount ?? 0,
             });
           }}
         />
@@ -499,7 +536,41 @@ export const CategoryMonth = memo(function CategoryMonth({
         <span
           data-testid="category-month-spent"
           onClick={() => onShowActivity(category.id, month)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: showScheduleIndicator
+              ? 'space-between'
+              : 'flex-end',
+            gap: 2,
+          }}
         >
+          {showScheduleIndicator && (
+            <View title={description}>
+              <Button
+                variant="bare"
+                style={{
+                  color:
+                    scheduleStatus === 'missed'
+                      ? theme.budgetNumberNegative
+                      : scheduleStatus === 'due'
+                        ? theme.templateNumberUnderFunded
+                        : theme.upcomingText,
+                }}
+                onPress={() =>
+                  schedule._account
+                    ? navigate(`/accounts/${schedule._account}`)
+                    : navigate('/accounts')
+                }
+              >
+                {isScheduleRecurring ? (
+                  <SvgArrowsSynchronize style={{ width: 12, height: 12 }} />
+                ) : (
+                  <SvgCalendar3 style={{ width: 12, height: 12 }} />
+                )}
+              </Button>
+            </View>
+          )}
           <TrackingCellValue
             binding={trackingBudget.catSumAmount(category.id)}
             type="financial"
@@ -526,9 +597,16 @@ export const CategoryMonth = memo(function CategoryMonth({
           width="flex"
           style={{ paddingRight: styles.monthRightPadding, textAlign: 'right' }}
         >
-          <span
+          <Button
+            variant="bare"
             ref={triggerBalanceMenuRef}
-            onClick={() => !category.is_income && setBalanceMenuOpen(true)}
+            onPress={() => !category.is_income && setBalanceMenuOpen(true)}
+            style={{
+              justifyContent: 'flex-end',
+              background: 'transparent',
+              width: '100%',
+              padding: 0,
+            }}
           >
             <BalanceWithCarryover
               isDisabled={category.is_income}
@@ -538,7 +616,7 @@ export const CategoryMonth = memo(function CategoryMonth({
               budgeted={trackingBudget.catBudgeted(category.id)}
               longGoal={trackingBudget.catLongGoal(category.id)}
             />
-          </span>
+          </Button>
 
           <Popover
             triggerRef={triggerBalanceMenuRef}

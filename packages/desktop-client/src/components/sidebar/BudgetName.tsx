@@ -1,4 +1,5 @@
-import React, { type ReactNode, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -10,14 +11,15 @@ import { Popover } from '@actual-app/components/popover';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { isElectron } from '@actual-app/core/shared/environment';
+import * as Platform from '@actual-app/core/shared/platform';
 
-import { closeBudget } from 'loot-core/client/budgets/budgetsSlice';
-import * as Platform from 'loot-core/client/platform';
-
-import { useContextMenu } from '../../hooks/useContextMenu';
-import { useMetadataPref } from '../../hooks/useMetadataPref';
-import { useNavigate } from '../../hooks/useNavigate';
-import { useDispatch } from '../../redux';
+import { closeBudget } from '#budgetfiles/budgetfilesSlice';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useNavigate } from '#hooks/useNavigate';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 type BudgetNameProps = {
   children?: ReactNode;
@@ -71,10 +73,19 @@ function EditableBudgetName() {
         setEditing(true);
         break;
       case 'settings':
-        navigate('/settings');
+        void navigate('/settings');
+        break;
+      case 'loadBackup':
+        if (isElectron()) {
+          dispatch(
+            pushModal({
+              modal: { name: 'load-backup', options: {} },
+            }),
+          );
+        }
         break;
       case 'close':
-        dispatch(closeBudget());
+        void dispatch(closeBudget());
         break;
       default:
     }
@@ -83,8 +94,9 @@ function EditableBudgetName() {
   const items = [
     { name: 'rename', text: t('Rename budget') },
     { name: 'settings', text: t('Settings') },
-    { name: 'close', text: t('Close file') },
-  ];
+    isElectron() ? { name: 'loadBackup', text: t('Load Backup…') } : null,
+    { name: 'close', text: t('Switch file') },
+  ].filter(item => item !== null);
 
   if (editing) {
     return (
@@ -96,9 +108,7 @@ function EditableBudgetName() {
             fontWeight: 500,
           }}
           defaultValue={budgetName}
-          onEnter={e => {
-            const inputEl = e.target as HTMLInputElement;
-            const newBudgetName = inputEl.value;
+          onEnter={newBudgetName => {
             if (newBudgetName.trim() !== '') {
               setBudgetNamePref(newBudgetName);
               setEditing(false);
@@ -116,7 +126,7 @@ function EditableBudgetName() {
         ref={triggerRef}
         variant="bare"
         style={{
-          color: theme.buttonNormalBorder,
+          color: theme.sidebarBudgetName,
           fontSize: 16,
           fontWeight: 500,
           marginLeft: -5,

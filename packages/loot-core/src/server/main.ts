@@ -1,19 +1,17 @@
 // @ts-strict-ignore
-import './polyfills';
-
-import * as injectAPI from '@actual-app/api/injected';
-
-import * as asyncStorage from '../platform/server/asyncStorage';
-import * as connection from '../platform/server/connection';
-import * as fs from '../platform/server/fs';
-import * as sqlite from '../platform/server/sqlite';
-import { q } from '../shared/query';
-import { Handlers } from '../types/handlers';
+import * as asyncStorage from '#platform/server/asyncStorage';
+import * as connection from '#platform/server/connection';
+import * as fs from '#platform/server/fs';
+import { logger, setVerboseMode } from '#platform/server/log';
+import * as sqlite from '#platform/server/sqlite';
+import { q } from '#shared/query';
+import { amountToInteger, integerToAmount } from '#shared/util';
+import type { Handlers } from '#types/handlers';
 
 import { app as accountsApp } from './accounts/app';
 import { app as adminApp } from './admin/app';
 import { installAPI } from './api';
-import { runQuery as aqlQuery } from './aql';
+import { aqlQuery } from './aql';
 import { app as authApp } from './auth/app';
 import { app as budgetApp } from './budget/app';
 import { app as budgetFilesApp } from './budgetfiles/app';
@@ -22,11 +20,11 @@ import * as db from './db';
 import * as encryption from './encryption';
 import { app as encryptionApp } from './encryption/app';
 import { app as filtersApp } from './filters/app';
+import { app as forecastApp } from './forecast/app';
 import { app } from './main-app';
 import { mutator, runHandler } from './mutators';
 import { app as notesApp } from './notes/app';
 import { app as payeesApp } from './payees/app';
-import * as Platform from './platform';
 import { get } from './post';
 import { app as preferencesApp } from './preferences/app';
 import * as prefs from './prefs';
@@ -37,10 +35,11 @@ import { getServer, setServer } from './server-config';
 import { app as spreadsheetApp } from './spreadsheet/app';
 import { fullSync, setSyncingMode } from './sync';
 import { app as syncApp } from './sync/app';
+import { app as tagsApp } from './tags/app';
 import { app as toolsApp } from './tools/app';
 import { app as transactionsApp } from './transactions/app';
 import * as rules from './transactions/transaction-rules';
-import { undo, redo } from './undo';
+import { redo, undo } from './undo';
 
 // handlers
 
@@ -84,7 +83,7 @@ handlers['get-server-version'] = async function () {
 
     const info = JSON.parse(res);
     version = info.build.version;
-  } catch (err) {
+  } catch {
     return { error: 'network-failure' };
   }
 
@@ -121,13 +120,11 @@ handlers['set-server-url'] = async function ({ url, validate = true }) {
 handlers['app-focused'] = async function () {
   if (prefs.getPrefs() && prefs.getPrefs().id) {
     // First we sync
-    fullSync();
+    void fullSync();
   }
 };
 
 handlers = installAPI(handlers) as Handlers;
-
-injectAPI.override((name, args) => runHandler(app.handlers[name], args));
 
 // A hack for now until we clean up everything
 app.handlers = handlers;
@@ -140,6 +137,7 @@ app.combine(
   preferencesApp,
   toolsApp,
   filtersApp,
+  forecastApp,
   reportsApp,
   rulesApp,
   adminApp,
@@ -150,16 +148,10 @@ app.combine(
   syncApp,
   budgetFilesApp,
   encryptionApp,
+  tagsApp,
 );
 
 export function getDefaultDocumentDir() {
-  if (Platform.isMobile) {
-    // On mobile, unfortunately we need to be backwards compatible
-    // with the old folder structure which does not store files inside
-    // of an `Actual` directory. In the future, if we really care, we
-    // can migrate them, but for now just return the documents dir
-    return process.env.ACTUAL_DOCUMENT_DIR;
-  }
   return fs.join(process.env.ACTUAL_DOCUMENT_DIR, 'Actual');
 }
 
@@ -178,7 +170,7 @@ async function setupDocumentsDir() {
   if (documentDir) {
     try {
       await ensureExists(documentDir);
-    } catch (e) {
+    } catch {
       documentDir = null;
     }
   }
@@ -193,7 +185,8 @@ async function setupDocumentsDir() {
 
 export async function initApp(isDev, socketName) {
   await sqlite.init();
-  await Promise.all([asyncStorage.init(), fs.init()]);
+  asyncStorage.init();
+  await fs.init();
   await setupDocumentsDir();
 
   const keysStr = await asyncStorage.getItem('encrypt-keys');
@@ -208,7 +201,7 @@ export async function initApp(isDev, socketName) {
         }),
       );
     } catch (e) {
-      console.log('Error loading key', e);
+      logger.log('Error loading key', e);
       throw new Error('load-key-error');
     }
   }
@@ -233,11 +226,35 @@ export async function initApp(isDev, socketName) {
   }
 }
 
-export type InitConfig = {
+type BaseInitConfig = {
   dataDir?: string;
-  serverURL?: string;
-  password?: string;
+  verbose?: boolean;
 };
+
+type ServerInitConfig = BaseInitConfig & {
+  serverURL: string;
+};
+
+type PasswordAuthConfig = ServerInitConfig & {
+  password: string;
+  sessionToken?: never;
+};
+
+type SessionTokenAuthConfig = ServerInitConfig & {
+  sessionToken: string;
+  password?: never;
+};
+
+type NoServerConfig = BaseInitConfig & {
+  serverURL?: undefined;
+  password?: never;
+  sessionToken?: never;
+};
+
+export type InitConfig =
+  | PasswordAuthConfig
+  | SessionTokenAuthConfig
+  | NoServerConfig;
 
 export async function init(config: InitConfig) {
   // Get from build
@@ -246,22 +263,50 @@ export async function init(config: InitConfig) {
   if (config) {
     dataDir = config.dataDir;
     serverURL = config.serverURL;
+
+    // Set verbose mode if specified
+    if (config.verbose !== undefined) {
+      setVerboseMode(config.verbose);
+    }
   } else {
     dataDir = process.env.ACTUAL_DATA_DIR;
     serverURL = process.env.ACTUAL_SERVER_URL;
   }
 
   await sqlite.init();
-  await Promise.all([asyncStorage.init({ persist: false }), fs.init()]);
+  asyncStorage.init({ persist: false });
+  await fs.init();
   fs._setDocumentDir(dataDir || process.cwd());
 
   if (serverURL) {
     setServer(serverURL);
 
-    if (config.password) {
-      await runHandler(handlers['subscribe-sign-in'], {
+    if ('sessionToken' in config && config.sessionToken) {
+      // Session token authentication
+      await runHandler(handlers['subscribe-set-token'], {
+        token: config.sessionToken,
+      });
+      // Validate the token
+      const user = await runHandler(handlers['subscribe-get-user'], undefined);
+      if (!user || user.tokenExpired === true) {
+        // Clear invalid token
+        await runHandler(handlers['subscribe-set-token'], { token: '' });
+        throw new Error(
+          'Authentication failed: invalid or expired session token',
+        );
+      }
+      if (user.offline === true) {
+        // Clear token since we can't validate
+        await runHandler(handlers['subscribe-set-token'], { token: '' });
+        throw new Error('Authentication failed: server offline or unreachable');
+      }
+    } else if ('password' in config && config.password) {
+      const result = await runHandler(handlers['subscribe-sign-in'], {
         password: config.password,
       });
+      if (result?.error) {
+        throw new Error(`Authentication failed: ${result.error}`);
+      }
     }
   } else {
     // This turns off all server URLs. In this mode we don't want any
@@ -291,4 +336,6 @@ export const lib = {
   on: (name, func) => app.events.on(name, func),
   q,
   db,
+  amountToInteger,
+  integerToAmount,
 };

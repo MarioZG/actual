@@ -9,28 +9,10 @@ import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { importBudget } from 'loot-core/client/budgets/budgetsSlice';
-
-import { useNavigate } from '../../../hooks/useNavigate';
-import { useDispatch } from '../../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
-
-function getErrorMessage(error: string): string {
-  switch (error) {
-    case 'parse-error':
-      return 'Unable to parse file. Please select a JSON file exported from nYNAB.';
-    case 'not-ynab5':
-      return 'This file is not valid. Please select a JSON file exported from nYNAB.';
-    case 'not-zip-file':
-      return 'This file is not valid. Please select an unencrypted archive of Actual data.';
-    case 'invalid-zip-file':
-      return 'This archive is not a valid Actual export file.';
-    case 'invalid-metadata-file':
-      return 'The metadata file in the given archive is corrupted.';
-    default:
-      return 'An unknown error occurred while importing. Please report this as a new issue on GitHub.';
-  }
-}
+import { importBudget } from '#budgetfiles/budgetfilesSlice';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { useNavigate } from '#hooks/useNavigate';
+import { useDispatch } from '#redux';
 
 export function ImportActualModal() {
   const { t } = useTranslation();
@@ -38,6 +20,31 @@ export function ImportActualModal() {
   const dispatch = useDispatch();
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+
+  function getErrorMessage(error: string): string {
+    switch (error) {
+      case 'parse-error':
+        return t(
+          'Unable to parse file. Please select a JSON file exported from nYNAB.',
+        );
+      case 'not-ynab5':
+        return t(
+          'This file is not valid. Please select a JSON file exported from nYNAB.',
+        );
+      case 'not-zip-file':
+        return t(
+          'This file is not valid. Please select an unencrypted archive of Actual data.',
+        );
+      case 'invalid-zip-file':
+        return t('This archive is not a valid Actual export file.');
+      case 'invalid-metadata-file':
+        return t('The metadata file in the given archive is corrupted.');
+      default:
+        return t(
+          'An unknown error occurred while importing. Please report this as a new issue on GitHub.',
+        );
+    }
+  }
 
   async function onImport() {
     const res = await window.Actual.openFileDialog({
@@ -49,7 +56,7 @@ export function ImportActualModal() {
       setError(null);
       try {
         await dispatch(importBudget({ filepath: res[0], type: 'actual' }));
-        navigate('/budget');
+        void navigate('/budget');
       } catch (err) {
         setError(err.message);
       } finally {
@@ -60,11 +67,11 @@ export function ImportActualModal() {
 
   return (
     <Modal name="import-actual" containerProps={{ style: { width: 400 } }}>
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Import from Actual export')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ ...styles.smallText, lineHeight: 1.5, marginTop: 20 }}>
             {error && (

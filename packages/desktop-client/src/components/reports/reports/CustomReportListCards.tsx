@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { SvgExclamationSolid } from '@actual-app/components/icons/v1';
 import { styles } from '@actual-app/components/styles';
@@ -7,21 +7,22 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type { CustomReportEntity } from '@actual-app/core/types/models';
 
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { calculateHasWarning } from 'loot-core/client/reports';
-import { send, sendCatch } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
-import { type CustomReportEntity } from 'loot-core/types/models';
-
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { usePayees } from '../../../hooks/usePayees';
-import { useSyncedPref } from '../../../hooks/useSyncedPref';
-import { useDispatch } from '../../../redux';
-import { DateRange } from '../DateRange';
-import { ReportCard } from '../ReportCard';
-import { ReportCardName } from '../ReportCardName';
+import { DateRange } from '#components/reports/DateRange';
+import { ReportCard } from '#components/reports/ReportCard';
+import { ReportCardName } from '#components/reports/ReportCardName';
+import { useDashboardWidgetCopyMenu } from '#components/reports/useDashboardWidgetCopyMenu';
+import { calculateHasWarning } from '#components/reports/util';
+import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
+import { usePayees } from '#hooks/usePayees';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { useUpdateReportMutation } from '#reports/mutations';
 
 import { GetCardData } from './GetCardData';
 import { MissingReportCard } from './MissingReportCard';
@@ -30,21 +31,21 @@ type CustomReportListCardsProps = {
   isEditing?: boolean;
   report?: CustomReportEntity;
   onRemove: () => void;
+  onCopy: (targetDashboardId: string) => void;
 };
 
 export function CustomReportListCards({
   isEditing,
   report,
   onRemove,
+  onCopy,
 }: CustomReportListCardsProps) {
-  const { t } = useTranslation();
-
   // It's possible for a dashboard to reference a non-existing
   // custom report
   if (!report) {
     return (
       <MissingReportCard isEditing={isEditing} onRemove={onRemove}>
-        {t('This custom report has been deleted.')}
+        <Trans>This custom report has been deleted.</Trans>
       </MissingReportCard>
     );
   }
@@ -54,6 +55,7 @@ export function CustomReportListCards({
       isEditing={isEditing}
       report={report}
       onRemove={onRemove}
+      onCopy={onCopy}
     />
   );
 }
@@ -62,17 +64,24 @@ function CustomReportListCardsInner({
   isEditing,
   report,
   onRemove,
+  onCopy,
 }: Omit<CustomReportListCardsProps, 'report'> & {
   report: CustomReportEntity;
 }) {
+  const { t } = useTranslation();
+
   const dispatch = useDispatch();
 
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
   const [earliestTransaction, setEarliestTransaction] = useState('');
+  const [latestTransaction, setLatestTransaction] = useState('');
 
-  const payees = usePayees();
-  const accounts = useAccounts();
-  const categories = useCategories();
+  const { menuItems: copyMenuItems, handleMenuSelect: handleCopyMenuSelect } =
+    useDashboardWidgetCopyMenu(onCopy);
+
+  const { data: payees = [] } = usePayees();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = { list: [], grouped: [] } } = useCategories();
 
   const hasWarning = calculateHasWarning(report.conditions ?? [], {
     categories: categories.list,
@@ -85,11 +94,19 @@ function CustomReportListCardsInner({
 
   useEffect(() => {
     async function run() {
-      const trans = await send('get-earliest-transaction');
-      setEarliestTransaction(trans ? trans.date : monthUtils.currentDay());
+      const earliestTrans = await send('get-earliest-transaction');
+      const latestTrans = await send('get-latest-transaction');
+      setEarliestTransaction(
+        earliestTrans ? earliestTrans.date : monthUtils.currentDay(),
+      );
+      setLatestTransaction(
+        latestTrans ? latestTrans.date : monthUtils.currentDay(),
+      );
     }
-    run();
+    void run();
   }, []);
+
+  const updateReportMutation = useUpdateReportMutation();
 
   const onSaveName = async (name: string) => {
     const updatedReport = {
@@ -97,22 +114,27 @@ function CustomReportListCardsInner({
       name,
     };
 
-    const response = await sendCatch('report/update', updatedReport);
-
-    if (response.error) {
-      dispatch(
-        addNotification({
-          notification: {
-            type: 'error',
-            message: `Failed saving report name: ${response.error.message}`,
-          },
-        }),
-      );
-      setNameMenuOpen(true);
-      return;
-    }
-
-    setNameMenuOpen(false);
+    updateReportMutation.mutate(
+      { report: updatedReport },
+      {
+        onSuccess: () => {
+          setNameMenuOpen(false);
+        },
+        onError: error => {
+          dispatch(
+            addNotification({
+              notification: {
+                type: 'error',
+                message: t('Failed saving report name: {{error}}', {
+                  error: error.message,
+                }),
+              },
+            }),
+          );
+          setNameMenuOpen(true);
+        },
+      },
+    );
   };
 
   return (
@@ -123,14 +145,16 @@ function CustomReportListCardsInner({
       menuItems={[
         {
           name: 'rename',
-          text: 'Rename',
+          text: t('Rename'),
         },
         {
           name: 'remove',
-          text: 'Remove',
+          text: t('Remove'),
         },
+        ...copyMenuItems,
       ]}
       onMenuSelect={item => {
+        if (handleCopyMenuSelect(item)) return;
         switch (item) {
           case 'remove':
             onRemove();
@@ -138,6 +162,8 @@ function CustomReportListCardsInner({
           case 'rename':
             setNameMenuOpen(true);
             break;
+          default:
+            throw new Error(`Unrecognized menu option: ${item}`);
         }
       }}
     >
@@ -159,7 +185,7 @@ function CustomReportListCardsInner({
               <DateRange start={report.startDate} end={report.endDate} />
             ) : (
               <Text style={{ color: theme.pageTextSubdued }}>
-                {report.dateRange}
+                {t(report.dateRange)}
               </Text>
             )}
           </View>
@@ -170,6 +196,7 @@ function CustomReportListCardsInner({
           accounts={accounts}
           categories={categories}
           earliestTransaction={earliestTransaction}
+          latestTransaction={latestTransaction}
           firstDayOfWeekIdx={firstDayOfWeekIdx}
           showTooltip={!isEditing}
         />
@@ -177,7 +204,9 @@ function CustomReportListCardsInner({
       {hasWarning && (
         <View style={{ padding: 5, position: 'absolute', bottom: 0 }}>
           <Tooltip
-            content="The widget is configured to use a non-existing filter value (i.e. category/account/payee). Edit the filters used in this report widget to remove the warning."
+            content={t(
+              'The widget is configured to use a non-existing filter value (i.e. category/account/payee). Edit the filters used in this report widget to remove the warning.',
+            )}
             placement="bottom start"
             style={{ ...styles.tooltip, maxWidth: 300 }}
           >

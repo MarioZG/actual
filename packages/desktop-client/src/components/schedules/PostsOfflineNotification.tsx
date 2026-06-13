@@ -1,21 +1,20 @@
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
 import { Paragraph } from '@actual-app/components/paragraph';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { send } from '@actual-app/core/platform/client/connection';
+import type { PayeeEntity } from '@actual-app/core/types/models';
 
-import { popModal } from 'loot-core/client/modals/modalsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { type PayeeEntity } from 'loot-core/types/models';
-
-import { useFormatList } from '../../hooks/useFormatList';
-import { useDispatch } from '../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { DisplayId } from '../util/DisplayId';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { DisplayId } from '#components/util/DisplayId';
+import { useFormatList } from '#hooks/useFormatList';
+import { popModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 export function PostsOfflineNotification() {
   const { t, i18n } = useTranslation();
@@ -43,11 +42,11 @@ export function PostsOfflineNotification() {
 
   return (
     <Modal name="schedule-posts-offline-notification">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Post transactions?')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <Paragraph>
             <Text>
@@ -79,30 +78,28 @@ export function PostsOfflineNotification() {
           <Paragraph>
             <Trans>
               You can always manually post a transaction later for a due
-              schedule by selecting the schedule and clicking “Post transaction
-              today” in the action menu.
+              schedule by selecting the schedule and clicking "Post transaction
+              today" in the action menu.
             </Trans>
           </Paragraph>
-          <Stack
-            direction="row"
-            justify="flex-end"
-            style={{ marginTop: 20 }}
-            spacing={2}
+          <SpaceBetween
+            gap={10}
+            style={{ marginTop: 20, justifyContent: 'flex-end' }}
           >
-            <Button onPress={close}>
+            <Button onPress={() => state.close()}>
               <Trans>Decide later</Trans>
             </Button>
             <Button
               variant="primary"
               autoFocus
               onPress={() => {
-                onPost();
-                close();
+                void onPost();
+                state.close();
               }}
             >
               <Trans>Post transactions</Trans>
             </Button>
-          </Stack>
+          </SpaceBetween>
         </>
       )}
     </Modal>

@@ -1,14 +1,16 @@
-import React, { useState, type ReactNode } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import React, { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Block } from '@actual-app/components/block';
 import { Button } from '@actual-app/components/button';
 import { Paragraph } from '@actual-app/components/paragraph';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { Text } from '@actual-app/components/text';
 import { View } from '@actual-app/components/view';
+import { LazyLoadFailedError } from '@actual-app/core/shared/errors';
 
-import { LazyLoadFailedError } from 'loot-core/shared/errors';
+import { useModalState } from '#hooks/useModalState';
 
 import { Link } from './common/Link';
 import { Modal, ModalHeader } from './common/Modal';
@@ -22,10 +24,12 @@ type AppError = Error & {
 };
 
 type FatalErrorProps = {
-  error: Error | AppError;
+  error: unknown;
 };
 
-type RenderSimpleProps = FatalErrorProps;
+type RenderSimpleProps = {
+  error: Error | AppError;
+};
 
 function RenderSimple({ error }: RenderSimpleProps) {
   let msg: ReactNode;
@@ -35,7 +39,7 @@ function RenderSimple({ error }: RenderSimpleProps) {
     msg = (
       <Text>
         <Trans>
-          Your browser doesn’t support IndexedDB in this environment, a feature
+          Your browser doesn't support IndexedDB in this environment, a feature
           that Actual requires to run. This might happen if you are in private
           browsing mode. Please try a different browser or turn off private
           browsing.
@@ -51,7 +55,7 @@ function RenderSimple({ error }: RenderSimpleProps) {
       <Text>
         <Trans>
           Actual requires access to <code>SharedArrayBuffer</code> in order to
-          function properly. If you’re seeing this error, either your browser
+          function properly. If you're seeing this error, either your browser
           does not support <code>SharedArrayBuffer</code>, or your server is not
           sending the appropriate headers, or you are not using HTTPS. See{' '}
           <Link
@@ -65,10 +69,17 @@ function RenderSimple({ error }: RenderSimpleProps) {
         </Trans>
       </Text>
     );
+  } else if ('BackendInitFailure' in error && error.BackendInitFailure) {
+    msg = (
+      <Text>
+        <Trans>
+          Actual couldn't load a critical backend worker. Reload the page to try
+          again; if the problem persists, do a hard refresh to clear any stale
+          cached assets.
+        </Trans>
+      </Text>
+    );
   } else {
-    // This indicates the backend failed to initialize. Show the
-    // user something at least so they aren't looking at a blank
-    // screen
     msg = (
       <Text>
         <Trans>
@@ -79,7 +90,8 @@ function RenderSimple({ error }: RenderSimpleProps) {
   }
 
   return (
-    <Stack
+    <SpaceBetween
+      direction="vertical"
       style={{
         paddingBottom: 15,
         lineHeight: '1.5em',
@@ -87,26 +99,14 @@ function RenderSimple({ error }: RenderSimpleProps) {
       }}
     >
       <Text>{msg}</Text>
-      <Text>
-        <Trans>
-          Please get{' '}
-          <Link
-            variant="external"
-            linkColor="muted"
-            to="https://actualbudget.org/contact"
-          >
-            in touch
-          </Link>{' '}
-          for support
-        </Trans>
-      </Text>
-    </Stack>
+    </SpaceBetween>
   );
 }
 
 function RenderLazyLoadError() {
   return (
-    <Stack
+    <SpaceBetween
+      direction="vertical"
       style={{
         paddingBottom: 15,
         lineHeight: '1.5em',
@@ -121,7 +121,7 @@ function RenderLazyLoadError() {
           server where the app is hosted.
         </Trans>
       </Text>
-    </Stack>
+    </SpaceBetween>
   );
 }
 
@@ -191,16 +191,25 @@ function SharedArrayBufferOverride() {
   );
 }
 
-export function FatalError({ error }: FatalErrorProps) {
+export function FatalError({ error: rawError }: FatalErrorProps) {
   const { t } = useTranslation();
+
+  const { modalStack } = useModalState();
+  const lastModal = modalStack[modalStack.length - 1];
 
   const [showError, setShowError] = useState(false);
 
+  const error: Error | AppError =
+    rawError instanceof Error
+      ? rawError
+      : rawError && typeof rawError === 'object'
+        ? Object.assign(new Error(String(rawError)), rawError)
+        : new Error(String(rawError));
   const showSimpleRender = 'type' in error && error.type === 'app-init-failure';
   const isLazyLoadError = error instanceof LazyLoadFailedError;
 
   return (
-    <Modal name="fatal-error" isDismissable={false}>
+    <Modal name={lastModal?.name ?? 'fatal-error'} isDismissable={false}>
       <ModalHeader
         title={isLazyLoadError ? t('Loading Error') : t('Fatal Error')}
       />
@@ -222,7 +231,7 @@ export function FatalError({ error }: FatalErrorProps) {
             <Trans>Restart app</Trans>
           </Button>
         </Paragraph>
-        <Paragraph isLast={true} style={{ fontSize: 11 }}>
+        <Paragraph isLast style={{ fontSize: 11 }}>
           <Link variant="text" onClick={() => setShowError(state => !state)}>
             <Trans>Show Error</Trans>
           </Link>

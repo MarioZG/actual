@@ -1,23 +1,24 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useLocation, type Location } from 'react-router-dom';
+import { useLocation } from 'react-router';
+import type { Location } from 'react-router';
 
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { ResponsiveInput } from '@actual-app/components/input';
 import { Menu } from '@actual-app/components/menu';
 import { Select } from '@actual-app/components/select';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { OpenIdConfig } from '@actual-app/core/types/models';
 
-import { type OpenIdConfig } from 'loot-core/types/models';
-
-import { Link } from '../../common/Link';
-import { FormField, FormLabel } from '../../forms';
-import { useServerURL } from '../../ServerContext';
+import { Link } from '#components/common/Link';
+import { FormField, FormLabel } from '#components/forms';
+import { useServerURL } from '#components/ServerContext';
 
 type OpenIdCallback = (config: OpenIdConfig) => Promise<void>;
 
@@ -130,7 +131,10 @@ export function OpenIdForm({
         onProviderChange={handleProviderChange}
         defaultValue={providerName}
       />
-      <Stack direction="column" style={{ marginTop: 5 }}>
+      <SpaceBetween
+        direction="vertical"
+        style={{ marginTop: 5, alignItems: 'stretch' }}
+      >
         <FormField style={{ flex: 1 }}>
           {!submitButtonDisabled && (
             <View>
@@ -144,7 +148,7 @@ export function OpenIdForm({
             </View>
           )}
         </FormField>
-      </Stack>
+      </SpaceBetween>
       <label
         htmlFor="issuer-field"
         style={{
@@ -166,7 +170,7 @@ export function OpenIdForm({
           {tip}
         </Text>
       </label>{' '}
-      <Stack>
+      <SpaceBetween direction="vertical" style={{ alignItems: 'stretch' }}>
         <FormField style={{ flex: 1 }}>
           <FormLabel title={t('Client ID')} htmlFor="clientid-field" />
           <ResponsiveInput
@@ -211,7 +215,7 @@ export function OpenIdForm({
           </label>
         </FormField>
 
-        <Stack direction="row" justify="flex-end" align="center">
+        <SpaceBetween style={{ justifyContent: 'flex-end' }}>
           {otherButtons}
           <ButtonWithLoading
             variant="primary"
@@ -220,10 +224,10 @@ export function OpenIdForm({
             isDisabled={submitButtonDisabled}
             style={isNarrowWidth ? { padding: 10 } : undefined}
           >
-            OK
+            <Trans>OK</Trans>
           </ButtonWithLoading>
-        </Stack>
-      </Stack>
+        </SpaceBetween>
+      </SpaceBetween>
     </>
   );
 }
@@ -362,7 +366,7 @@ const openIdProviders: (OpenIdProviderOption | typeof Menu.line)[] = [
           </Trans>{' '}
           <Link
             variant="external"
-            to="https://docs.goauthentik.io/integrations/services/actual-budget/"
+            to="https://integrations.goauthentik.io/miscellaneous/actual-budget/"
           >
             <Trans>Configure OAuth2 provider</Trans>
           </Link>

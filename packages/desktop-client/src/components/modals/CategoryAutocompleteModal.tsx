@@ -1,22 +1,22 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
+import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import * as monthUtils from 'loot-core/shared/months';
-
-import { CategoryAutocomplete } from '../autocomplete/CategoryAutocomplete';
+import { CategoryAutocomplete } from '#components/autocomplete/CategoryAutocomplete';
 import {
-  ModalCloseButton,
   Modal,
-  ModalTitle,
+  ModalCloseButton,
   ModalHeader,
-} from '../common/Modal';
-import { SectionLabel } from '../forms';
-import { NamespaceContext } from '../spreadsheet/NamespaceContext';
+  ModalTitle,
+} from '#components/common/Modal';
+import { SectionLabel } from '#components/forms';
+import { SheetNameProvider } from '#hooks/useSheetName';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type CategoryAutocompleteModalProps = Extract<
   ModalType,
@@ -29,6 +29,7 @@ export function CategoryAutocompleteModal({
   onSelect,
   categoryGroups,
   showHiddenCategories,
+  showNoneOption,
   closeOnSelect,
   clearOnSelect,
   onClose,
@@ -54,7 +55,7 @@ export function CategoryAutocompleteModal({
         },
       }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           {isNarrowWidth && (
             <ModalHeader
@@ -66,7 +67,7 @@ export function CategoryAutocompleteModal({
               }
               rightContent={
                 <ModalCloseButton
-                  onPress={close}
+                  onPress={() => state.close()}
                   style={{ color: theme.menuAutoCompleteText }}
                 />
               }
@@ -84,25 +85,38 @@ export function CategoryAutocompleteModal({
               />
             )}
             <View style={{ flex: 1 }}>
-              <NamespaceContext.Provider
-                value={month ? monthUtils.sheetForMonth(month) : ''}
+              <SheetNameProvider
+                name={month ? monthUtils.sheetForMonth(month) : ''}
               >
                 <CategoryAutocomplete
-                  focused={true}
-                  embedded={true}
+                  focused
+                  embedded
                   closeOnBlur={false}
                   closeOnSelect={closeOnSelect}
                   clearOnSelect={clearOnSelect}
                   showSplitOption={false}
-                  onClose={close}
+                  onClose={() => state.close()}
                   {...defaultAutocompleteProps}
                   onSelect={onSelect}
                   categoryGroups={categoryGroups}
                   showHiddenCategories={showHiddenCategories}
                   value={null}
                 />
-              </NamespaceContext.Provider>
+              </SheetNameProvider>
             </View>
+            {showNoneOption && (
+              <View style={{ flexShrink: 0, padding: 5 }}>
+                <Button
+                  variant="menu"
+                  onPress={() => {
+                    onSelect(null, '');
+                    state.close();
+                  }}
+                >
+                  <Trans>Uncategorized</Trans>
+                </Button>
+              </View>
+            )}
           </View>
         </>
       )}

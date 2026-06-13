@@ -1,5 +1,6 @@
-import React, { type ReactNode, useEffect } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import React, { useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
@@ -8,26 +9,28 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { tokens } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
+import { listen } from '@actual-app/core/platform/client/connection';
+import { isElectron } from '@actual-app/core/shared/environment';
 import { css } from '@emotion/css';
 
-import { closeBudget } from 'loot-core/client/budgets/budgetsSlice';
-import { loadPrefs } from 'loot-core/client/prefs/prefsSlice';
-import { listen } from 'loot-core/platform/client/fetch';
-import { isElectron } from 'loot-core/shared/environment';
-
-import { useGlobalPref } from '../../hooks/useGlobalPref';
-import { useIsOutdated, useLatestVersion } from '../../hooks/useLatestVersion';
-import { useMetadataPref } from '../../hooks/useMetadataPref';
-import { useDispatch } from '../../redux';
-import { Link } from '../common/Link';
-import { FormField, FormLabel } from '../forms';
-import { MOBILE_NAV_HEIGHT } from '../mobile/MobileNavTabs';
-import { Page } from '../Page';
-import { useServerVersion } from '../ServerContext';
+import { getLatestAppVersion } from '#app/appSlice';
+import { closeBudget } from '#budgetfiles/budgetfilesSlice';
+import { Link } from '#components/common/Link';
+import { Checkbox, FormField, FormLabel } from '#components/forms';
+import { MOBILE_NAV_HEIGHT } from '#components/mobile/MobileNavTabs';
+import { Page } from '#components/Page';
+import { useServerVersion } from '#components/ServerContext';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { loadPrefs } from '#prefs/prefsSlice';
+import { useDispatch, useSelector } from '#redux';
 
 import { AuthSettings } from './AuthSettings';
 import { Backups } from './Backups';
 import { BudgetTypeSettings } from './BudgetTypeSettings';
+import { CurrencySettings } from './Currency';
 import { EncryptionSettings } from './Encryption';
 import { ExperimentalFeatures } from './Experimental';
 import { ExportBudget } from './Export';
@@ -40,8 +43,12 @@ import { AdvancedToggle, Setting } from './UI';
 
 function About() {
   const version = useServerVersion();
-  const latestVersion = useLatestVersion();
-  const isOutdated = useIsOutdated();
+  const versionInfo = useSelector(state => state.app.versionInfo);
+  const [notifyWhenUpdateIsAvailable, setNotifyWhenUpdateIsAvailablePref] =
+    useGlobalPref('notifyWhenUpdateIsAvailable', () => {
+      void dispatch(getLatestAppVersion());
+    });
+  const dispatch = useDispatch();
 
   return (
     <Setting>
@@ -75,17 +82,20 @@ function About() {
         <Text>
           <Trans>Server version: {{ version }}</Trans>
         </Text>
-        {isOutdated ? (
+
+        {notifyWhenUpdateIsAvailable && versionInfo?.isOutdated ? (
           <Link
             variant="external"
             to="https://actualbudget.org/docs/releases"
             linkColor="purple"
           >
-            <Trans>New version available: {{ latestVersion }}</Trans>
+            <Trans>New version available: {versionInfo.latestVersion}</Trans>
           </Link>
         ) : (
           <Text style={{ color: theme.noticeText, fontWeight: 600 }}>
-            <Trans>You’re up to date!</Trans>
+            {notifyWhenUpdateIsAvailable ? (
+              <Trans>You're up to date!</Trans>
+            ) : null}
           </Text>
         )}
         <Text>
@@ -96,6 +106,20 @@ function About() {
           >
             <Trans>Release Notes</Trans>
           </Link>
+        </Text>
+      </View>
+      <View>
+        <Text style={{ display: 'flex' }}>
+          <Checkbox
+            id="settings-notifyWhenUpdateIsAvailable"
+            checked={notifyWhenUpdateIsAvailable}
+            onChange={e =>
+              setNotifyWhenUpdateIsAvailablePref(e.currentTarget.checked)
+            }
+          />
+          <label htmlFor="settings-notifyWhenUpdateIsAvailable">
+            <Trans>Display a notification when updates are available</Trans>
+          </label>
         </Text>
       </View>
     </Setting>
@@ -109,6 +133,7 @@ function IDName({ children }: { children: ReactNode }) {
 function AdvancedAbout() {
   const [budgetId] = useMetadataPref('id');
   const [groupId] = useMetadataPref('groupId');
+  const { t } = useTranslation();
 
   return (
     <Setting>
@@ -127,15 +152,15 @@ function AdvancedAbout() {
       </Text>
       <Text style={{ color: theme.pageText }}>
         <Trans>
-          <IDName>Sync ID:</IDName> {{ syncId: groupId || '(none)' }}
+          <IDName>Sync ID:</IDName> {{ syncId: groupId || t('(none)') }}
         </Trans>
       </Text>
       {/* low priority todo: eliminate some or all of these, or decide when/if to show them */}
       {/* <Text>
-        <IDName>Cloud File ID:</IDName> {prefs.cloudFileId || '(none)'}
+        <IDName>Cloud File ID:</IDName> {prefs.cloudFileId || t('(none)')}
       </Text>
       <Text>
-        <IDName>User ID:</IDName> {prefs.userId || '(none)'}
+        <IDName>User ID:</IDName> {prefs.userId || t('(none)')}
       </Text> */}
     </Setting>
   );
@@ -146,19 +171,27 @@ export function Settings() {
   const [floatingSidebar] = useGlobalPref('floatingSidebar');
   const [budgetName] = useMetadataPref('budgetName');
   const dispatch = useDispatch();
+  const isCurrencyExperimentalEnabled = useFeatureFlag('currency');
+  const [_, setDefaultCurrencyCodePref] = useSyncedPref('defaultCurrencyCode');
 
   const onCloseBudget = () => {
-    dispatch(closeBudget());
+    void dispatch(closeBudget());
   };
 
   useEffect(() => {
     const unlisten = listen('prefs-updated', () => {
-      dispatch(loadPrefs());
+      void dispatch(loadPrefs());
     });
 
-    dispatch(loadPrefs());
+    void dispatch(loadPrefs());
     return () => unlisten();
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!isCurrencyExperimentalEnabled) {
+      setDefaultCurrencyCodePref('');
+    }
+  }, [isCurrencyExperimentalEnabled, setDefaultCurrencyCodePref]);
 
   const { isNarrowWidth } = useResponsive();
 
@@ -167,7 +200,6 @@ export function Settings() {
       header={t('Settings')}
       style={{
         marginInline: floatingSidebar && !isNarrowWidth ? 'auto' : 0,
-        paddingBottom: MOBILE_NAV_HEIGHT,
       }}
     >
       <View
@@ -176,15 +208,22 @@ export function Settings() {
           marginTop: 10,
           flexShrink: 0,
           maxWidth: 530,
+          width: '100%',
           gap: 30,
+          paddingBottom: MOBILE_NAV_HEIGHT,
         }}
       >
         {isNarrowWidth && (
           <View
-            style={{ gap: 10, flexDirection: 'row', alignItems: 'flex-end' }}
+            style={{
+              gap: 10,
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              width: '100%',
+            }}
           >
             {/* The only spot to close a budget on mobile */}
-            <FormField>
+            <FormField style={{ flex: 1 }}>
               <FormLabel title={t('Budget name')} />
               <Input
                 value={budgetName}
@@ -192,14 +231,15 @@ export function Settings() {
                 style={{ color: theme.buttonNormalDisabledText }}
               />
             </FormField>
-            <Button onPress={onCloseBudget}>
-              <Trans>Close budget</Trans>
+            <Button onPress={onCloseBudget} style={{ flexShrink: 0 }}>
+              <Trans>Switch file</Trans>
             </Button>
           </View>
         )}
         <About />
         <ThemeSettings />
         <FormatSettings />
+        {isCurrencyExperimentalEnabled && <CurrencySettings />}
         <LanguageSettings />
         <AuthSettings />
         <EncryptionSettings />

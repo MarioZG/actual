@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-import { type Modal } from 'loot-core/client/modals/modalsSlice';
-
-import { ModalHeader, ModalTitle } from '../common/Modal';
+import { ModalHeader, ModalTitle } from '#components/common/Modal';
+import type { Modal } from '#modals/modalsSlice';
 
 import { SingleInputModal } from './SingleInputModal';
 

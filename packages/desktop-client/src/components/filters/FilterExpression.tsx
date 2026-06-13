@@ -1,4 +1,5 @@
-import React, { useRef, useState, type CSSProperties } from 'react';
+import React, { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -7,12 +8,10 @@ import { Popover } from '@actual-app/components/popover';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { RuleConditionEntity } from '@actual-app/core/types/models';
 
-import { mapField, friendlyOp } from 'loot-core/shared/rules';
-import { integerToCurrency } from 'loot-core/shared/util';
-import { type RuleConditionEntity } from 'loot-core/types/models';
-
-import { Value } from '../rules/Value';
+import { Value } from '#components/rules/Value';
+import { friendlyOp, mapField } from '#util/rule';
 
 import { FilterEditor } from './FiltersMenu';
 import { subfieldFromFilter } from './subfieldFromFilter';
@@ -90,12 +89,13 @@ export function FilterExpression<T extends RuleConditionEntity>({
                 <Value
                   value={value}
                   field={field}
-                  inline={true}
+                  inline
                   valueIsRaw={
                     op === 'contains' ||
                     op === 'matches' ||
                     op === 'doesNotContain' ||
-                    op === 'hasTags'
+                    op === 'hasTags' ||
+                    op === 'hasAnyTag'
                   }
                 />
               )}
@@ -131,19 +131,29 @@ export function FilterExpression<T extends RuleConditionEntity>({
             return false;
           }
 
+          if (
+            element instanceof HTMLElement &&
+            (element.closest('[data-testid="account-autocomplete-modal"]') ||
+              element.closest('[data-testid="payee-autocomplete-modal"]') ||
+              element.closest('[data-testid="category-autocomplete-modal"]'))
+          ) {
+            return false;
+          }
+
           return true;
         }}
-        style={{ width: 275, padding: 15, color: theme.menuItemText }}
+        style={{
+          width: 275,
+          padding: 15,
+          color: theme.menuItemText,
+          zIndex: '2500 !important',
+        }}
         data-testid="filters-menu-tooltip"
       >
         <FilterEditor
           field={originalField}
           op={op}
-          value={
-            field === 'amount' && typeof value === 'number'
-              ? integerToCurrency(value)
-              : value
-          }
+          value={value}
           options={options}
           onSave={onChange}
           onClose={() => setEditing(false)}

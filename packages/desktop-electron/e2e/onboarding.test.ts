@@ -1,3 +1,4 @@
+// oxlint-disable-next-line eslint/no-restricted-imports -- fix me
 import { ConfigurationPage } from '@actual-app/web/e2e/page-models/configuration-page';
 import { expect } from '@playwright/test';
 
@@ -13,6 +14,15 @@ test.describe('Onboarding', () => {
   test('checks the page visuals', async ({ electronPage }) => {
     await expect(electronPage).toHaveScreenshot();
     await configurationPage.clickOnNoServer();
+    await expect(electronPage).toHaveScreenshot();
+  });
+
+  test('starts the sync server and navigates to bootstrap page', async ({
+    electronPage,
+  }) => {
+    const bootstrapPage = await configurationPage.clickOnStartSyncServer();
+
+    await expect(bootstrapPage.getHeading()).toHaveText('Welcome to Actual!');
     await expect(electronPage).toHaveScreenshot();
   });
 });

@@ -13,16 +13,18 @@ import { RenderMonths } from './RenderMonths';
 import { getScrollbarWidth } from './util';
 import { InlineField } from '@actual-app/components/inline-field';
 
+import { useBudgetComponents } from '.';
+
 type BudgetTotalsMonthlyProps = {
-  MonthComponent: ComponentProps<typeof RenderMonths>['component'];
 };
 
-export const BudgetTotalsMonthly = memo(function BudgetTotals({
-  MonthComponent
-}: BudgetTotalsMonthlyProps) {
+
+export const BudgetTotalsMonthly = memo(function BudgetTotals({}: BudgetTotalsMonthlyProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef(null);
+
+ const { BudgetTotalsComponentRunning: MonthComponent } = useBudgetComponents();
 
   return (
     <View
@@ -72,9 +74,6 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
           <Trans>Year running</Trans>
           </View>
           <View style={{ flexGrow: '1', flexDirection: 'column', display: 'inline',  paddingLeft: '5px' }}>
-            {/* <View style={{ flexGrow: '1', flexDirection: 'column' , paddingBottom: '5px'}}>
-              <Trans>Cash at EOM</Trans>
-            </View>             */}
             <View style={{ flexGrow: '1', flexDirection: 'column' }}>
               <Trans>Y. Income</Trans>
             </View>
@@ -97,7 +96,9 @@ export const BudgetTotalsMonthly = memo(function BudgetTotals({
         </View>
 
       </View>
-      <RenderMonths component={MonthComponent} />
+      <RenderMonths>
+        {(month) => <MonthComponent month={month} />}
+      </RenderMonths>
     </View>
   );
 });

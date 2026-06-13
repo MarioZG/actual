@@ -1,24 +1,26 @@
 // @ts-strict-ignore
 import React, { memo, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SvgRightArrow2 } from '@actual-app/components/icons/v0';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { v4 as uuid } from 'uuid';
+import type { RuleEntity } from '@actual-app/core/types/models';
 
-import { friendlyOp } from 'loot-core/shared/rules';
-import { type RuleEntity } from 'loot-core/types/models';
-
-import { useContextMenu } from '../../hooks/useContextMenu';
-import { useSelectedDispatch } from '../../hooks/useSelected';
-import { SelectCell, Row, Field, Cell } from '../table';
+import { Cell, Field, Row, SelectCell } from '#components/table';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useSelectedDispatch } from '#hooks/useSelected';
+import {
+  friendlyOp,
+  groupActionsBySplitIndex,
+  translateRuleStage,
+} from '#util/rule';
 
 import { ActionExpression } from './ActionExpression';
 import { ConditionExpression } from './ConditionExpression';
@@ -45,15 +47,7 @@ export const RuleRow = memo(
     const borderColor = selected ? theme.tableBorderSelected : 'none';
     const backgroundFocus = hovered;
 
-    const actionSplits = rule.actions.reduce(
-      (acc, action) => {
-        const splitIndex = action['options']?.splitIndex ?? 0;
-        acc[splitIndex] = acc[splitIndex] ?? { id: uuid(), actions: [] };
-        acc[splitIndex].actions.push(action);
-        return acc;
-      },
-      [] as { id: string; actions: RuleEntity['actions'] }[],
-    );
+    const actionSplits = groupActionsBySplitIndex(rule.actions);
     const hasSplits = actionSplits.length > 1;
 
     const hasSchedule = rule.actions.some(({ op }) => op === 'link-schedule');
@@ -78,7 +72,7 @@ export const RuleRow = memo(
               ? theme.tableRowBackgroundHover
               : theme.tableBackground,
         }}
-        collapsed={true}
+        collapsed
         onMouseEnter={() => onHover && onHover(rule.id)}
         onMouseLeave={() => onHover && onHover(null)}
         onContextMenu={handleContextMenu}
@@ -107,7 +101,7 @@ export const RuleRow = memo(
                   onEditRule(rule);
                   break;
                 default:
-                  throw new Error(`Unrecognized menu option: ${name}`);
+                  throw new Error(`Unrecognized menu option: ${String(name)}`);
               }
               setMenuOpen(false);
             }}
@@ -115,7 +109,7 @@ export const RuleRow = memo(
         </Popover>
         <SelectCell
           exposed={hovered || selected}
-          focused={true}
+          focused
           onSelect={e => {
             dispatchSelected({
               type: 'select',
@@ -138,13 +132,13 @@ export const RuleRow = memo(
                 padding: '3px 5px',
               }}
             >
-              {rule.stage}
+              {translateRuleStage(rule.stage)}
             </View>
           )}
         </Cell>
 
         <Field width="flex" style={{ padding: '15px 0' }} truncate={false}>
-          <Stack direction="row" align="center">
+          <SpaceBetween style={{ alignItems: 'center' }}>
             <View
               style={{ flex: 1, alignItems: 'flex-start' }}
               data-testid="conditions"
@@ -154,7 +148,7 @@ export const RuleRow = memo(
                   key={i}
                   field={cond.field}
                   op={cond.op}
-                  inline={true}
+                  inline
                   value={cond.value}
                   options={cond.options}
                   prefix={i > 0 ? friendlyOp(rule.conditionsOp) : null}
@@ -196,7 +190,7 @@ export const RuleRow = memo(
                           marginBottom: 6,
                         }}
                       >
-                        {i ? `Split ${i}` : 'Apply to all'}
+                        {i ? t('Split {{num}}', { num: i }) : t('Apply to all')}
                       </Text>
                       {split.actions.map((action, j) => (
                         <ActionExpression
@@ -215,11 +209,13 @@ export const RuleRow = memo(
                     />
                   ))}
             </View>
-          </Stack>
+          </SpaceBetween>
         </Field>
 
         <Cell name="edit" plain style={{ padding: '0 15px', paddingLeft: 5 }}>
-          <Button onPress={() => onEditRule(rule)}>{t('Edit')}</Button>
+          <Button onPress={() => onEditRule(rule)}>
+            <Trans>Edit</Trans>
+          </Button>
         </Cell>
       </Row>
     );

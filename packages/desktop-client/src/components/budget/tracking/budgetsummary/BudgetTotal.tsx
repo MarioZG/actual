@@ -1,9 +1,6 @@
 // @ts-strict-ignore
-import React, {
-  type CSSProperties,
-  type ComponentType,
-  type ReactNode,
-} from 'react';
+import React from 'react';
+import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import { Trans } from 'react-i18next';
 
 import { styles } from '@actual-app/components/styles';
@@ -11,8 +8,8 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { type SheetFields, type Binding } from '../../../spreadsheet';
-import { CellValue, CellValueText } from '../../../spreadsheet/CellValue';
+import { CellValue } from '#components/spreadsheet/CellValue';
+import type { Binding, SheetFields } from '#spreadsheet';
 
 type BudgetTotalProps<
   CurrentField extends SheetFields<'tracking-budget'>,
@@ -46,7 +43,7 @@ export function BudgetTotal<
     >
       <ProgressComponent current={current} target={target} />
 
-      <View style={{ marginLeft: 10 }}>
+      <View style={{ marginLeft: 10, ...styles.tnum }}>
         <Text>{title}{ ": "}
           <Trans
             i18nKey="<allocatedAmount /> / <totalAmount />"
@@ -54,16 +51,10 @@ export function BudgetTotal<
               allocatedAmount: <CellValue binding={current} type="financial" />,
               italic: (
                 <Text
-                  style={{ color: theme.pageTextSubdued, fontStyle: 'italic' }}
+                  style={{ color: theme.pageTextLight, fontStyle: 'italic' }}
                 />
               ),
-              totalAmount: (
-                <CellValue binding={target} type="financial">
-                  {props => (
-                    <CellValueText {...props} style={styles.notFixed} />
-                  )}
-                </CellValue>
-              ),
+              totalAmount: <CellValue binding={target} type="financial" />,
             }}
           />
         </Text>

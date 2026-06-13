@@ -9,19 +9,18 @@ import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
 
-import { duplicateBudget } from 'loot-core/client/budgets/budgetsSlice';
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-
-import { useDispatch } from '../../../redux';
+import { duplicateBudget } from '#budgetfiles/budgetfilesSlice';
 import {
   Modal,
   ModalButtons,
   ModalCloseButton,
   ModalHeader,
-} from '../../common/Modal';
+} from '#components/common/Modal';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
 
 type DuplicateFileModalProps = Extract<
   ModalType,
@@ -49,7 +48,7 @@ export function DuplicateFileModal({
   );
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       setNewName(await uniqueBudgetName(file.name + fileEndingTranslation));
     })();
   }, [file.name, fileEndingTranslation]);
@@ -86,7 +85,7 @@ export function DuplicateFileModal({
           addNotification({
             notification: {
               type: 'message',
-              message: t('Duplicate file “{{newName}}” created.', { newName }),
+              message: t('Duplicate file "{{newName}}" created.', { newName }),
             },
           }),
         );
@@ -116,14 +115,14 @@ export function DuplicateFileModal({
 
   return (
     <Modal name="duplicate-budget">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <View style={{ maxWidth: 700 }}>
           <ModalHeader
-            title={t('Duplicate “{{fileName}}”', { fileName: file.name })}
+            title={t('Duplicate "{{fileName}}"', { fileName: file.name })}
             rightContent={
               <ModalCloseButton
                 onPress={() => {
-                  close();
+                  state.close();
                   if (onComplete) onComplete({ status: 'canceled' });
                 }}
               />
@@ -150,8 +149,8 @@ export function DuplicateFileModal({
                   value={newName}
                   aria-label={t('New Budget Name')}
                   aria-invalid={nameError ? 'true' : 'false'}
-                  onChange={event => setNewName(event.target.value)}
-                  onBlur={event => validateAndSetName(event.target.value)}
+                  onChangeValue={setNewName}
+                  onUpdate={validateAndSetName}
                   style={{ flex: 1 }}
                 />
               </InitialFocus>
@@ -187,7 +186,7 @@ export function DuplicateFileModal({
             <ModalButtons>
               <Button
                 onPress={() => {
-                  close();
+                  state.close();
                   if (onComplete) onComplete({ status: 'canceled' });
                 }}
               >

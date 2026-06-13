@@ -1,5 +1,6 @@
 // @ts-strict-ignore
-import React, { type CSSProperties, useState } from 'react';
+import React, { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -10,12 +11,11 @@ import { SvgCalendar } from '@actual-app/components/icons/v2';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 
-import * as monthUtils from 'loot-core/shared/months';
-
-import { useLocale } from '../../hooks/useLocale';
-import { useResizeObserver } from '../../hooks/useResizeObserver';
-import { Link } from '../common/Link';
+import { Link } from '#components/common/Link';
+import { useLocale } from '#hooks/useLocale';
+import { useResizeObserver } from '#hooks/useResizeObserver';
 
 import { type MonthBounds } from './MonthsContext';
 import { SvgCalendarNext, SvgCalendarPrev } from '../../../../component-library/src/icons/v2/Calendar';
@@ -56,11 +56,11 @@ export const MonthPicker = ({
   const range = monthUtils.rangeInclusive(
     monthUtils.subMonths(
       firstSelectedMonth,
-      targetMonthCount / 2 - numDisplayed / 2,
+      Math.floor(targetMonthCount / 2 - numDisplayed / 2),
     ),
     monthUtils.addMonths(
       lastSelectedMonth,
-      targetMonthCount / 2 - numDisplayed / 2,
+      Math.floor(targetMonthCount / 2 - numDisplayed / 2),
     ),
   );
 
@@ -195,6 +195,8 @@ export const MonthPicker = ({
           return (
             <View
               key={month}
+              data-testid={selected ? 'selected-budget-month' : undefined}
+              data-month={selected ? month : undefined}
               style={{
                 alignItems: 'center',
                 padding: '3px 3px',
@@ -210,7 +212,7 @@ export const MonthPicker = ({
                 }),
                 ...styles.smallText,
                 ...(selected && {
-                  backgroundColor: theme.tableBorderHover,
+                  backgroundColor: theme.buttonPrimaryBackground,
                   color: theme.buttonPrimaryText,
                 }),
                 ...((hovered || selected) && {
@@ -239,7 +241,7 @@ export const MonthPicker = ({
                   }),
                 ...(hovered &&
                   selected && {
-                    backgroundColor: theme.tableBorderHover,
+                    backgroundColor: theme.buttonPrimaryBackground,
                   }),
                 ...((idx === firstSelectedIndex ||
                   (idx === hoverId && !selected)) && {

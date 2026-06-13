@@ -1,15 +1,8 @@
-/* eslint-disable no-empty-pattern */
-/* eslint-disable react-hooks/rules-of-hooks */
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  test as base,
-  _electron,
-  Page,
-  ElectronApplication,
-  TestInfo,
-} from '@playwright/test';
-import { remove, ensureDir } from 'fs-extra';
+import { _electron, test as base } from '@playwright/test';
+import type { ElectronApplication, Page, TestInfo } from '@playwright/test';
 
 type ElectronFixtures = {
   electronApp: ElectronApplication;
@@ -18,12 +11,13 @@ type ElectronFixtures = {
 
 // Create the extended test with fixtures
 export const test = base.extend<ElectronFixtures>({
+  // oxlint-disable-next-line no-empty-pattern
   electronApp: async ({}, use, testInfo: TestInfo) => {
     const uniqueTestId = testInfo.testId.replace(/[^\w-]/g, '-');
     const testDataDir = path.join('e2e/data/', uniqueTestId);
 
-    await remove(testDataDir); // ensure any leftover test data is removed
-    await ensureDir(testDataDir);
+    await rm(testDataDir, { recursive: true, force: true }); // ensure any leftover test data is removed
+    await mkdir(testDataDir, { recursive: true });
 
     const app = await _electron.launch({
       args: ['.'],
@@ -40,7 +34,7 @@ export const test = base.extend<ElectronFixtures>({
 
     // Cleanup after tests
     await app.close();
-    await remove(testDataDir);
+    await rm(testDataDir, { recursive: true, force: true });
   },
 
   electronPage: async ({ electronApp }, use) => {

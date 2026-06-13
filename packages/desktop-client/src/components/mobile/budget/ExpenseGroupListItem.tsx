@@ -1,28 +1,29 @@
-import { type ComponentPropsWithoutRef, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { GridListItem } from 'react-aria-components';
 
 import { Button } from '@actual-app/components/button';
 import { Card } from '@actual-app/components/card';
 import { SvgExpandArrow } from '@actual-app/components/icons/v0';
 import { SvgCheveronRight } from '@actual-app/components/icons/v1';
-import { type CSSProperties, styles } from '@actual-app/components/styles';
+import { styles } from '@actual-app/components/styles';
+import type { CSSProperties } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+} from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
 import { AutoTextSize } from 'auto-text-size';
 
-import { envelopeBudget, trackingBudget } from 'loot-core/client/queries';
-import * as monthUtils from 'loot-core/shared/months';
-import {
-  type CategoryEntity,
-  type CategoryGroupEntity,
-} from 'loot-core/types/models';
-
-import { useSyncedPref } from '../../../hooks/useSyncedPref';
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { CellValue } from '../../spreadsheet/CellValue';
-import { useFormat } from '../../spreadsheet/useFormat';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { CellValue } from '#components/spreadsheet/CellValue';
+import { useFormat } from '#hooks/useFormat';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
 import { getColumnWidth, ROW_HEIGHT } from './BudgetTable';
 import { ExpenseCategoryList } from './ExpenseCategoryList';
@@ -135,13 +136,15 @@ export function ExpenseGroupHeader({
 }: ExpenseGroupHeaderProps) {
   return (
     <View
+      data-testid="category-group-row"
+      onClick={() => onToggleCollapse(categoryGroup.id)}
       style={{
+        cursor: 'pointer',
         height: ROW_HEIGHT,
         borderBottomWidth: 1,
         borderColor: theme.tableBorder,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         paddingLeft: 5,
         paddingRight: 5,
         opacity: isHidden ? 0.5 : undefined,
@@ -149,7 +152,6 @@ export function ExpenseGroupHeader({
           ? theme.budgetHeaderCurrentMonth
           : theme.budgetHeaderOtherMonth,
       }}
-      data-testid="category-group-row"
     >
       <ExpenseGroupName
         group={categoryGroup}
@@ -277,12 +279,13 @@ function ExpenseGroupCells({
   show3Columns,
   showBudgetedColumn,
 }: ExpenseGroupCellsProps) {
-  const [budgetType = 'rollover'] = useSyncedPref('budgetType');
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
   const format = useFormat();
 
   const columnWidth = getColumnWidth({ show3Columns });
 
   const amountStyle: CSSProperties = {
+    ...styles.tnum,
     width: columnWidth,
     fontSize: 12,
     fontWeight: '500',
@@ -291,17 +294,17 @@ function ExpenseGroupCells({
   };
 
   const budgeted =
-    budgetType === 'report'
+    budgetType === 'tracking'
       ? trackingBudget.groupBudgeted(group.id)
       : envelopeBudget.groupBudgeted(group.id);
 
   const spent =
-    budgetType === 'report'
+    budgetType === 'tracking'
       ? trackingBudget.groupSumAmount(group.id)
       : envelopeBudget.groupSumAmount(group.id);
 
   const balance =
-    budgetType === 'report'
+    budgetType === 'tracking'
       ? trackingBudget.groupBalance(group.id)
       : envelopeBudget.groupBalance(group.id);
 

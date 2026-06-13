@@ -1,30 +1,28 @@
-import React, { createRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Form } from 'react-aria-components';
-import { useTranslation } from 'react-i18next';
+import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { Stack } from '@actual-app/components/stack';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { GenericInput } from '../util/GenericInput';
+import { GenericInput } from '#components/util/GenericInput';
 
 type SaveReportChooseProps = {
   onApply: (cond: string) => void;
 };
 
 export function SaveReportChoose({ onApply }: SaveReportChooseProps) {
-  const inputRef = createRef<HTMLInputElement>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState('');
   const [value, setValue] = useState('');
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  });
+  }, []);
 
   return (
     <>
@@ -42,37 +40,36 @@ export function SaveReportChoose({ onApply }: SaveReportChooseProps) {
       >
         <View style={{ flexDirection: 'row', align: 'center' }}>
           <Text style={{ userSelect: 'none', flex: 1 }}>
-            {t('Choose Report')}
+            <Trans>Choose Report</Trans>
           </Text>
           <View style={{ flex: 1 }} />
         </View>
         <GenericInput
-          inputRef={inputRef}
+          ref={inputRef}
           field="report"
-          subfield={null}
           type="saved"
           value={value}
-          multi={false}
           style={{ marginTop: 10 }}
-          onChange={(v: string) => setValue(v)}
+          onChange={setValue}
         />
 
-        <Stack
-          direction="row"
-          justify="flex-end"
-          align="center"
-          style={{ marginTop: 15 }}
+        <View
+          style={{
+            marginTop: 15,
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+          }}
         >
-          <View style={{ flex: 1 }} />
           <Button variant="primary" type="submit">
-            {t('Apply')}
+            <Trans>Apply</Trans>
           </Button>
-        </Stack>
+        </View>
       </Form>
       {err !== '' ? (
-        <Stack direction="row" align="center" style={{ padding: 10 }}>
+        <View style={{ padding: 10, alignItems: 'center' }}>
           <Text style={{ color: theme.errorText }}>{err}</Text>
-        </Stack>
+        </View>
       ) : (
         <View />
       )}

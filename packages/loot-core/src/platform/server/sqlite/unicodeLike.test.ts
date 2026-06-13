@@ -14,6 +14,7 @@ describe('unicode LIKE functionality', () => {
   });
 
   it('should match special characters', () => {
+    // oxlint-disable-next-line no-template-curly-in-string
     const result = unicodeLike('.*+^${}()|[]\\', '.*+^${}()|[]\\');
 
     expect(result).toBe(1);
@@ -49,9 +50,23 @@ describe('unicode LIKE functionality', () => {
     expect(result).toBe(1);
   });
 
-  it('should not match null value to the string “null”', () => {
+  it('should not match null value to the string "null"', () => {
     const result = unicodeLike('null', null);
 
     expect(result).toBe(0);
+  });
+
+  it('should treat \\% as a literal % character instead of a wildcard', () => {
+    expect(unicodeLike('100\\%', '100%')).toBe(1);
+    expect(unicodeLike('100\\%', '1000')).toBe(0);
+  });
+
+  it('should treat \\? as a literal ? character instead of a wildcard', () => {
+    expect(unicodeLike('what\\?', 'what?')).toBe(1);
+    expect(unicodeLike('what\\?', 'what!')).toBe(0);
+  });
+
+  it('should treat \\\\ as a literal \\ character', () => {
+    expect(unicodeLike('c:\\\\test', 'c:\\test')).toBe(1);
   });
 });

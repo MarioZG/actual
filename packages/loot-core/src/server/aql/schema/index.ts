@@ -1,5 +1,5 @@
 // @ts-strict-ignore
-import { SchemaConfig } from '../compiler';
+import type { SchemaConfig } from '#server/aql/compiler';
 
 function f(type: string, opts?: Record<string, unknown>) {
   return { type, ...opts };
@@ -77,6 +77,7 @@ export const schema = {
     account_sync_source: f('string'),
     last_reconciled: f('string'),
     last_sync: f('string'),
+    bank_sync_status: f('string'),
   },
   categories: {
     id: f('id'),
@@ -85,6 +86,8 @@ export const schema = {
     hidden: f('boolean'),
     group: f('id', { ref: 'category_groups' }),
     goal_def: f('string'),
+    cleanup_def: f('string'),
+    template_settings: f('json', { default: { source: 'notes' } }),
     sort_order: f('float'),
     tombstone: f('boolean'),
   },
@@ -96,6 +99,11 @@ export const schema = {
     sort_order: f('float'),
     tombstone: f('boolean'),
   },
+  cleanup_groups: {
+    id: f('id'),
+    name: f('string'),
+    tombstone: f('boolean'),
+  },
   schedules: {
     id: f('id'),
     name: f('string'),
@@ -103,6 +111,7 @@ export const schema = {
     next_date: f('date'),
     completed: f('boolean'),
     posts_transaction: f('boolean'),
+    custom_upcoming_length: f('string'),
     tombstone: f('boolean'),
 
     // These are special fields that are actually pulled from the
@@ -153,6 +162,8 @@ export const schema = {
     show_offbudget: f('integer', { default: 0 }),
     show_hidden: f('integer', { default: 0 }),
     show_uncategorized: f('integer', { default: 0 }),
+    trim_intervals: f('integer', { default: 0 }),
+    show_trend_lines: f('integer', { default: 0 }),
     include_current: f('integer', { default: 0 }),
     graph_type: f('string', { default: 'BarGraph' }),
     conditions: f('json'),
@@ -180,14 +191,28 @@ export const schema = {
     goal: f('integer'),
     long_goal: f('integer'),
   },
+  dashboard_pages: {
+    id: f('id'),
+    name: f('string'),
+    tombstone: f('boolean'),
+  },
   dashboard: {
     id: f('id'),
+    dashboard_page_id: f('id', { ref: 'dashboard_pages' }),
     type: f('string', { required: true }),
     width: f('integer', { required: true }),
     height: f('integer', { required: true }),
     x: f('integer', { required: true }),
     y: f('integer', { required: true }),
     meta: f('json'),
+    tombstone: f('boolean'),
+  },
+  payee_locations: {
+    id: f('id'),
+    payee_id: f('id', { ref: 'payees', required: true }),
+    latitude: f('float', { required: true }),
+    longitude: f('float', { required: true }),
+    created_at: f('integer', { required: true }),
     tombstone: f('boolean'),
   },
 };
@@ -304,7 +329,6 @@ export const schemaConfig: SchemaConfig = {
 
     schedules: {
       v_schedules: internalFields => {
-        /* eslint-disable rulesdir/typography */
         const fields = internalFields({
           next_date: `
             CASE
@@ -328,7 +352,6 @@ export const schemaConfig: SchemaConfig = {
         LEFT JOIN rules _rules ON _rules.id = _.rule
         LEFT JOIN payee_mapping pm ON pm.id = json_extract(_rules.conditions, _paths.payee || '.value')
         `;
-        /* eslint-enable rulesdir/typography */
       },
     },
 

@@ -1,15 +1,15 @@
 // @ts-strict-ignore
-import fc, { type Arbitrary } from 'fast-check';
+import fc from 'fast-check';
+import type { Arbitrary } from 'fast-check';
 
-import { schema } from '../server/aql';
-import { addDays } from '../shared/months';
+import { schema } from '#server/aql';
+import { addDays } from '#shared/months';
 
 export function typeArbitrary(typeDesc, name?) {
   let arb;
   switch (typeDesc.type) {
     case 'id':
-      // uuid shrinking is broken right now, will file an issue
-      arb = fc.hexaString({ minLength: 30, maxLength: 30 });
+      arb = fc.uuid();
       break;
     case 'boolean':
       arb = fc.boolean();

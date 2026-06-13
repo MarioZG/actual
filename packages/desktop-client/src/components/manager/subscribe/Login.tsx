@@ -1,32 +1,33 @@
 // @ts-strict-ignore
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 import { Button, ButtonWithLoading } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
 import { SvgCheveronDown } from '@actual-app/components/icons/v1';
-import { ResponsiveInput } from '@actual-app/components/input';
+import { BigInput, ResponsiveInput } from '@actual-app/components/input';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import { isElectron } from '@actual-app/core/shared/environment';
+import type { OpenIdConfig } from '@actual-app/core/types/models';
 
-import { loggedIn } from 'loot-core/client/users/usersSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { isElectron } from 'loot-core/shared/environment';
-import { type OpenIdConfig } from 'loot-core/types/models';
+import { Link } from '#components/common/Link';
+import {
+  useAvailableLoginMethods,
+  useLoginMethod,
+} from '#components/ServerContext';
+import { useNavigate } from '#hooks/useNavigate';
+import { useDispatch } from '#redux';
+import { loggedIn } from '#users/usersSlice';
 
-import { useNavigate } from '../../../hooks/useNavigate';
-import { useDispatch } from '../../../redux';
-import { warningBackground } from '../../../style/themes/dark';
-import { Link } from '../../common/Link';
-import { useAvailableLoginMethods, useLoginMethod } from '../../ServerContext';
-
-import { useBootstrapped, Title } from './common';
+import { Title, useBootstrapped } from './common';
 import { OpenIdForm } from './OpenIdForm';
 
 function PasswordLogin({ setError, dispatch }) {
@@ -63,11 +64,11 @@ function PasswordLogin({ setError, dispatch }) {
         gap: '1rem',
       }}
     >
-      <ResponsiveInput
-        autoFocus={true}
+      <BigInput
+        autoFocus
         placeholder={t('Password')}
         type="password"
-        onChangeValue={newValue => setPassword(newValue)}
+        onChangeValue={setPassword}
         style={{ flex: 1 }}
         onEnter={onSubmitPassword}
       />
@@ -106,12 +107,12 @@ function OpenIdLogin({ setError }) {
     if (error) {
       setError(error);
     } else {
-      navigate('/');
+      void navigate('/');
     }
   }
 
   useEffect(() => {
-    send('owner-created').then(created => setWarnMasterCreation(!created));
+    void send('owner-created').then(created => setWarnMasterCreation(!created));
   }, []);
 
   useEffect(() => {
@@ -156,7 +157,7 @@ function OpenIdLogin({ setError }) {
           >
             {warnMasterCreation && askForPassword && (
               <ResponsiveInput
-                autoFocus={true}
+                autoFocus
                 placeholder={t('Enter server password')}
                 type="password"
                 onChangeValue={newValue => {
@@ -168,13 +169,11 @@ function OpenIdLogin({ setError }) {
             <Button
               variant="primary"
               onPress={onSubmitOpenId}
-              style={
-                warningBackground && {
-                  padding: 6,
-                  fontSize: 14,
-                  width: 170,
-                }
-              }
+              style={{
+                padding: 6,
+                fontSize: 14,
+                width: 170,
+              }}
               isDisabled={
                 firstLoginPassword === '' &&
                 askForPassword &&
@@ -202,7 +201,7 @@ function OpenIdLogin({ setError }) {
                   variant="bare"
                   isDisabled={firstLoginPassword === '' && warnMasterCreation}
                   onPress={() => {
-                    send('get-openid-config', {
+                    void send('get-openid-config', {
                       password: firstLoginPassword,
                     }).then(config => {
                       if ('error' in config) {
@@ -259,7 +258,7 @@ function OpenIdLogin({ setError }) {
               </Button>,
             ]}
             onSetOpenId={async config => {
-              onSetOpenId(config);
+              void onSetOpenId(config);
             }}
           />
         </View>
@@ -316,7 +315,7 @@ export function Login() {
 
   useEffect(() => {
     if (checked && !searchParams.has('error')) {
-      (async () => {
+      void (async () => {
         if (method === 'header') {
           setError(null);
           const { error } = await send('subscribe-sign-in', {
@@ -327,7 +326,7 @@ export function Login() {
           if (error) {
             setError(error);
           } else {
-            dispatch(loggedIn());
+            void dispatch(loggedIn());
           }
         }
       })();

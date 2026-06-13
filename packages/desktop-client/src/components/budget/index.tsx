@@ -1,76 +1,44 @@
 // @ts-strict-ignore
-import React, { useMemo, useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useEffectEvent, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 
 import { styles } from '@actual-app/components/styles';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+} from '@actual-app/core/types/models';
 
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
 import {
-  applyBudgetAction,
-  createCategory,
-  createGroup,
-  deleteCategory,
-  deleteGroup,
-  getCategories,
-  moveCategory,
-  moveCategoryGroup,
-  updateCategory,
-  updateGroup,
-} from 'loot-core/client/queries/queriesSlice';
-import { useSpreadsheet } from 'loot-core/client/SpreadsheetProvider';
-import { send } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
+  useBudgetActions,
+  useDeleteCategoryGroupMutation,
+  useDeleteCategoryMutation,
+  useReorderCategoryGroupMutation,
+  useReorderCategoryMutation,
+  useSaveCategoryGroupMutation,
+  useSaveCategoryMutation,
+  useSortCategoriesMutation,
+} from '#budget';
+import { useCategories } from '#hooks/useCategories';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { useLocalPref } from '#hooks/useLocalPref';
+import { useNavigate } from '#hooks/useNavigate';
+import { SheetNameProvider } from '#hooks/useSheetName';
+import { useSpreadsheet } from '#hooks/useSpreadsheet';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 
-import { useCategories } from '../../hooks/useCategories';
-import { useGlobalPref } from '../../hooks/useGlobalPref';
-import { useLocalPref } from '../../hooks/useLocalPref';
-import { useNavigate } from '../../hooks/useNavigate';
-import { useSyncedPref } from '../../hooks/useSyncedPref';
-import { useDispatch } from '../../redux';
-import { NamespaceContext } from '../spreadsheet/NamespaceContext';
-
-import { DynamicBudgetTable } from './DynamicBudgetTable';
+import { AutoSizingBudgetTable } from './DynamicBudgetTable';
 import * as envelopeBudget from './envelope/EnvelopeBudgetComponents';
 import { EnvelopeBudgetProvider } from './envelope/EnvelopeBudgetContext';
 import * as trackingBudget from './tracking/TrackingBudgetComponents';
 import { TrackingBudgetProvider } from './tracking/TrackingBudgetContext';
 import { prewarmAllMonths, prewarmMonth } from './util';
 
-type TrackingReportComponents = {
-  SummaryComponent: typeof trackingBudget.BudgetSummary;
-  ExpenseCategoryComponent: typeof trackingBudget.ExpenseCategoryMonth;
-  ExpenseGroupComponent: typeof trackingBudget.ExpenseGroupMonth;
-  IncomeCategoryComponent: typeof trackingBudget.IncomeCategoryMonth;
-  IncomeGroupComponent: typeof trackingBudget.IncomeGroupMonth;
-  BudgetTotalsComponent: typeof trackingBudget.BudgetTotalsMonth;
-  BudgetTotalsComponentRunning: typeof trackingBudget.BudgetTotalsMonthRunning;
-  IncomeHeaderComponent: typeof trackingBudget.IncomeHeaderMonth;
-};
-
-type EnvelopeBudgetComponents = {
-  SummaryComponent: typeof envelopeBudget.BudgetSummary;
-  ExpenseCategoryComponent: typeof envelopeBudget.ExpenseCategoryMonth;
-  ExpenseGroupComponent: typeof envelopeBudget.ExpenseGroupMonth;
-  IncomeCategoryComponent: typeof envelopeBudget.IncomeCategoryMonth;
-  IncomeGroupComponent: typeof envelopeBudget.IncomeGroupMonth;
-  BudgetTotalsComponent: typeof envelopeBudget.BudgetTotalsMonth;
-  BudgetTotalsComponentRunning: typeof trackingBudget.BudgetTotalsMonthRunning;
-  IncomeHeaderComponent: typeof envelopeBudget.IncomeHeaderMonth;
-};
-
-type BudgetInnerProps = {
-  accountId?: string;
-  trackingComponents: TrackingReportComponents;
-  envelopeComponents: EnvelopeBudgetComponents;
-};
-
-function BudgetInner(props: BudgetInnerProps) {
-  const { t } = useTranslation();
+export function Budget() {
   const currentMonth = monthUtils.currentMonth();
   const spreadsheet = useSpreadsheet();
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const [summaryCollapsed, setSummaryCollapsedPref] = useLocalPref(
     'budget.summaryCollapsed',
@@ -81,16 +49,15 @@ function BudgetInner(props: BudgetInnerProps) {
     start: startMonth,
     end: startMonth,
   });
-  const [budgetType = 'rollover'] = useSyncedPref('budgetType');
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
   const [maxMonthsPref] = useGlobalPref('maxMonths');
   const maxMonths = maxMonthsPref || 1;
   const [initialized, setInitialized] = useState(false);
-  const { grouped: categoryGroups } = useCategories();
+  const { data: { grouped: categoryGroups } = { grouped: [] } } =
+    useCategories();
 
-  useEffect(() => {
+  const init = useEffectEvent(() => {
     async function run() {
-      await dispatch(getCategories());
-
       const { start, end } = await send('get-budget-bounds');
       setBounds({ start, end });
 
@@ -104,16 +71,18 @@ function BudgetInner(props: BudgetInnerProps) {
       setInitialized(true);
     }
 
-    run();
-  }, []);
+    void run();
+  });
+  useEffect(() => init(), []);
 
-  useEffect(() => {
-    send('get-budget-bounds').then(({ start, end }) => {
+  const loadBoundBudgets = useEffectEvent(() => {
+    void send('get-budget-bounds').then(({ start, end }) => {
       if (bounds.start !== start || bounds.end !== end) {
         setBounds({ start, end });
       }
     });
-  }, [props.accountId]);
+  });
+  useEffect(() => loadBoundBudgets(), []);
 
   const onMonthSelect = async (month, numDisplayed) => {
     setStartMonthPref(month);
@@ -147,128 +116,18 @@ function BudgetInner(props: BudgetInnerProps) {
     }
   };
 
-  const categoryNameAlreadyExistsNotification = name => {
-    dispatch(
-      addNotification({
-        notification: {
-          type: 'error',
-          message: t(
-            'Category “{{name}}” already exists in group (it may be hidden)',
-            { name },
-          ),
-        },
-      }),
-    );
-  };
-
-  const onSaveCategory = async category => {
-    const cats = await send('get-categories');
-    const exists =
-      cats.grouped
-        .filter(g => g.id === category.group)[0]
-        .categories.filter(
-          c => c.name.toUpperCase() === category.name.toUpperCase(),
-        )
-        .filter(c => (category.id === 'new' ? true : c.id !== category.id))
-        .length > 0;
-
-    if (exists) {
-      categoryNameAlreadyExistsNotification(category.name);
-      return;
-    }
-
-    if (category.id === 'new') {
-      dispatch(
-        createCategory({
-          name: category.name,
-          groupId: category.group,
-          isIncome: category.is_income,
-          isHidden: category.hidden,
-        }),
-      );
-    } else {
-      dispatch(updateCategory({ category }));
-    }
-  };
-
-  const onDeleteCategory = async id => {
-    const mustTransfer = await send('must-category-transfer', { id });
-
-    if (mustTransfer) {
-      dispatch(
-        pushModal({
-          modal: {
-            name: 'confirm-category-delete',
-            options: {
-              category: id,
-              onDelete: transferCategory => {
-                if (id !== transferCategory) {
-                  dispatch(
-                    deleteCategory({ id, transferId: transferCategory }),
-                  );
-                }
-              },
-            },
-          },
-        }),
-      );
-    } else {
-      dispatch(deleteCategory({ id }));
-    }
-  };
-
-  const onSaveGroup = group => {
-    if (group.id === 'new') {
-      dispatch(createGroup({ name: group.name }));
-    } else {
-      dispatch(updateGroup({ group }));
-    }
-  };
-
-  const onDeleteGroup = async id => {
-    const group = categoryGroups.find(g => g.id === id);
-
-    let mustTransfer = false;
-    for (const category of group.categories) {
-      if (await send('must-category-transfer', { id: category.id })) {
-        mustTransfer = true;
-        break;
-      }
-    }
-
-    if (mustTransfer) {
-      dispatch(
-        pushModal({
-          modal: {
-            name: 'confirm-category-delete',
-            options: {
-              group: id,
-              onDelete: transferCategory => {
-                dispatch(deleteGroup({ id, transferId: transferCategory }));
-              },
-            },
-          },
-        }),
-      );
-    } else {
-      dispatch(deleteGroup({ id }));
-    }
+  const onToggleCollapse = () => {
+    setSummaryCollapsedPref(!summaryCollapsed);
   };
 
   const onApplyBudgetTemplatesInGroup = async categories => {
-    dispatch(
-      applyBudgetAction({
-        month: startMonth,
-        type: 'apply-multiple-templates',
-        args: {
-          categories,
-        },
-      }),
-    );
-  };
-
-  const onBudgetAction = (month, type, args) => {
-    dispatch(applyBudgetAction({ month, type, args }));
+    applyBudgetAction.mutate({
+      month: startMonth,
+      type: 'apply-multiple-templates',
+      args: {
+        categories,
+      },
+    });
   };
 
   const onShowActivity = (categoryId, month) => {
@@ -282,7 +141,7 @@ function BudgetInner(props: BudgetInnerProps) {
         type: 'date',
       },
     ];
-    navigate('/accounts', {
+    void navigate('/accounts', {
       state: {
         goBack: true,
         filterConditions,
@@ -291,72 +150,62 @@ function BudgetInner(props: BudgetInnerProps) {
     });
   };
 
-  const onReorderCategory = async sortInfo => {
-    const cats = await send('get-categories');
-    const moveCandidate = cats.list.filter(c => c.id === sortInfo.id)[0];
-    const exists =
-      cats.grouped
-        .filter(g => g.id === sortInfo.groupId)[0]
-        .categories.filter(
-          c => c.name.toUpperCase() === moveCandidate.name.toUpperCase(),
-        )
-        .filter(c => c.id !== moveCandidate.id).length > 0;
-
-    if (exists) {
-      categoryNameAlreadyExistsNotification(moveCandidate.name);
-      return;
-    }
-
-    dispatch(
-      moveCategory({
-        id: sortInfo.id,
-        groupId: sortInfo.groupId,
-        targetId: sortInfo.targetId,
-      }),
-    );
+  const saveCategory = useSaveCategoryMutation();
+  const onSaveCategory = category => {
+    saveCategory.mutate({ category });
   };
-
-  const onReorderGroup = async sortInfo => {
-    dispatch(
-      moveCategoryGroup({ id: sortInfo.id, targetId: sortInfo.targetId }),
-    );
+  const deleteCategory = useDeleteCategoryMutation();
+  const onDeleteCategory = id => {
+    deleteCategory.mutate({ id });
   };
-
-  const onToggleCollapse = () => {
-    setSummaryCollapsedPref(!summaryCollapsed);
+  const reorderCategory = useReorderCategoryMutation();
+  const saveCategoryGroup = useSaveCategoryGroupMutation();
+  const onSaveCategoryGroup = group => {
+    saveCategoryGroup.mutate({ group });
   };
+  const deleteCategoryGroup = useDeleteCategoryGroupMutation();
+  const onDeleteCategoryGroup = id => {
+    deleteCategoryGroup.mutate({ id });
+  };
+  const reorderCategoryGroup = useReorderCategoryGroupMutation();
+  const sortCategories = useSortCategoriesMutation();
+  const applyBudgetAction = useBudgetActions();
 
-  const { trackingComponents, envelopeComponents } = props;
+  const onBudgetAction = (month, type, args) => {
+    applyBudgetAction.mutate({ month, type, args });
+  };
 
   if (!initialized || !categoryGroups) {
     return null;
   }
 
   let table;
-  if (budgetType === 'report') {
+  if (budgetType === 'tracking') {
     table = (
       <TrackingBudgetProvider
         summaryCollapsed={summaryCollapsed}
         onBudgetAction={onBudgetAction}
         onToggleSummaryCollapse={onToggleCollapse}
       >
-        <DynamicBudgetTable
+        <AutoSizingBudgetTable
           type={budgetType}
           prewarmStartMonth={startMonth}
           startMonth={startMonth}
           monthBounds={bounds}
           maxMonths={maxMonths}
-          dataComponents={trackingComponents}
           onMonthSelect={onMonthSelect}
           onDeleteCategory={onDeleteCategory}
-          onDeleteGroup={onDeleteGroup}
+          onDeleteGroup={onDeleteCategoryGroup}
           onSaveCategory={onSaveCategory}
-          onSaveGroup={onSaveGroup}
+          onSaveGroup={onSaveCategoryGroup}
           onBudgetAction={onBudgetAction}
           onShowActivity={onShowActivity}
-          onReorderCategory={onReorderCategory}
-          onReorderGroup={onReorderGroup}
+          onReorderCategory={reorderCategory.mutate}
+          onReorderGroup={reorderCategoryGroup.mutate}
           onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
+          onSortCategories={(groupId, direction) =>
+            sortCategories.mutate({ groupId, direction })
+          }
         />
       </TrackingBudgetProvider>
     );
@@ -367,37 +216,96 @@ function BudgetInner(props: BudgetInnerProps) {
         onBudgetAction={onBudgetAction}
         onToggleSummaryCollapse={onToggleCollapse}
       >
-        <DynamicBudgetTable
+        <AutoSizingBudgetTable
           type={budgetType}
           prewarmStartMonth={startMonth}
           startMonth={startMonth}
           monthBounds={bounds}
           maxMonths={maxMonths}
-          dataComponents={envelopeComponents}
           onMonthSelect={onMonthSelect}
           onDeleteCategory={onDeleteCategory}
-          onDeleteGroup={onDeleteGroup}
+          onDeleteGroup={onDeleteCategoryGroup}
           onSaveCategory={onSaveCategory}
-          onSaveGroup={onSaveGroup}
+          onSaveGroup={onSaveCategoryGroup}
           onBudgetAction={onBudgetAction}
           onShowActivity={onShowActivity}
-          onReorderCategory={onReorderCategory}
-          onReorderGroup={onReorderGroup}
+          onReorderCategory={reorderCategory.mutate}
+          onReorderGroup={reorderCategoryGroup.mutate}
           onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
+          onSortCategories={(groupId, direction) =>
+            sortCategories.mutate({ groupId, direction })
+          }
         />
       </EnvelopeBudgetProvider>
     );
   }
 
   return (
-    <NamespaceContext.Provider value={monthUtils.sheetForMonth(startMonth)}>
-      <View style={{ flex: 1 }}>{table}</View>
-    </NamespaceContext.Provider>
+    <SheetNameProvider name={monthUtils.sheetForMonth(startMonth)}>
+      {/*
+        In a previous iteration, the wrapper needs `overflow: hidden` for
+        some reason. Without it at certain dimensions the width/height
+        that autosizer gives us is slightly wrong, causing scrollbars to
+        appear. We might not need it anymore?
+      */}
+      <View
+        style={{
+          ...styles.page,
+          paddingLeft: 8,
+          paddingRight: 8,
+          overflow: 'hidden',
+        }}
+      >
+        <View style={{ flex: 1 }}>{table}</View>
+      </View>
+    </SheetNameProvider>
   );
 }
 
-export function Budget() {
-  const trackingComponents = useMemo<TrackingReportComponents>(
+export type BudgetSummaryProps = {
+  month: string;
+};
+
+export type BudgetTotalsMonthProps = {
+  month: string;
+};
+
+export type CategoryMonthProps = {
+  month: string;
+  category: CategoryEntity;
+  editing: boolean;
+  isLast?: boolean;
+  onEdit: (id: CategoryEntity['id'] | null, month?: string) => void;
+  onBudgetAction: (month: string, action: string, arg: unknown) => void;
+  onShowActivity: (id: CategoryEntity['id'], month: string) => void;
+};
+
+export type CategoryGroupMonthProps = {
+  month: string;
+  group: CategoryGroupEntity;
+};
+
+export type BudgetComponents = {
+  SummaryComponent: ComponentType<BudgetSummaryProps>;
+  ExpenseCategoryComponent: ComponentType<CategoryMonthProps>;
+  ExpenseGroupComponent: ComponentType<CategoryGroupMonthProps>;
+  IncomeCategoryComponent: ComponentType<CategoryMonthProps>;
+  IncomeGroupComponent: ComponentType<CategoryGroupMonthProps>;
+  BudgetTotalsComponent: ComponentType;
+  BudgetTotalsComponentRunning: ComponentType<BudgetTotalsMonthProps>;
+  IncomeHeaderComponent: ComponentType;
+};
+
+export function useBudgetComponents(): BudgetComponents {
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
+  const envelopeComponents = useEnvelopeBudgetComponents();
+  const trackingComponents = useTrackingBudgetComponents();
+
+  return budgetType === 'envelope' ? envelopeComponents : trackingComponents;
+}
+
+function useTrackingBudgetComponents(): BudgetComponents {
+  return useMemo(
     () => ({
       SummaryComponent: trackingBudget.BudgetSummary,
       ExpenseCategoryComponent: trackingBudget.ExpenseCategoryMonth,
@@ -408,10 +316,12 @@ export function Budget() {
       BudgetTotalsComponentRunning: trackingBudget.BudgetTotalsMonthRunning,
       IncomeHeaderComponent: trackingBudget.IncomeHeaderMonth,
     }),
-    [trackingBudget],
+    [],
   );
+}
 
-  const envelopeComponents = useMemo<EnvelopeBudgetComponents>(
+function useEnvelopeBudgetComponents(): BudgetComponents {
+  return useMemo(
     () => ({
       SummaryComponent: envelopeBudget.BudgetSummary,
       ExpenseCategoryComponent: envelopeBudget.ExpenseCategoryMonth,
@@ -419,29 +329,9 @@ export function Budget() {
       IncomeCategoryComponent: envelopeBudget.IncomeCategoryMonth,
       IncomeGroupComponent: envelopeBudget.IncomeGroupMonth,
       BudgetTotalsComponent: envelopeBudget.BudgetTotalsMonth,
-      BudgetTotalsComponentRunning: trackingBudget.BudgetTotalsMonthRunning,
+      BudgetTotalsComponentRunning: envelopeBudget.BudgetTotalsMonthRunning,
       IncomeHeaderComponent: envelopeBudget.IncomeHeaderMonth,
     }),
-    [envelopeBudget],
-  );
-
-  // In a previous iteration, the wrapper needs `overflow: hidden` for
-  // some reason. Without it at certain dimensions the width/height
-  // that autosizer gives us is slightly wrong, causing scrollbars to
-  // appear. We might not need it anymore?
-  return (
-    <View
-      style={{
-        ...styles.page,
-        paddingLeft: 8,
-        paddingRight: 8,
-        overflow: 'hidden',
-      }}
-    >
-      <BudgetInner
-        trackingComponents={trackingComponents}
-        envelopeComponents={envelopeComponents}
-      />
-    </View>
+    [],
   );
 }

@@ -1,34 +1,37 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
-import { Select, type SelectOption } from '@actual-app/components/select';
+import { Select } from '@actual-app/components/select';
+import type { SelectOption } from '@actual-app/components/select';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+  CustomReportEntity,
+  sortByOpType,
+  TimeFrame,
+  TransactionEntity,
+} from '@actual-app/core/types/models';
+import type { SyncedPrefs } from '@actual-app/core/types/prefs';
 
-import * as monthUtils from 'loot-core/shared/months';
-import {
-  type CategoryEntity,
-  type CategoryGroupEntity,
-  type TimeFrame,
-  type CustomReportEntity,
-  type sortByOpType,
-} from 'loot-core/types/models';
-import { type SyncedPrefs } from 'loot-core/types/prefs';
-
-import { Information } from '../alerts';
+import { Information } from '#components/alerts';
+import { useLocale } from '#hooks/useLocale';
 
 import { CategorySelector } from './CategorySelector';
 import { defaultsList, disabledList } from './disabledList';
 import { getLiveRange } from './getLiveRange';
 import { ModeButton } from './ModeButton';
-import { type dateRangeProps, ReportOptions } from './ReportOptions';
+import { ReportOptions } from './ReportOptions';
+import type { dateRangeProps } from './ReportOptions';
 import { validateEnd, validateStart } from './reportRanges';
 import { setSessionReport } from './setSessionReport';
 
@@ -38,19 +41,27 @@ type ReportSidebarProps = {
   categories: { list: CategoryEntity[]; grouped: CategoryGroupEntity[] };
   dateRangeLine: number;
   allIntervals: { name: string; pretty: string }[];
-  setDateRange: (value: string) => void;
-  setGraphType: (value: string) => void;
-  setGroupBy: (value: string) => void;
-  setInterval: (value: string) => void;
-  setBalanceType: (value: string) => void;
-  setSortBy: (value: string) => void;
-  setMode: (value: string) => void;
-  setIsDateStatic: (value: boolean) => void;
-  setShowEmpty: (value: boolean) => void;
-  setShowOffBudget: (value: boolean) => void;
-  setShowHiddenCategories: (value: boolean) => void;
-  setShowUncategorized: (value: boolean) => void;
-  setIncludeCurrentInterval: (value: boolean) => void;
+  setDateRange: (value: CustomReportEntity['dateRange']) => void;
+  setGraphType: (value: CustomReportEntity['graphType']) => void;
+  setGroupBy: (value: CustomReportEntity['groupBy']) => void;
+  setInterval: (value: CustomReportEntity['interval']) => void;
+  setBalanceType: (value: CustomReportEntity['balanceType']) => void;
+  setSortBy: (value: CustomReportEntity['sortBy']) => void;
+  setMode: (value: CustomReportEntity['mode']) => void;
+  setIsDateStatic: (value: CustomReportEntity['isDateStatic']) => void;
+  setShowEmpty: (value: CustomReportEntity['showEmpty']) => void;
+  setShowOffBudget: (value: CustomReportEntity['showOffBudget']) => void;
+  setShowHiddenCategories: (
+    value: CustomReportEntity['showHiddenCategories'],
+  ) => void;
+  setShowUncategorized: (
+    value: CustomReportEntity['showUncategorized'],
+  ) => void;
+  setTrimIntervals: (value: CustomReportEntity['trimIntervals']) => void;
+  setShowTrendLines: (value: CustomReportEntity['showTrendLines']) => void;
+  setIncludeCurrentInterval: (
+    value: CustomReportEntity['includeCurrentInterval'],
+  ) => void;
   setSelectedCategories: (value: CategoryEntity[]) => void;
   onChangeDates: (
     dateStart: string,
@@ -61,7 +72,8 @@ type ReportSidebarProps = {
   disabledItems: (type: string) => string[];
   defaultItems: (item: string) => void;
   defaultModeItems: (graph: string, item: string) => void;
-  earliestTransaction: string;
+  earliestTransaction: TransactionEntity['date'];
+  latestTransaction: TransactionEntity['date'];
   firstDayOfWeekIdx: SyncedPrefs['firstDayOfWeekIdx'];
   isComplexCategoryCondition?: boolean;
 };
@@ -85,6 +97,8 @@ export function ReportSidebar({
   setShowHiddenCategories,
   setIncludeCurrentInterval,
   setShowUncategorized,
+  setTrimIntervals,
+  setShowTrendLines,
   setSelectedCategories,
   onChangeDates,
   onReportChange,
@@ -92,10 +106,13 @@ export function ReportSidebar({
   defaultItems,
   defaultModeItems,
   earliestTransaction,
+  latestTransaction,
   firstDayOfWeekIdx,
   isComplexCategoryCondition = false,
 }: ReportSidebarProps) {
   const { t } = useTranslation();
+  const locale = useLocale();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef(null);
 
@@ -107,6 +124,7 @@ export function ReportSidebar({
       ...getLiveRange(
         cond,
         earliestTransaction,
+        latestTransaction,
         customReportItems.includeCurrentInterval,
         firstDayOfWeekIdx,
       ),
@@ -165,6 +183,34 @@ export function ReportSidebar({
     setSessionReport('balanceType', cond);
     onReportChange({ type: 'modify' });
     setBalanceType(cond);
+
+    if (cond === 'Budgeted') {
+      // Budgeted does not support Payee and Account splits
+      if (
+        customReportItems.groupBy === 'Payee' ||
+        customReportItems.groupBy === 'Account'
+      ) {
+        setSessionReport('groupBy', 'Category');
+        setGroupBy('Category');
+        defaultItems('Category');
+      }
+      // Budgeted only supports Monthly and Yearly intervals
+      if (
+        customReportItems.interval === 'Daily' ||
+        customReportItems.interval === 'Weekly'
+      ) {
+        setSessionReport('interval', 'Monthly');
+        setInterval('Monthly');
+        if (
+          ReportOptions.dateRange
+            .filter(d => !d['Monthly' as keyof dateRangeProps])
+            .map(int => int.key)
+            .includes(customReportItems.dateRange)
+        ) {
+          onSelectRange(defaultsList.intervalRange.get('Monthly') || '');
+        }
+      }
+    }
   };
 
   const onChangeSortBy = (cond?: sortByOpType) => {
@@ -215,7 +261,9 @@ export function ReportSidebar({
           }}
         >
           <Text>
-            <strong>{t('Display')}</strong>
+            <strong>
+              <Trans>Display</Trans>
+            </strong>
           </Text>
         </View>
         <SpaceBetween
@@ -224,18 +272,20 @@ export function ReportSidebar({
             padding: 5,
           }}
         >
-          <Text style={{ width: 50, textAlign: 'right' }}>{t('Mode:')}</Text>
+          <Text style={{ width: 50, textAlign: 'right' }}>
+            <Trans>Mode:</Trans>
+          </Text>
           <ModeButton
             selected={customReportItems.mode === 'total'}
             onSelect={() => onChangeMode('total')}
           >
-            {t('Total')}
+            <Trans>Total</Trans>
           </ModeButton>
           <ModeButton
             selected={customReportItems.mode === 'time'}
             onSelect={() => onChangeMode('time')}
           >
-            {t('Time')}
+            <Trans>Time</Trans>
           </ModeButton>
         </SpaceBetween>
 
@@ -247,7 +297,7 @@ export function ReportSidebar({
           }}
         >
           <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-            {t('Split:')}
+            <Trans>Split:</Trans>
           </Text>
           <Select
             value={customReportItems.groupBy}
@@ -256,7 +306,11 @@ export function ReportSidebar({
               option.key,
               option.description,
             ])}
-            disabledKeys={disabledItems('split')}
+            disabledKeys={
+              customReportItems.balanceType === 'Budgeted'
+                ? [...new Set([...disabledItems('split'), 'Payee', 'Account'])]
+                : disabledItems('split')
+            }
           />
         </View>
 
@@ -268,7 +322,7 @@ export function ReportSidebar({
           }}
         >
           <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-            {t('Type:')}
+            <Trans>Type:</Trans>
           </Text>
           <Select
             value={customReportItems.balanceType}
@@ -288,7 +342,7 @@ export function ReportSidebar({
           }}
         >
           <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-            {t('Interval:')}
+            <Trans>Interval:</Trans>
           </Text>
           <Select
             value={customReportItems.interval}
@@ -309,7 +363,11 @@ export function ReportSidebar({
               option.key,
               option.description,
             ])}
-            disabledKeys={[]}
+            disabledKeys={
+              customReportItems.balanceType === 'Budgeted'
+                ? ['Daily', 'Weekly']
+                : []
+            }
           />
         </View>
 
@@ -322,7 +380,7 @@ export function ReportSidebar({
             }}
           >
             <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-              {t('Sort:')}
+              <Trans>Sort:</Trans>
             </Text>
             <Select
               value={customReportItems.sortBy}
@@ -354,7 +412,7 @@ export function ReportSidebar({
               padding: '5px 10px',
             }}
           >
-            {t('Options')}
+            <Trans>Options</Trans>
           </Button>
           <Popover
             triggerRef={triggerRef}
@@ -397,6 +455,18 @@ export function ReportSidebar({
                     !customReportItems.showUncategorized,
                   );
                   setShowUncategorized(!customReportItems.showUncategorized);
+                } else if (type === 'trim-intervals') {
+                  setSessionReport(
+                    'trimIntervals',
+                    !customReportItems.trimIntervals,
+                  );
+                  setTrimIntervals(!customReportItems.trimIntervals);
+                } else if (type === 'show-trend-lines') {
+                  setSessionReport(
+                    'showTrendLines',
+                    !customReportItems.showTrendLines,
+                  );
+                  setShowTrendLines(!customReportItems.showTrendLines);
                 }
               }}
               items={[
@@ -435,6 +505,21 @@ export function ReportSidebar({
                   tooltip: t('Show uncategorized transactions'),
                   toggle: customReportItems.showUncategorized,
                 },
+                {
+                  name: 'trim-intervals',
+                  text: t('Trim intervals'),
+                  tooltip: t(
+                    'Trim empty intervals at the start and end of the report',
+                  ),
+                  toggle: customReportItems.trimIntervals,
+                },
+                {
+                  name: 'show-trend-lines',
+                  text: t('Show trend lines'),
+                  tooltip: t('Add a trend line per series (line graphs only)'),
+                  toggle: customReportItems.showTrendLines,
+                  disabled: customReportItems.graphType !== 'LineGraph',
+                },
               ]}
             />
           </Popover>
@@ -455,7 +540,9 @@ export function ReportSidebar({
           }}
         >
           <Text>
-            <strong>{t('Date filters')}</strong>
+            <strong>
+              <Trans>Date filters</Trans>
+            </strong>
           </Text>
           <View style={{ flex: 1 }} />
           <ModeButton
@@ -466,7 +553,7 @@ export function ReportSidebar({
               onSelectRange(customReportItems.dateRange);
             }}
           >
-            Live
+            <Trans>Live</Trans>
           </ModeButton>
           <ModeButton
             selected={customReportItems.isDateStatic}
@@ -480,7 +567,7 @@ export function ReportSidebar({
               );
             }}
           >
-            {t('Static')}
+            <Trans>Static</Trans>
           </ModeButton>
         </SpaceBetween>
         {!customReportItems.isDateStatic ? (
@@ -492,7 +579,7 @@ export function ReportSidebar({
             }}
           >
             <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-              {t('Range:')}
+              <Trans>Range:</Trans>
             </Text>
             <Select
               value={customReportItems.dateRange}
@@ -503,7 +590,11 @@ export function ReportSidebar({
               customReportItems.includeCurrentInterval && (
                 <Tooltip
                   placement="bottom start"
-                  content={<Text>{t('Current month')}</Text>}
+                  content={
+                    <Text>
+                      <Trans>Current month</Trans>
+                    </Text>
+                  }
                   style={{
                     ...styles.tooltip,
                     lineHeight: 1.5,
@@ -525,13 +616,14 @@ export function ReportSidebar({
               }}
             >
               <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-                From:
+                <Trans>From:</Trans>
               </Text>
               <Select
                 onChange={newValue =>
                   onChangeDates(
                     ...validateStart(
                       earliestTransaction,
+                      latestTransaction,
                       newValue,
                       customReportItems.endDate,
                       customReportItems.interval,
@@ -545,6 +637,7 @@ export function ReportSidebar({
                   ReportOptions.intervalFormat.get(
                     customReportItems.interval,
                   ) || '',
+                  locale,
                 )}
                 options={allIntervals.map(({ name, pretty }) => [name, pretty])}
               />
@@ -557,13 +650,14 @@ export function ReportSidebar({
               }}
             >
               <Text style={{ width: 50, textAlign: 'right', marginRight: 5 }}>
-                To:
+                <Trans>To:</Trans>
               </Text>
               <Select
                 onChange={newValue =>
                   onChangeDates(
                     ...validateEnd(
                       earliestTransaction,
+                      latestTransaction,
                       customReportItems.startDate,
                       newValue,
                       customReportItems.interval,
@@ -577,6 +671,7 @@ export function ReportSidebar({
                   ReportOptions.intervalFormat.get(
                     customReportItems.interval,
                   ) || '',
+                  locale,
                 )}
                 options={allIntervals.map(({ name, pretty }) => [name, pretty])}
               />
@@ -600,7 +695,9 @@ export function ReportSidebar({
       >
         {isComplexCategoryCondition ? (
           <Information>
-            {t('Remove active category filters to show the category selector.')}
+            <Trans>
+              Remove active category filters to show the category selector.
+            </Trans>
           </Information>
         ) : (
           <CategorySelector

@@ -1,49 +1,47 @@
-// @ts-strict-ignore
 // This file will initialize the app if we are in a real browser
 // environment (not electron)
-import './browser-preload';
-
+import '#browser-preload';
 import './fonts.scss';
-
 import './i18n';
-
 import React from 'react';
-import { Provider } from 'react-redux';
-
-import { bindActionCreators } from '@reduxjs/toolkit';
 import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
+import type { NavigateFunction } from 'react-router';
 
-import * as appSlice from 'loot-core/client/app/appSlice';
-import * as budgetsSlice from 'loot-core/client/budgets/budgetsSlice';
-import * as modalsSlice from 'loot-core/client/modals/modalsSlice';
-import * as notificationsSlice from 'loot-core/client/notifications/notificationsSlice';
-import * as prefsSlice from 'loot-core/client/prefs/prefsSlice';
-import * as queriesSlice from 'loot-core/client/queries/queriesSlice';
-import { runQuery } from 'loot-core/client/query-helpers';
-import { store } from 'loot-core/client/store';
-import { redo, undo } from 'loot-core/client/undo';
-import * as usersSlice from 'loot-core/client/users/usersSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { q } from 'loot-core/shared/query';
+import { send } from '@actual-app/core/platform/client/connection';
+import { q } from '@actual-app/core/shared/query';
+import { bindActionCreators } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import * as accountsSlice from './accounts/accountsSlice';
+import * as appSlice from './app/appSlice';
 import { AuthProvider } from './auth/AuthProvider';
+import * as budgetfilesSlice from './budgetfiles/budgetfilesSlice';
 import { App } from './components/App';
 import { ServerProvider } from './components/ServerContext';
+import * as modalsSlice from './modals/modalsSlice';
+import * as notificationsSlice from './notifications/notificationsSlice';
+import * as prefsSlice from './prefs/prefsSlice';
+import { aqlQuery } from './queries/aqlQuery';
+import { configureAppStore } from './redux/store';
+import * as transactionsSlice from './transactions/transactionsSlice';
+import { redo, undo } from './undo';
+import * as usersSlice from './users/usersSlice';
 
-// See https://github.com/WICG/focus-visible. Only makes the blue
-// focus outline appear from keyboard events.
-import 'focus-visible';
+const queryClient = new QueryClient();
+window.__TANSTACK_QUERY_CLIENT__ = queryClient;
+
+const store = configureAppStore({ queryClient });
 
 const boundActions = bindActionCreators(
   {
     ...accountsSlice.actions,
     ...appSlice.actions,
-    ...budgetsSlice.actions,
+    ...budgetfilesSlice.actions,
     ...modalsSlice.actions,
     ...notificationsSlice.actions,
     ...prefsSlice.actions,
-    ...queriesSlice.actions,
+    ...transactionsSlice.actions,
     ...usersSlice.actions,
   },
   store.dispatch,
@@ -54,17 +52,18 @@ async function appFocused() {
 }
 
 async function uploadFile(filename: string, contents: ArrayBuffer) {
-  send('upload-file-web', {
+  await send('upload-file-web', {
     filename,
     contents,
   });
 }
 
-function inputFocused() {
+function inputFocused(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null;
   return (
-    window.document.activeElement.tagName === 'INPUT' ||
-    window.document.activeElement.tagName === 'TEXTAREA' ||
-    (window.document.activeElement as HTMLElement).isContentEditable
+    target?.tagName === 'INPUT' ||
+    target?.tagName === 'TEXTAREA' ||
+    target?.isContentEditable === true
   );
 }
 
@@ -74,40 +73,70 @@ window.__actionsForMenu = {
   undo,
   redo,
   appFocused,
-  inputFocused,
   uploadFile,
 };
 
 // Expose send for fun!
 window.$send = send;
-window.$query = runQuery;
+window.$query = aqlQuery;
 window.$q = q;
 
 const container = document.getElementById('root');
+if (!container) {
+  throw new Error('Root container not found');
+}
 const root = createRoot(container);
 root.render(
-  <Provider store={store}>
-    <ServerProvider>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </ServerProvider>
-  </Provider>,
+  <QueryClientProvider client={queryClient}>
+    <Provider store={store}>
+      <ServerProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ServerProvider>
+    </Provider>
+  </QueryClientProvider>,
 );
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+  // oxlint-disable-next-line typescript/consistent-type-definitions
   interface Window {
+    __navigate?: NavigateFunction;
     __actionsForMenu: typeof boundActions & {
       undo: typeof undo;
       redo: typeof redo;
       appFocused: typeof appFocused;
-      inputFocused: typeof inputFocused;
       uploadFile: typeof uploadFile;
     };
 
     $send: typeof send;
-    $query: typeof runQuery;
+    $query: typeof aqlQuery;
     $q: typeof q;
+
+    __TANSTACK_QUERY_CLIENT__: QueryClient;
   }
 }
+
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey) {
+    // Cmd/Ctrl+o
+    if (e.key === 'o') {
+      e.preventDefault();
+      window.__actionsForMenu.closeBudget();
+    }
+    // Cmd/Ctrl+z
+    else if (e.key.toLowerCase() === 'z') {
+      if (inputFocused(e)) {
+        return;
+      }
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Redo
+        window.__actionsForMenu.redo();
+      } else {
+        // Undo
+        window.__actionsForMenu.undo();
+      }
+    }
+  }
+});

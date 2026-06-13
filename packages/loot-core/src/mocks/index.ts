@@ -1,13 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import * as monthUtils from '../shared/months';
+import * as monthUtils from '#shared/months';
 import type {
-  _SyncFields,
   AccountEntity,
   CategoryEntity,
   CategoryGroupEntity,
   TransactionEntity,
-} from '../types/models';
+} from '#types/models';
 
 import { random } from './random';
 
@@ -31,7 +30,7 @@ export function generateAccount(
     return {
       ...offlineAccount,
       balance_current: Math.floor(random() * 100000),
-      bankId: Math.floor(random() * 10000),
+      bankId: Math.floor(random() * 10000).toString(),
       bankName: 'boa',
       bank: Math.floor(random() * 10000).toString(),
       account_id: 'idx',
@@ -41,13 +40,28 @@ export function generateAccount(
       balance_limit: 0,
       account_sync_source: 'goCardless',
       last_sync: new Date().getTime().toString(),
+      bank_sync_status: 'ok',
     };
   }
 
   return offlineAccount;
 }
 
-function emptySyncFields(): _SyncFields<false> {
+function emptySyncFields(): Pick<
+  AccountEntity,
+  | 'account_id'
+  | 'bank'
+  | 'bankId'
+  | 'bankName'
+  | 'mask'
+  | 'official_name'
+  | 'balance_current'
+  | 'balance_available'
+  | 'balance_limit'
+  | 'account_sync_source'
+  | 'last_sync'
+  | 'bank_sync_status'
+> {
   return {
     account_id: null,
     bank: null,
@@ -60,6 +74,7 @@ function emptySyncFields(): _SyncFields<false> {
     balance_limit: null,
     account_sync_source: null,
     last_sync: null,
+    bank_sync_status: null,
   };
 }
 
@@ -129,6 +144,7 @@ function _generateTransaction(
     date: data.date || monthUtils.currentDay(),
     sort_order: data.sort_order != null ? data.sort_order : 1,
     cleared: false,
+    reconciled: false,
     ...(data.category && { category: data.category }),
   };
 }

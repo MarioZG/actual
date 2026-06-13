@@ -1,39 +1,41 @@
 // @ts-strict-ignore
-import React, { useState, type CSSProperties } from 'react';
+import React, { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
 import { theme } from '@actual-app/components/theme';
+import type {
+  balanceTypeOpType,
+  DataEntity,
+  LegendEntity,
+  RuleConditionEntity,
+} from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
 import {
-  LineChart,
-  Line,
   CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 
-import {
-  amountToCurrency,
-  amountToCurrencyNoDecimal,
-} from 'loot-core/shared/util';
-import {
-  type balanceTypeOpType,
-  type DataEntity,
-  type RuleConditionEntity,
-} from 'loot-core/types/models';
-
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { useNavigate } from '../../../hooks/useNavigate';
-import { usePrivacyMode } from '../../../hooks/usePrivacyMode';
-import { Container } from '../Container';
-import { getCustomTick } from '../getCustomTick';
-import { numberFormatterTooltip } from '../numberFormatter';
+import { FinancialText } from '#components/FinancialText';
+import { useRechartsAnimation } from '#components/reports/chart-theme';
+import { Container } from '#components/reports/Container';
+import { getCustomTick } from '#components/reports/getCustomTick';
+import { numberFormatterTooltip } from '#components/reports/numberFormatter';
+import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
+import { useFormat } from '#hooks/useFormat';
+import type { FormatType } from '#hooks/useFormat';
+import { useNavigate } from '#hooks/useNavigate';
+import { usePrivacyMode } from '#hooks/usePrivacyMode';
 
 import { showActivity } from './showActivity';
+import { computeTrendLines } from './util/computeTrendLines';
 
 type PayloadItem = {
   dataKey: string;
@@ -48,19 +50,43 @@ type PayloadItem = {
 type CustomTooltipProps = {
   compact: boolean;
   tooltip: string;
+  legend: LegendEntity[];
   active?: boolean;
   payload?: PayloadItem[];
+  format: (value: unknown, type: FormatType) => string;
 };
 
 const CustomTooltip = ({
   compact,
   tooltip,
+  legend,
   active,
   payload,
+  format,
 }: CustomTooltipProps) => {
   const { t } = useTranslation();
-  if (active && payload && payload.length) {
-    let sumTotals = 0;
+
+  const dataKeyToName = useMemo(() => {
+    return new Map(legend.map(entry => [entry.dataKey, entry.name]));
+  }, [legend]);
+
+  const { sumTotals, items } = useMemo(() => {
+    return (payload ?? [])
+      .sort((p1: PayloadItem, p2: PayloadItem) => p2.value - p1.value)
+      .reduce(
+        (acc, item) => {
+          acc.sumTotals += item.value;
+          acc.items.push(item);
+          return acc;
+        },
+        {
+          sumTotals: 0,
+          items: [] as PayloadItem[],
+        },
+      );
+  }, [payload]);
+
+  if (active && items.length) {
     return (
       <div
         className={css({
@@ -78,29 +104,33 @@ const CustomTooltip = ({
             <strong>{payload[0].payload.date}</strong>
           </div>
           <div style={{ lineHeight: 1.5 }}>
-            {payload
-              .sort((p1: PayloadItem, p2: PayloadItem) => p2.value - p1.value)
-              .map((p: PayloadItem, index: number) => {
-                sumTotals += p.value;
-                return (
-                  (compact ? index < 4 : true) && (
-                    <AlignedText
-                      key={index}
-                      left={p.dataKey}
-                      right={amountToCurrency(p.value)}
-                      style={{
-                        color: p.color,
-                        textDecoration:
-                          tooltip === p.dataKey ? 'underline' : 'inherit',
-                      }}
-                    />
-                  )
-                );
-              })}
+            {items.map((p: PayloadItem, index: number) => {
+              const displayName = dataKeyToName.get(p.dataKey) ?? p.dataKey;
+              return (
+                (compact ? index < 4 : true) && (
+                  <AlignedText
+                    key={index}
+                    left={displayName}
+                    right={
+                      <FinancialText>
+                        {format(p.value, 'financial')}
+                      </FinancialText>
+                    }
+                    style={{
+                      color: p.color,
+                      textDecoration:
+                        tooltip === p.dataKey ? 'underline' : 'inherit',
+                    }}
+                  />
+                )
+              );
+            })}
             {payload.length > 5 && compact && '...'}
             <AlignedText
               left={t('Total')}
-              right={amountToCurrency(sumTotals)}
+              right={
+                <FinancialText>{format(sumTotals, 'financial')}</FinancialText>
+              }
               style={{
                 fontWeight: 600,
               }}
@@ -121,6 +151,7 @@ type LineGraphProps = {
   balanceTypeOp: balanceTypeOpType;
   showHiddenCategories?: boolean;
   showOffBudget?: boolean;
+  showTrendLines?: boolean;
   showTooltip?: boolean;
   interval?: string;
 };
@@ -134,13 +165,17 @@ export function LineGraph({
   balanceTypeOp,
   showHiddenCategories,
   showOffBudget,
+  showTrendLines = false,
   showTooltip = true,
   interval,
 }: LineGraphProps) {
+  const animationProps = useRechartsAnimation();
   const navigate = useNavigate();
-  const categories = useCategories();
-  const accounts = useAccounts();
+  const { data: categories = { grouped: [], list: [] } } = useCategories();
+  const { data: accounts = [] } = useAccounts();
   const privacyMode = usePrivacyMode();
+  const format = useFormat();
+
   const [pointer, setPointer] = useState('');
   const [tooltip, setTooltip] = useState('');
 
@@ -150,7 +185,11 @@ export function LineGraph({
 
   const leftMargin = Math.abs(largestValue) > 1000000 ? 20 : 5;
 
-  const onShowActivity = (item, id, payload) => {
+  const trendLines = showTrendLines
+    ? computeTrendLines(data.intervalData, data.legend)
+    : [];
+
+  const onShowActivity = (id, payload, uncategorizedId) => {
     showActivity({
       navigate,
       categories,
@@ -164,6 +203,7 @@ export function LineGraph({
       endDate: payload.payload.intervalEndDate,
       field: groupBy.toLowerCase(),
       id,
+      uncategorizedId,
       interval,
     });
   };
@@ -177,77 +217,96 @@ export function LineGraph({
     >
       {(width, height) =>
         data && (
-          <ResponsiveContainer>
-            <div>
-              {!compact && <div style={{ marginTop: '15px' }} />}
-              <LineChart
-                width={width}
-                height={height}
-                data={data.intervalData}
-                margin={{ top: 10, right: 10, left: leftMargin, bottom: 10 }}
-                style={{ cursor: pointer }}
-              >
-                {showTooltip && (
-                  <Tooltip
-                    content={
-                      <CustomTooltip compact={compact} tooltip={tooltip} />
-                    }
-                    formatter={numberFormatterTooltip}
-                    isAnimationActive={false}
-                  />
-                )}
-                {!compact && <CartesianGrid strokeDasharray="3 3" />}
-                {!compact && (
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: theme.pageText }}
-                    tickLine={{ stroke: theme.pageText }}
-                  />
-                )}
-                {!compact && (
-                  <YAxis
-                    tickFormatter={value =>
-                      getCustomTick(
-                        amountToCurrencyNoDecimal(value),
-                        privacyMode,
-                      )
-                    }
-                    tick={{ fill: theme.pageText }}
-                    tickLine={{ stroke: theme.pageText }}
-                    tickSize={0}
-                  />
-                )}
-                {data.legend.map((entry, index) => {
-                  return (
-                    <Line
-                      key={index}
-                      strokeWidth={2}
-                      type="monotone"
-                      dataKey={entry.name}
-                      stroke={entry.color}
-                      activeDot={{
-                        r: entry.name === tooltip && !compact ? 8 : 3,
-                        onMouseEnter: () => {
-                          setTooltip(entry.name);
-                          if (!['Group', 'Interval'].includes(groupBy)) {
-                            setPointer('pointer');
-                          }
-                        },
-                        onMouseLeave: () => {
-                          setPointer('');
-                          setTooltip('');
-                        },
-                        onClick: (e, payload) =>
-                          ((compact && showTooltip) || !compact) &&
-                          !['Group', 'Interval'].includes(groupBy) &&
-                          onShowActivity(e, entry.id, payload),
-                      }}
+          <div>
+            {!compact && <div style={{ marginTop: '15px' }} />}
+            <LineChart
+              responsive
+              width={width}
+              height={height}
+              data={data.intervalData}
+              margin={{ top: 10, right: 10, left: leftMargin, bottom: 10 }}
+              style={{ cursor: pointer }}
+            >
+              {showTooltip && (
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      compact={compact}
+                      tooltip={tooltip}
+                      legend={data.legend}
+                      format={format}
                     />
-                  );
-                })}
-              </LineChart>
-            </div>
-          </ResponsiveContainer>
+                  }
+                  formatter={numberFormatterTooltip}
+                  isAnimationActive={false}
+                />
+              )}
+              {!compact && <CartesianGrid strokeDasharray="3 3" />}
+              {!compact && (
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: theme.pageText }}
+                  tickLine={{ stroke: theme.pageText }}
+                />
+              )}
+              {!compact && (
+                <YAxis
+                  tickFormatter={value =>
+                    getCustomTick(
+                      format(value, 'financial-no-decimals'),
+                      privacyMode,
+                    )
+                  }
+                  tick={{ fill: theme.pageText }}
+                  tickLine={{ stroke: theme.pageText }}
+                  tickSize={0}
+                />
+              )}
+              {trendLines.map(t => (
+                <ReferenceLine
+                  key={`trend-${t.id}`}
+                  segment={[t.start, t.end]}
+                  stroke={t.color}
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.6}
+                  ifOverflow="extendDomain"
+                />
+              ))}
+              {data.legend.map((entry, index) => {
+                return (
+                  <Line
+                    key={index}
+                    strokeWidth={2}
+                    type="monotone"
+                    dataKey={entry.dataKey}
+                    stroke={entry.color}
+                    {...animationProps}
+                    activeDot={{
+                      r: entry.dataKey === tooltip && !compact ? 8 : 3,
+                      onMouseEnter: () => {
+                        setTooltip(entry.dataKey);
+                        if (!['Group', 'Interval'].includes(groupBy)) {
+                          setPointer('pointer');
+                        }
+                      },
+                      onMouseLeave: () => {
+                        setPointer('');
+                        setTooltip('');
+                      },
+                      onClick: (e, payload) =>
+                        ((compact && showTooltip) || !compact) &&
+                        !['Group', 'Interval'].includes(groupBy) &&
+                        onShowActivity(
+                          entry.id,
+                          payload,
+                          entry.uncategorizedId,
+                        ),
+                    }}
+                  />
+                );
+              })}
+            </LineChart>
+          </div>
         )
       }
     </Container>

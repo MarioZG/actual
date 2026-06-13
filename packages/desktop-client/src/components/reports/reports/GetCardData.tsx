@@ -1,39 +1,38 @@
 import React, { useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useTranslation } from 'react-i18next';
+import { Trans } from 'react-i18next';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  AccountEntity,
+  CategoryEntity,
+  CategoryGroupEntity,
+  CustomReportEntity,
+  PayeeEntity,
+} from '@actual-app/core/types/models';
+import type { SyncedPrefs } from '@actual-app/core/types/prefs';
 
-import * as monthUtils from 'loot-core/shared/months';
-import {
-  type AccountEntity,
-  type CategoryEntity,
-  type CategoryGroupEntity,
-  type PayeeEntity,
-  type CustomReportEntity,
-} from 'loot-core/types/models';
-import { type SyncedPrefs } from 'loot-core/types/prefs';
-
-import { ChooseGraph } from '../ChooseGraph';
-import { getLiveRange } from '../getLiveRange';
-import { LoadingIndicator } from '../LoadingIndicator';
-import { ReportOptions } from '../ReportOptions';
-import { createCustomSpreadsheet } from '../spreadsheets/custom-spreadsheet';
-import { createGroupedSpreadsheet } from '../spreadsheets/grouped-spreadsheet';
-import { useReport } from '../useReport';
+import { ChooseGraph } from '#components/reports/ChooseGraph';
+import { getLiveRange } from '#components/reports/getLiveRange';
+import { LoadingIndicator } from '#components/reports/LoadingIndicator';
+import { ReportOptions } from '#components/reports/ReportOptions';
+import { createCustomSpreadsheet } from '#components/reports/spreadsheets/custom-spreadsheet';
+import { createGroupedSpreadsheet } from '#components/reports/spreadsheets/grouped-spreadsheet';
+import { useReport } from '#components/reports/useReport';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 
 function ErrorFallback() {
-  const { t } = useTranslation();
   return (
     <>
       <div>
         <br />
       </div>
       <Text style={{ ...styles.mediumText, color: theme.errorText }}>
-        {t('There was a problem loading your report')}
+        <Trans>There was a problem loading your report</Trans>
       </Text>
     </>
   );
@@ -71,6 +70,7 @@ export function GetCardData({
   accounts,
   categories,
   earliestTransaction,
+  latestTransaction,
   firstDayOfWeekIdx,
   showTooltip,
 }: {
@@ -79,10 +79,12 @@ export function GetCardData({
   accounts: AccountEntity[];
   categories: { list: CategoryEntity[]; grouped: CategoryGroupEntity[] };
   earliestTransaction: string;
+  latestTransaction: string;
   firstDayOfWeekIdx?: SyncedPrefs['firstDayOfWeekIdx'];
   showTooltip?: boolean;
 }) {
   const { isNarrowWidth } = useResponsive();
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
 
   let startDate = report.startDate;
   let endDate = report.endDate;
@@ -91,11 +93,12 @@ export function GetCardData({
     const [dateStart, dateEnd] = getLiveRange(
       report.dateRange,
       earliestTransaction,
+      latestTransaction,
       report.includeCurrentInterval,
       firstDayOfWeekIdx,
     );
     startDate = dateStart || report.startDate;
-    endDate = dateEnd || report.startDate;
+    endDate = dateEnd || report.endDate;
   }
 
   const fromDate = convertFromDate(report.interval);
@@ -124,29 +127,33 @@ export function GetCardData({
       endDate,
       interval: report.interval,
       categories,
+      budgetType,
       conditions: report.conditions ?? [],
       conditionsOp: report.conditionsOp,
       showEmpty: report.showEmpty,
       showOffBudget: report.showOffBudget,
       showHiddenCategories: report.showHiddenCategories,
       showUncategorized: report.showUncategorized,
+      trimIntervals: report.trimIntervals,
       balanceTypeOp: ReportOptions.balanceTypeMap.get(report.balanceType),
       firstDayOfWeekIdx,
       sortByOp: report.sortBy,
     });
-  }, [report, categories, startDate, endDate, firstDayOfWeekIdx]);
+  }, [report, categories, startDate, endDate, firstDayOfWeekIdx, budgetType]);
   const getGraphData = useMemo(() => {
     return createCustomSpreadsheet({
       startDate,
       endDate,
       interval: report.interval,
       categories,
+      budgetType,
       conditions: report.conditions ?? [],
       conditionsOp: report.conditionsOp,
       showEmpty: report.showEmpty,
       showOffBudget: report.showOffBudget,
       showHiddenCategories: report.showHiddenCategories,
       showUncategorized: report.showUncategorized,
+      trimIntervals: report.trimIntervals,
       groupBy: report.groupBy,
       balanceTypeOp: ReportOptions.balanceTypeMap.get(report.balanceType),
       payees,
@@ -163,6 +170,7 @@ export function GetCardData({
     startDate,
     endDate,
     firstDayOfWeekIdx,
+    budgetType,
   ]);
   const graphData = useReport('default' + report.name, getGraphData);
   const groupedData = useReport('grouped' + report.name, getGroupData);
@@ -179,9 +187,10 @@ export function GetCardData({
         balanceType={report.balanceType}
         groupBy={report.groupBy}
         interval={report.interval}
-        compact={true}
+        compact
         style={{ height: 'auto', flex: 1 }}
         intervalsCount={intervals.length}
+        showTrendLines={report.showTrendLines}
         showTooltip={!isNarrowWidth && showTooltip}
       />
     </ErrorBoundary>

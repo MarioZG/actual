@@ -1,10 +1,11 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export class BudgetMenuModal {
   readonly page: Page;
   readonly locator: Locator;
   readonly heading: Locator;
   readonly budgetAmountInput: Locator;
+  readonly actionsButton: Locator;
   readonly copyLastMonthBudgetButton: Locator;
   readonly setTo3MonthAverageButton: Locator;
   readonly setTo6MonthAverageButton: Locator;
@@ -17,8 +18,11 @@ export class BudgetMenuModal {
 
     this.heading = locator.getByRole('heading');
     this.budgetAmountInput = locator.getByTestId('amount-input');
+    this.actionsButton = locator.getByRole('button', {
+      name: 'Actions',
+    });
     this.copyLastMonthBudgetButton = locator.getByRole('button', {
-      name: 'Copy last month’s budget',
+      name: "Copy last month's budget",
     });
     this.setTo3MonthAverageButton = locator.getByRole('button', {
       name: 'Set to 3 month average',
@@ -30,12 +34,16 @@ export class BudgetMenuModal {
       name: 'Set to yearly average',
     });
     this.applyBudgetTemplateButton = locator.getByRole('button', {
-      name: 'Apply budget template',
+      name: 'Overwrite with template',
     });
   }
 
   async close() {
     await this.heading.getByRole('button', { name: 'Close' }).click();
+  }
+
+  async showActions() {
+    await this.actionsButton.click();
   }
 
   async setBudgetAmount(newAmount: string) {
@@ -45,22 +53,27 @@ export class BudgetMenuModal {
   }
 
   async copyLastMonthBudget() {
+    await this.showActions();
     await this.copyLastMonthBudgetButton.click();
   }
 
   async setTo3MonthAverage() {
+    await this.showActions();
     await this.setTo3MonthAverageButton.click();
   }
 
   async setTo6MonthAverage() {
+    await this.showActions();
     await this.setTo6MonthAverageButton.click();
   }
 
   async setToYearlyAverage() {
+    await this.showActions();
     await this.setToYearlyAverageButton.click();
   }
 
   async applyBudgetTemplate() {
+    await this.showActions();
     await this.applyBudgetTemplateButton.click();
   }
 }

@@ -2,13 +2,14 @@ import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Menu } from '@actual-app/components/menu';
-import { Select, type SelectOption } from '@actual-app/components/select';
+import { Select } from '@actual-app/components/select';
+import type { SelectOption } from '@actual-app/components/select';
 import { Text } from '@actual-app/components/text';
-import { type TFunction } from 'i18next';
+import type { TFunction } from 'i18next';
 
-import { useGlobalPref } from '../../hooks/useGlobalPref';
-import { availableLanguages, setI18NextLanguage } from '../../i18n';
-import { Link } from '../common/Link';
+import { Link } from '#components/common/Link';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { availableLanguages, setI18NextLanguage } from '#i18n';
 
 import { Setting } from './UI';
 

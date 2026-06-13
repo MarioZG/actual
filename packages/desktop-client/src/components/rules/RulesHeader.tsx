@@ -1,8 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useSelectedItems, useSelectedDispatch } from '../../hooks/useSelected';
-import { SelectCell, Cell, TableHeader } from '../table';
+import { Cell, SelectCell, TableHeader } from '#components/table';
+import { useSelectedDispatch, useSelectedItems } from '#hooks/useSelected';
 
 export function RulesHeader() {
   const { t } = useTranslation();
@@ -12,7 +12,7 @@ export function RulesHeader() {
   return (
     <TableHeader style={{}}>
       <SelectCell
-        exposed={true}
+        exposed
         focused={false}
         selected={selectedItems.size > 0}
         onSelect={e =>

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 const args = process.argv;
@@ -14,6 +13,9 @@ const options = {
   version: {
     type: 'boolean',
     short: 'v',
+  },
+  'reset-password': {
+    type: 'boolean',
   },
   config: {
     type: 'string',
@@ -51,11 +53,7 @@ if (values.help) {
 }
 
 if (values.version) {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-  const packageJsonPath = resolve(__dirname, '../package.json');
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-  console.log('v' + packageJson.version);
+  console.log('v' + __APP_VERSION__);
   process.exit();
 }
 
@@ -71,12 +69,12 @@ const setupDataDir = (dataDir = undefined) => {
     if (existsSync('./data')) {
       // The default data directory exists - use it
       console.info('Found existing data directory');
-      process.env.ACTUAL_DATA_DIR = './data';
+      process.env.ACTUAL_DATA_DIR = resolve('./data');
     } else {
       console.info(
         'Using default data directory. You can specify a custom config with --config',
       );
-      process.env.ACTUAL_DATA_DIR = './';
+      process.env.ACTUAL_DATA_DIR = resolve('./');
     }
 
     console.info(`Data directory: ${process.env.ACTUAL_DATA_DIR}`);
@@ -88,12 +86,12 @@ if (values.config) {
 
   if (!configExists) {
     console.log(
-      `Please specify a valid config path. The path ${values.config} does not exist.`,
+      `Please specify a valid config path. The path ${String(values.config)} does not exist.`,
     );
 
     process.exit();
   } else {
-    console.log(`Loading config from ${values.config}`);
+    console.log(`Loading config from ${String(values.config)}`);
     const configJson = JSON.parse(readFileSync(values.config, 'utf-8'));
     process.env.ACTUAL_CONFIG_PATH = values.config;
     setupDataDir(configJson.dataDir);
@@ -113,5 +111,11 @@ if (values.config) {
   }
 }
 
+if (values['reset-password']) {
+  console.info('Running reset password script...');
+  await import('../src/scripts/reset-password.js');
+  process.exit();
+}
+
 // start the sync server
-import('../app.js');
+void import('../app.js');

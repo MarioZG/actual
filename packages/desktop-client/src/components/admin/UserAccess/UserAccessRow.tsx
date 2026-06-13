@@ -4,17 +4,16 @@ import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import type { UserAvailable } from '@actual-app/core/types/models';
 
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { signOut } from 'loot-core/client/users/usersSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { getUserAccessErrors } from 'loot-core/shared/errors';
-import { type UserAvailable } from 'loot-core/types/models';
-
-import { useMetadataPref } from '../../../hooks/useMetadataPref';
-import { useDispatch } from '../../../redux';
-import { Checkbox } from '../../forms';
-import { Row, Cell } from '../../table';
+import { Checkbox } from '#components/forms';
+import { Cell, Row } from '#components/table';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { signOut } from '#users/usersSlice';
+import { getUserAccessErrors } from '#util/error';
 
 type UserAccessProps = {
   access: UserAvailable;
@@ -81,7 +80,7 @@ export const UserAccessRow = memo(
               button: {
                 title: t('Go to login'),
                 action: () => {
-                  dispatch(signOut());
+                  void dispatch(signOut());
                 },
               },
             },
@@ -110,7 +109,7 @@ export const UserAccessRow = memo(
             ? theme.tableRowBackgroundHover
             : theme.tableBackground,
         }}
-        collapsed={true}
+        collapsed
         onMouseEnter={() => onHover && onHover(access.userId)}
         onMouseLeave={() => onHover && onHover(null)}
       >

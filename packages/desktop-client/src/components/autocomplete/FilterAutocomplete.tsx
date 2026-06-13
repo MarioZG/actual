@@ -1,7 +1,9 @@
-import React, { type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 
-import { useFilters } from 'loot-core/client/data-hooks/filters';
-import { type TransactionFilterEntity } from 'loot-core/types/models';
+import type { TransactionFilterEntity } from '@actual-app/core/types/models';
+
+import { useTransactionFilters } from '#hooks/useTransactionFilters';
 
 import { Autocomplete } from './Autocomplete';
 import { FilterList } from './FilterList';
@@ -12,12 +14,12 @@ export function FilterAutocomplete({
 }: {
   embedded?: boolean;
 } & ComponentProps<typeof Autocomplete<TransactionFilterEntity>>) {
-  const filters = useFilters() || [];
+  const filters = useTransactionFilters() || [];
 
   return (
     <Autocomplete
-      strict={true}
-      highlightFirst={true}
+      strict
+      highlightFirst
       embedded={embedded}
       suggestions={filters}
       renderItems={(items, getItemProps, highlightedIndex) => (

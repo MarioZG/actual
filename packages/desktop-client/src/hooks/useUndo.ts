@@ -1,14 +1,12 @@
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 
-import {
-  addNotification,
-  type Notification,
-} from 'loot-core/client/notifications/notificationsSlice';
-import { redo, undo } from 'loot-core/client/undo';
-
-import { useDispatch } from '../redux';
+import { addNotification } from '#notifications/notificationsSlice';
+import type { Notification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { redo, undo } from '#undo';
 
 type UndoActions = {
   undo: () => void;
@@ -22,6 +20,7 @@ const timeout = 10000;
 export function useUndo(): UndoActions {
   const dispatch = useDispatch();
   const { isNarrowWidth } = useResponsive();
+  const { t } = useTranslation();
 
   const showUndoNotification = useCallback(
     (notification: Notification) => {
@@ -35,7 +34,7 @@ export function useUndo(): UndoActions {
             type: 'message',
             timeout,
             button: {
-              title: 'Undo',
+              title: t('Undo'),
               action: undo,
             },
             ...notification,
@@ -43,7 +42,7 @@ export function useUndo(): UndoActions {
         }),
       );
     },
-    [dispatch, isNarrowWidth],
+    [dispatch, isNarrowWidth, t],
   );
 
   const showRedoNotification = useCallback(
@@ -58,7 +57,7 @@ export function useUndo(): UndoActions {
             type: 'message',
             timeout,
             button: {
-              title: 'Redo',
+              title: t('Redo'),
               action: redo,
             },
             ...notification,
@@ -66,7 +65,7 @@ export function useUndo(): UndoActions {
         }),
       );
     },
-    [dispatch, isNarrowWidth],
+    [dispatch, isNarrowWidth, t],
   );
 
   return {

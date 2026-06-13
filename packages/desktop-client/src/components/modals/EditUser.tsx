@@ -4,25 +4,22 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@actual-app/components/button';
 import { Input } from '@actual-app/components/input';
 import { Select } from '@actual-app/components/select';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import { PossibleRoles } from '@actual-app/core/shared/user';
+import type { NewUserEntity, UserEntity } from '@actual-app/core/types/models';
 
-import {
-  type Modal as ModalType,
-  popModal,
-} from 'loot-core/client/modals/modalsSlice';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { signOut } from 'loot-core/client/users/usersSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { PossibleRoles } from 'loot-core/shared/user';
-import { type NewUserEntity, type UserEntity } from 'loot-core/types/models';
-
-import { useDispatch } from '../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { Checkbox, FormField, FormLabel } from '../forms';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Checkbox, FormField, FormLabel } from '#components/forms';
+import { popModal } from '#modals/modalsSlice';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { signOut } from '#users/usersSlice';
 
 type User = UserEntity;
 type NewUser = NewUserEntity;
@@ -96,7 +93,7 @@ function useSaveUser() {
               button: {
                 title: t('Go to login'),
                 action: () => {
-                  dispatch(signOut());
+                  void dispatch(signOut());
                 },
               },
             },
@@ -127,7 +124,7 @@ export function EditUserFinanceApp({
   const isExistingUser = 'id' in defaultUser && !!defaultUser.id;
   return (
     <Modal name="edit-user">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={
@@ -135,16 +132,16 @@ export function EditUserFinanceApp({
                 ? t('Edit user {{userName}}', {
                     userName: defaultUser.displayName ?? defaultUser.userName,
                   })
-                : 'Add user'
+                : t('Add user')
             }
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <EditUser
             defaultUser={defaultUser}
             onSave={async (method, user, setError) => {
               if (await saveUser(method, user, setError)) {
                 originalOnSave(user);
-                close();
+                state.close();
               }
             }}
           />
@@ -202,18 +199,18 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
 
   return (
     <>
-      <Stack direction="row" style={{ marginTop: 10 }}>
+      <SpaceBetween style={{ marginTop: 10 }}>
         <FormField style={{ flex: 1 }}>
           <FormLabel title={t('Username')} htmlFor="name-field" />
           <Input
             id="name-field"
             value={userName}
-            onChangeValue={text => setUserName(text)}
+            onChangeValue={setUserName}
             style={{
               borderColor: theme.buttonMenuBorder,
             }}
           />
-          <label
+          <Text
             style={{
               ...styles.verySmallText,
               color: theme.pageTextLight,
@@ -221,7 +218,7 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
             }}
           >
             <Trans>The username registered within the OpenID provider.</Trans>
-          </label>
+          </Text>
         </FormField>
         <View
           style={{
@@ -241,12 +238,12 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
             onChange={() => setEnabled(!enabled)}
           />
           <label htmlFor="enabled-field" style={{ userSelect: 'none' }}>
-            Enabled
+            <Trans>Enabled</Trans>
           </label>
         </View>
-      </Stack>
+      </SpaceBetween>
       {isOwner && (
-        <label
+        <Text
           style={{
             ...styles.verySmallText,
             color: theme.errorText,
@@ -256,15 +253,15 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
           <Trans>
             Change this username with caution; it is the server owner.
           </Trans>
-        </label>
+        </Text>
       )}
-      <Stack direction="row" style={{ marginTop: 10 }}>
+      <SpaceBetween style={{ marginTop: 10 }}>
         <FormField style={{ flex: 1 }}>
           <FormLabel title={t('Display Name')} htmlFor="displayname-field" />
           <Input
             id="displayname-field"
             value={displayName}
-            onChangeValue={text => setDisplayName(text)}
+            onChangeValue={setDisplayName}
             placeholder={t('(Optional)')}
             style={{
               borderColor: theme.buttonMenuBorder,
@@ -294,10 +291,10 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
             </Trans>
           </View>
         </FormField>
-      </Stack>
-      <Stack direction="row" style={{ marginTop: 10, width: '100px' }}>
+      </SpaceBetween>
+      <SpaceBetween style={{ marginTop: 10, width: '100px' }}>
         <FormField style={{ flex: 1 }}>
-          <FormLabel title="Role" htmlFor="role-field" />
+          <FormLabel title={t('Role')} htmlFor="role-field" />
           <Select
             id="role-field"
             disabled={isOwner}
@@ -309,27 +306,24 @@ function EditUser({ defaultUser, onSave: originalOnSave }: EditUserProps) {
             }}
           />
         </FormField>
-      </Stack>
+      </SpaceBetween>
       <RoleDescription />
 
-      <Stack
-        direction="row"
-        justify="flex-end"
-        align="center"
-        style={{ marginTop: 20 }}
+      <SpaceBetween
+        gap={10}
+        style={{
+          marginTop: 20,
+          justifyContent: 'flex-end',
+        }}
       >
         {error && <Text style={{ color: theme.errorText }}>{error}</Text>}
-        <Button
-          variant="bare"
-          style={{ marginRight: 10 }}
-          onPress={() => dispatch(popModal())}
-        >
+        <Button variant="bare" onPress={() => dispatch(popModal())}>
           <Trans>Cancel</Trans>
         </Button>
         <Button variant="primary" onPress={onSave}>
-          {isExistingUser ? 'Save' : 'Add'}
+          {isExistingUser ? t('Save') : t('Add')}
         </Button>
-      </Stack>
+      </SpaceBetween>
     </>
   );
 }
@@ -360,7 +354,7 @@ const RoleDescription = () => {
         </Trans>
       </Text>
       <View style={{ paddingTop: 5 }}>
-        <label
+        <Text
           style={{
             ...styles.altMenuHeaderText,
             ...styles.verySmallText,
@@ -368,7 +362,7 @@ const RoleDescription = () => {
           }}
         >
           <Trans>Basic</Trans>
-        </label>
+        </Text>
         <Text
           style={{
             ...styles.verySmallText,
@@ -393,7 +387,7 @@ const RoleDescription = () => {
         </Text>
       </View>
       <View style={{ paddingTop: 10 }}>
-        <label
+        <Text
           style={{
             ...styles.altMenuHeaderText,
             ...styles.verySmallText,
@@ -401,7 +395,7 @@ const RoleDescription = () => {
           }}
         >
           <Trans>Admin</Trans>
-        </label>
+        </Text>
         <Text
           style={{
             ...styles.verySmallText,

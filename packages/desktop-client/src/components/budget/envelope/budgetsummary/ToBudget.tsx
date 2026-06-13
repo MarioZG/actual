@@ -1,20 +1,16 @@
-import React, {
-  type CSSProperties,
-  useCallback,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 import { Popover } from '@actual-app/components/popover';
 import { View } from '@actual-app/components/view';
 
-import { envelopeBudget } from 'loot-core/client/queries';
-
-import { useContextMenu } from '../../../../hooks/useContextMenu';
-import { CoverMenu } from '../CoverMenu';
-import { useEnvelopeSheetValue } from '../EnvelopeBudgetComponents';
-import { HoldMenu } from '../HoldMenu';
-import { TransferMenu } from '../TransferMenu';
+import { CoverMenu } from '#components/budget/envelope/CoverMenu';
+import { useEnvelopeSheetValue } from '#components/budget/envelope/EnvelopeBudgetComponents';
+import { HoldMenu } from '#components/budget/envelope/HoldMenu';
+import { TransferMenu } from '#components/budget/envelope/TransferMenu';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useFormat } from '#hooks/useFormat';
+import { envelopeBudget } from '#spreadsheet/bindings';
 
 import { ToBudgetAmount } from './ToBudgetAmount';
 import { ToBudgetMenu } from './ToBudgetMenu';
@@ -37,6 +33,7 @@ export function ToBudget({
 }: ToBudgetProps) {
   const [menuStep, _setMenuStep] = useState<string>('actions');
   const triggerRef = useRef(null);
+  const format = useFormat();
 
   const ref = useRef<HTMLSpanElement>(null);
   const setMenuStep = useCallback(
@@ -103,6 +100,8 @@ export function ToBudget({
                 onBudgetAction(month, 'reset-hold');
                 setMenuOpen(false);
               }}
+              month={month}
+              onBudgetAction={onBudgetAction}
             />
           )}
           {menuStep === 'buffer' && (
@@ -115,7 +114,7 @@ export function ToBudget({
           )}
           {menuStep === 'transfer' && (
             <TransferMenu
-              initialAmount={availableValue ?? undefined}
+              initialAmount={availableValue}
               onClose={() => setMenuOpen(false)}
               onSubmit={(amount, categoryId) => {
                 onBudgetAction(month, 'transfer-available', {
@@ -128,10 +127,13 @@ export function ToBudget({
           {menuStep === 'cover' && (
             <CoverMenu
               showToBeBudgeted={false}
+              initialAmount={availableValue}
               onClose={() => setMenuOpen(false)}
-              onSubmit={categoryId => {
+              onSubmit={(amount, categoryId) => {
                 onBudgetAction(month, 'cover-overbudgeted', {
                   category: categoryId,
+                  amount,
+                  currencyCode: format.currency.code,
                 });
               }}
             />

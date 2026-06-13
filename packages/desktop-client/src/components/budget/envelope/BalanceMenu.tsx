@@ -1,9 +1,10 @@
-import React, { type ComponentPropsWithoutRef } from 'react';
+import React from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Menu } from '@actual-app/components/menu';
 
-import { envelopeBudget } from 'loot-core/client/queries';
+import { envelopeBudget } from '#spreadsheet/bindings';
 
 import { useEnvelopeSheetValue } from './EnvelopeBudgetComponents';
 
@@ -12,9 +13,9 @@ type BalanceMenuProps = Omit<
   'onMenuSelect' | 'items'
 > & {
   categoryId: string;
-  onTransfer: () => void;
-  onCarryover: (carryOver: boolean) => void;
-  onCover: () => void;
+  onTransfer?: () => void;
+  onCarryover?: (carryOver: boolean) => void;
+  onCover?: () => void;
 };
 
 export function BalanceMenu({

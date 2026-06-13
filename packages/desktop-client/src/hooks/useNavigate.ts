@@ -1,12 +1,15 @@
 import { useCallback } from 'react';
 import {
-  type Location,
-  type NavigateFunction,
-  type NavigateOptions,
-  type To,
   useLocation,
+  // oxlint-disable-next-line eslint/no-restricted-imports
   useNavigate as useNavigateReactRouter,
-} from 'react-router-dom';
+} from 'react-router';
+import type {
+  Location,
+  NavigateFunction,
+  NavigateOptions,
+  To,
+} from 'react-router';
 
 export function useNavigate(): NavigateFunction {
   const location = useLocation();
@@ -14,7 +17,7 @@ export function useNavigate(): NavigateFunction {
   return useCallback(
     (to: To | number, options: NavigateOptions = {}) => {
       if (typeof to === 'number') {
-        navigate(to);
+        void navigate(to);
       } else {
         const optionsWithPrevLocation: NavigateOptions = {
           replace:
@@ -35,10 +38,10 @@ export function useNavigate(): NavigateFunction {
           JSON.stringify(options?.state || {}) !==
             JSON.stringify(previousOriginalState)
         ) {
-          navigate(to, optionsWithPrevLocation);
+          void navigate(to, optionsWithPrevLocation);
         } else {
           // `to` is the same as the previous location. Just go back.
-          navigate(-1);
+          void navigate(-1);
         }
       }
     },

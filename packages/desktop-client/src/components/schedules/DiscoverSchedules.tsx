@@ -4,28 +4,28 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { Paragraph } from '@actual-app/components/paragraph';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
+import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import { q } from '@actual-app/core/shared/query';
+import type { DiscoverScheduleEntity } from '@actual-app/core/types/models';
 
-import { runQuery } from 'loot-core/client/query-helpers';
-import { send } from 'loot-core/platform/client/fetch';
-import { q } from 'loot-core/shared/query';
-import { getRecurringDescription } from 'loot-core/shared/schedules';
-import type { DiscoverScheduleEntity } from 'loot-core/types/models';
-
-import { useDateFormat } from '../../hooks/useDateFormat';
-import { useLocale } from '../../hooks/useLocale';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Field, Row, SelectCell, Table, TableHeader } from '#components/table';
+import { DisplayId } from '#components/util/DisplayId';
+import { useDateFormat } from '#hooks/useDateFormat';
+import { useLocale } from '#hooks/useLocale';
 import {
+  SelectedProvider,
   useSelected,
   useSelectedDispatch,
   useSelectedItems,
-  SelectedProvider,
-} from '../../hooks/useSelected';
-import { useSendPlatformRequest } from '../../hooks/useSendPlatformRequest';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { Table, TableHeader, Row, Field, SelectCell } from '../table';
-import { DisplayId } from '../util/DisplayId';
+} from '#hooks/useSelected';
+import { useSendPlatformRequest } from '#hooks/useSendPlatformRequest';
+import { aqlQuery } from '#queries/aqlQuery';
+import { getRecurringDescription } from '#util/schedule';
 
 import { ScheduleAmountCell } from './SchedulesTable';
 
@@ -81,7 +81,7 @@ function DiscoverSchedulesTable({
         }}
       >
         <SelectCell
-          exposed={true}
+          exposed
           focused={false}
           selected={selected}
           onSelect={e => {
@@ -107,7 +107,7 @@ function DiscoverSchedulesTable({
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.tableContainer}>
       <TableHeader height={ROW_HEIGHT} inset={15}>
         <SelectCell
           exposed={!loading}
@@ -177,7 +177,7 @@ export function DiscoverSchedules() {
       });
 
       if (filters.length > 0) {
-        const { data: transactions } = await runQuery(
+        const { data: transactions } = await aqlQuery(
           q('transactions').filter({ $and: filters }).select('id'),
         );
 
@@ -198,11 +198,11 @@ export function DiscoverSchedules() {
       name="schedules-discover"
       containerProps={{ style: { width: 850, height: 650 } }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Found Schedules')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <Paragraph>
             <Trans>
@@ -212,8 +212,8 @@ export function DiscoverSchedules() {
           </Paragraph>
           <Paragraph>
             <Trans>
-              If you expected a schedule here and don’t see it, it might be
-              because the payees of the transactions don’t match. Make sure you
+              If you expected a schedule here and don't see it, it might be
+              because the payees of the transactions don't match. Make sure you
               rename payees on all transactions for a schedule to be the same
               payee.
             </Trans>
@@ -223,13 +223,12 @@ export function DiscoverSchedules() {
             <DiscoverSchedulesTable loading={isLoading} schedules={schedules} />
           </SelectedProvider>
 
-          <Stack
-            direction="row"
-            align="center"
-            justify="flex-end"
+          <SpaceBetween
             style={{
               paddingTop: 20,
               paddingBottom: 0,
+              alignItems: 'center',
+              justifyContent: 'flex-end',
             }}
           >
             <ButtonWithLoading
@@ -237,13 +236,13 @@ export function DiscoverSchedules() {
               isLoading={creating}
               isDisabled={selectedInst.items.size === 0}
               onPress={() => {
-                onCreate();
-                close();
+                void onCreate();
+                state.close();
               }}
             >
               <Trans>Create schedules</Trans>
             </ButtonWithLoading>
-          </Stack>
+          </SpaceBetween>
         </>
       )}
     </Modal>

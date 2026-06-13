@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { CloseAccountModal } from './close-account-modal';
 
@@ -26,6 +26,9 @@ export class AccountPage {
   readonly filterSelectTooltip: Locator;
   readonly selectButton: Locator;
   readonly selectTooltip: Locator;
+  readonly sidebarAllAccountsBalance: Locator;
+  readonly sidebarOnBudgetBalance: Locator;
+  readonly sidebarOffBudgetBalance: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -54,6 +57,16 @@ export class AccountPage {
 
     this.selectButton = this.page.getByTestId('transactions-select-button');
     this.selectTooltip = this.page.getByTestId('transactions-select-tooltip');
+
+    this.sidebarAllAccountsBalance = this.page.getByTestId(
+      'sidebar-all-accounts-balance',
+    );
+    this.sidebarOnBudgetBalance = this.page.getByTestId(
+      'sidebar-on-budget-balance',
+    );
+    this.sidebarOffBudgetBalance = this.page.getByTestId(
+      'sidebar-off-budget-balance',
+    );
   }
 
   async waitFor(...options: Parameters<Locator['waitFor']>) {
@@ -194,45 +207,69 @@ export class AccountPage {
     transaction: TransactionEntry,
   ) {
     if (transaction.debit) {
-      // double click to ensure the content is selected when adding split transactions
-      await transactionRow.getByTestId('debit').dblclick();
-      await this.page.keyboard.type(transaction.debit);
+      const debitCell = transactionRow.getByTestId('debit');
+      await debitCell.click();
+      const debitInput = debitCell.getByRole('textbox');
+      await this.selectInputText(debitInput);
+      await debitInput.pressSequentially(transaction.debit);
       await this.page.keyboard.press('Tab');
     }
 
     if (transaction.credit) {
-      await transactionRow.getByTestId('credit').click();
-      await this.page.keyboard.type(transaction.credit);
+      const creditCell = transactionRow.getByTestId('credit');
+      await creditCell.click();
+      const creditInput = creditCell.getByRole('textbox');
+      await this.selectInputText(creditInput);
+      await creditInput.pressSequentially(transaction.credit);
       await this.page.keyboard.press('Tab');
     }
 
     if (transaction.account) {
-      await transactionRow.getByTestId('account').click();
-      await this.page.keyboard.type(transaction.account);
+      const accountCell = transactionRow.getByTestId('account');
+      await accountCell.click();
+      const accountInput = accountCell.getByRole('textbox');
+      await this.selectInputText(accountInput);
+      await accountInput.pressSequentially(transaction.account);
       await this.page.keyboard.press('Tab');
     }
 
     if (transaction.payee) {
-      await transactionRow.getByTestId('payee').click();
-      await this.page.keyboard.type(transaction.payee);
+      const payeeCell = transactionRow.getByTestId('payee');
+      await payeeCell.click();
+      const payeeInput = payeeCell.getByRole('textbox');
+      await this.selectInputText(payeeInput);
+      await payeeInput.pressSequentially(transaction.payee);
       await this.page.keyboard.press('Tab');
     }
 
     if (transaction.notes) {
-      await transactionRow.getByTestId('notes').click();
-      await this.page.keyboard.type(transaction.notes);
+      const notesCell = transactionRow.getByTestId('notes');
+      await notesCell.click();
+      const notesInput = notesCell.getByRole('combobox');
+      await this.selectInputText(notesInput);
+      await notesInput.pressSequentially(transaction.notes);
       await this.page.keyboard.press('Tab');
     }
 
     if (transaction.category) {
-      await transactionRow.getByTestId('category').click();
+      const categoryCell = transactionRow.getByTestId('category');
+      await categoryCell.click();
 
       if (transaction.category === 'split') {
         await this.page.getByTestId('split-transaction-button').click();
       } else {
-        await this.page.keyboard.type(transaction.category);
+        const categoryInput = categoryCell.getByRole('textbox');
+        await this.selectInputText(categoryInput);
+        await categoryInput.pressSequentially(transaction.category);
         await this.page.keyboard.press('Tab');
       }
+    }
+  }
+
+  async selectInputText(input: Locator) {
+    const value = await input.inputValue();
+    if (value) {
+      await input.selectText();
     }
   }
 }

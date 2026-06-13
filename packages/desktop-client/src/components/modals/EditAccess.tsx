@@ -3,24 +3,21 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { Select } from '@actual-app/components/select';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
 
-import {
-  type Modal as ModalType,
-  popModal,
-} from 'loot-core/client/modals/modalsSlice';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { signOut } from 'loot-core/client/users/usersSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { getUserAccessErrors } from 'loot-core/shared/errors';
-
-import { useDispatch } from '../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { FormField, FormLabel } from '../forms';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { FormField, FormLabel } from '#components/forms';
+import { popModal } from '#modals/modalsSlice';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { signOut } from '#users/usersSlice';
+import { getUserAccessErrors } from '#util/error';
 
 type EditUserAccessProps = Extract<
   ModalType,
@@ -39,20 +36,22 @@ export function EditUserAccess({
   const [availableUsers, setAvailableUsers] = useState<[string, string][]>([]);
 
   useEffect(() => {
-    send('access-get-available-users', defaultUserAccess.fileId).then(data => {
-      if ('error' in data) {
-        setSetError(data.error);
-      } else {
-        setAvailableUsers(
-          data.map(user => [
-            user.userId,
-            user.displayName
-              ? `${user.displayName} (${user.userName})`
-              : user.userName,
-          ]),
-        );
-      }
-    });
+    void send('access-get-available-users', defaultUserAccess.fileId).then(
+      data => {
+        if ('error' in data) {
+          setSetError(data.error);
+        } else {
+          setAvailableUsers(
+            data.map(user => [
+              user.userId,
+              user.displayName
+                ? `${user.displayName} (${user.userName})`
+                : user.userName,
+            ]),
+          );
+        }
+      },
+    );
   }, [defaultUserAccess.fileId]);
 
   async function onSave(close: () => void) {
@@ -78,7 +77,7 @@ export function EditUserAccess({
               button: {
                 title: t('Go to login'),
                 action: () => {
-                  dispatch(signOut());
+                  void dispatch(signOut());
                 },
               },
             },
@@ -98,7 +97,7 @@ export function EditUserAccess({
             title={t('User Access')}
             rightContent={<ModalCloseButton onPress={close} />}
           />
-          <Stack direction="row" style={{ marginTop: 10 }}>
+          <SpaceBetween style={{ marginTop: 10 }}>
             <FormField style={{ flex: 1 }}>
               <FormLabel title={t('User')} htmlFor="user-field" />
               {availableUsers.length > 0 && (
@@ -108,7 +107,7 @@ export function EditUserAccess({
                     onChange={(newValue: string) => setUserId(newValue)}
                     value={userId}
                   />
-                  <label
+                  <Text
                     style={{
                       ...styles.verySmallText,
                       color: theme.pageTextLight,
@@ -116,7 +115,7 @@ export function EditUserAccess({
                     }}
                   >
                     <Trans>Select a user from the directory</Trans>
-                  </label>
+                  </Text>
                 </View>
               )}
               {availableUsers.length === 0 && (
@@ -131,21 +130,18 @@ export function EditUserAccess({
                 </Text>
               )}
             </FormField>
-          </Stack>
+          </SpaceBetween>
 
-          <Stack
-            direction="row"
-            justify="flex-end"
-            align="center"
-            style={{ marginTop: 20 }}
+          <SpaceBetween
+            gap={10}
+            style={{
+              marginTop: 20,
+              justifyContent: 'flex-end',
+            }}
           >
             {error && <Text style={{ color: theme.errorText }}>{error}</Text>}
-            <Button
-              variant="bare"
-              style={{ marginRight: 10 }}
-              onPress={() => dispatch(popModal())}
-            >
-              Cancel
+            <Button variant="bare" onPress={() => dispatch(popModal())}>
+              <Trans>Cancel</Trans>
             </Button>
             <Button
               variant="primary"
@@ -154,7 +150,7 @@ export function EditUserAccess({
             >
               {defaultUserAccess.userId ? t('Save') : t('Add')}
             </Button>
-          </Stack>
+          </SpaceBetween>
         </>
       )}
     </Modal>

@@ -8,11 +8,10 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { createBudget } from 'loot-core/client/budgets/budgetsSlice';
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-
-import { useDispatch } from '../../redux';
-import { Link } from '../common/Link';
+import { createBudget } from '#budgetfiles/budgetfilesSlice';
+import { Link } from '#components/common/Link';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 export function WelcomeScreen() {
   const { t } = useTranslation();
@@ -28,7 +27,7 @@ export function WelcomeScreen() {
         marginBlock: 20,
       }}
     >
-      <Text style={styles.veryLargeText}>{t('Let’s get started!')}</Text>
+      <Text style={styles.veryLargeText}>{t("Let's get started!")}</Text>
       <View style={{ overflowY: 'auto' }}>
         <Paragraph>
           <Trans>
@@ -61,7 +60,7 @@ export function WelcomeScreen() {
               guided tour
             </Link>{' '}
             to help you get your bearings, and check out the rest of the
-            documentation while you’re there to learn more about advanced
+            documentation while you're there to learn more about advanced
             topics.
           </Trans>
         </Paragraph>
@@ -85,7 +84,7 @@ export function WelcomeScreen() {
         <Button
           onPress={() => dispatch(pushModal({ modal: { name: 'import' } }))}
         >
-          {t('Import my budget')}
+          <Trans>Import my budget</Trans>
         </Button>
         <View
           style={{
@@ -95,14 +94,14 @@ export function WelcomeScreen() {
           }}
         >
           <Button onPress={() => dispatch(createBudget({ testMode: true }))}>
-            {t('View demo')}
+            <Trans>View demo</Trans>
           </Button>
           <Button
             variant="primary"
             autoFocus
             onPress={() => dispatch(createBudget({}))}
           >
-            {t('Start fresh')}
+            <Trans>Start fresh</Trans>
           </Button>
         </View>
       </View>

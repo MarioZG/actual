@@ -1,24 +1,28 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { SVGAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { Bar, BarChart, LabelList, ResponsiveContainer } from 'recharts';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type { CashFlowWidget } from '@actual-app/core/types/models';
+import { Bar, BarChart, LabelList } from 'recharts';
 
-import { integerToCurrency } from 'loot-core/shared/util';
-import { type CashFlowWidget } from 'loot-core/types/models';
-
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { Change } from '../Change';
-import { chartTheme } from '../chart-theme';
-import { Container } from '../Container';
-import { DateRange } from '../DateRange';
-import { LoadingIndicator } from '../LoadingIndicator';
-import { ReportCard } from '../ReportCard';
-import { ReportCardName } from '../ReportCardName';
-import { calculateTimeRange } from '../reportRanges';
-import { simpleCashFlow } from '../spreadsheets/cash-flow-spreadsheet';
-import { useReport } from '../useReport';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { Change } from '#components/reports/Change';
+import { useRechartsAnimation } from '#components/reports/chart-theme';
+import { Container } from '#components/reports/Container';
+import { DateRange } from '#components/reports/DateRange';
+import { LoadingIndicator } from '#components/reports/LoadingIndicator';
+import { ReportCard } from '#components/reports/ReportCard';
+import { ReportCardName } from '#components/reports/ReportCardName';
+import { calculateTimeRange } from '#components/reports/reportRanges';
+import { simpleCashFlow } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
+import { useDashboardWidgetCopyMenu } from '#components/reports/useDashboardWidgetCopyMenu';
+import { useReport } from '#components/reports/useReport';
+import { useFormat } from '#hooks/useFormat';
 
 import { defaultTimeFrame } from './CashFlow';
 
@@ -41,6 +45,8 @@ function CustomLabel({
   width: barWidth = 0,
   height: barHeight = 0,
 }: CustomLabelProps) {
+  const format = useFormat();
+
   const valueLengthOffset = 20;
 
   const yOffset = barHeight < 25 ? 105 : y;
@@ -55,7 +61,10 @@ function CustomLabel({
     left: -valueLengthOffset + 2,
   };
 
-  const anchorValue = {
+  const anchorValue: {
+    right: SVGAttributes<SVGTextElement>['textAnchor'];
+    left: SVGAttributes<SVGTextElement>['textAnchor'];
+  } = {
     right: 'start',
     left: 'end',
   };
@@ -70,14 +79,15 @@ function CustomLabel({
       >
         {name}
       </text>
-      <text
+      <FinancialText
+        as="text"
         x={x + barWidth + valueXOffsets[position]}
         y={yOffset + 26}
         textAnchor={anchorValue[position]}
         fill={theme.tableText}
       >
-        <PrivacyFilter>{integerToCurrency(value)}</PrivacyFilter>
-      </text>
+        <PrivacyFilter>{format(value, 'financial')}</PrivacyFilter>
+      </FinancialText>
     </>
   );
 }
@@ -88,6 +98,7 @@ type CashFlowCardProps = {
   meta?: CashFlowWidget['meta'];
   onMetaChange: (newMeta: CashFlowWidget['meta']) => void;
   onRemove: () => void;
+  onCopy: (targetDashboardId: string) => void;
 };
 
 export function CashFlowCard({
@@ -96,11 +107,31 @@ export function CashFlowCard({
   meta = {},
   onMetaChange,
   onRemove,
+  onCopy,
 }: CashFlowCardProps) {
   const { t } = useTranslation();
-
-  const [start, end] = calculateTimeRange(meta?.timeFrame, defaultTimeFrame);
+  const animationProps = useRechartsAnimation();
+  const [latestTransaction, setLatestTransaction] = useState<string>('');
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
+
+  const { menuItems: copyMenuItems, handleMenuSelect: handleCopyMenuSelect } =
+    useDashboardWidgetCopyMenu(onCopy);
+
+  useEffect(() => {
+    async function fetchLatestTransaction() {
+      const latestTrans = await send('get-latest-transaction');
+      setLatestTransaction(
+        latestTrans ? latestTrans.date : monthUtils.currentDay(),
+      );
+    }
+    void fetchLatestTransaction();
+  }, []);
+
+  const [start, end] = calculateTimeRange(
+    meta?.timeFrame,
+    defaultTimeFrame,
+    latestTransaction,
+  );
 
   const params = useMemo(
     () => simpleCashFlow(start, end, meta?.conditions, meta?.conditionsOp),
@@ -130,8 +161,10 @@ export function CashFlowCard({
           name: 'remove',
           text: t('Remove'),
         },
+        ...copyMenuItems,
       ]}
       onMenuSelect={item => {
+        if (handleCopyMenuSelect(item)) return;
         switch (item) {
           case 'rename':
             setNameMenuOpen(true);
@@ -177,46 +210,47 @@ export function CashFlowCard({
         {data ? (
           <Container style={{ height: 'auto', flex: 1 }}>
             {(width, height) => (
-              <ResponsiveContainer>
-                <BarChart
-                  width={width}
-                  height={height}
-                  data={[
-                    {
-                      income,
-                      expenses,
-                    },
-                  ]}
-                  margin={{
-                    top: 10,
-                    bottom: 0,
-                  }}
+              <BarChart
+                responsive
+                width={width}
+                height={height}
+                data={[
+                  {
+                    income,
+                    expenses,
+                  },
+                ]}
+                margin={{
+                  top: 10,
+                  bottom: 0,
+                }}
+              >
+                <Bar
+                  dataKey="income"
+                  fill={theme.reportsNumberPositive}
+                  barSize={14}
+                  {...animationProps}
                 >
-                  <Bar
+                  <LabelList
                     dataKey="income"
-                    fill={chartTheme.colors.blue}
-                    barSize={14}
-                  >
-                    <LabelList
-                      dataKey="income"
-                      position="left"
-                      content={<CustomLabel name={t('Income')} />}
-                    />
-                  </Bar>
+                    position="left"
+                    content={<CustomLabel name={t('Income')} />}
+                  />
+                </Bar>
 
-                  <Bar
+                <Bar
+                  dataKey="expenses"
+                  fill={theme.reportsNumberNegative}
+                  barSize={14}
+                  {...animationProps}
+                >
+                  <LabelList
                     dataKey="expenses"
-                    fill={chartTheme.colors.red}
-                    barSize={14}
-                  >
-                    <LabelList
-                      dataKey="expenses"
-                      position="right"
-                      content={<CustomLabel name={t('Expenses')} />}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    position="right"
+                    content={<CustomLabel name={t('Expenses')} />}
+                  />
+                </Bar>
+              </BarChart>
             )}
           </Container>
         ) : (

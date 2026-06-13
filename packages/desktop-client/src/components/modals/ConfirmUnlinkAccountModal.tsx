@@ -6,9 +6,8 @@ import { InitialFocus } from '@actual-app/components/initial-focus';
 import { Paragraph } from '@actual-app/components/paragraph';
 import { View } from '@actual-app/components/view';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type ConfirmUnlinkAccountModalProps = Extract<
   ModalType,
@@ -27,11 +26,11 @@ export function ConfirmUnlinkAccountModal({
       name="confirm-unlink-account"
       containerProps={{ style: { width: '30vw' } }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Confirm Unlink')} // Use translation for title
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ lineHeight: 1.5 }}>
             <Paragraph>
@@ -56,18 +55,18 @@ export function ConfirmUnlinkAccountModal({
                 justifyContent: 'flex-end',
               }}
             >
-              <Button style={{ marginRight: 10 }} onPress={close}>
-                {t('Cancel')}
+              <Button style={{ marginRight: 10 }} onPress={() => state.close()}>
+                <Trans>Cancel</Trans>
               </Button>
               <InitialFocus>
                 <Button
                   variant="primary"
                   onPress={() => {
                     onUnlink();
-                    close();
+                    state.close();
                   }}
                 >
-                  {t('Unlink')}
+                  <Trans>Unlink</Trans>
                 </Button>
               </InitialFocus>
             </View>

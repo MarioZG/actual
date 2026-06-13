@@ -1,27 +1,29 @@
 import React, { useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Trans } from 'react-i18next';
+import { Navigate, Route, Routes } from 'react-router';
 
-import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { tokens } from '@actual-app/components/tokens';
 import { View } from '@actual-app/components/view';
 
-import { setAppState } from 'loot-core/client/app/appSlice';
-import { loggedIn } from 'loot-core/client/users/usersSlice';
-
-import { ProtectedRoute } from '../../auth/ProtectedRoute';
-import { Permissions } from '../../auth/types';
-import { useMetaThemeColor } from '../../hooks/useMetaThemeColor';
-import { useSelector, useDispatch } from '../../redux';
+import { setAppState } from '#app/appSlice';
+import { ProtectedRoute } from '#auth/ProtectedRoute';
+import { Permissions } from '#auth/types';
 import {
   BackToFileListButton,
   UserDirectoryPage,
-} from '../admin/UserDirectory/UserDirectoryPage';
-import { AppBackground } from '../AppBackground';
-import { LoggedInUser } from '../LoggedInUser';
-import { Notifications } from '../Notifications';
-import { useMultiuserEnabled, useServerVersion } from '../ServerContext';
+} from '#components/admin/UserDirectory/UserDirectoryPage';
+import { AppBackground } from '#components/AppBackground';
+import { LoggedInUser } from '#components/LoggedInUser';
+import { Notifications } from '#components/Notifications';
+import {
+  useMultiuserEnabled,
+  useServerVersion,
+} from '#components/ServerContext';
+import { useMetaThemeColor } from '#hooks/useMetaThemeColor';
+import { useDispatch, useSelector } from '#redux';
+import { loggedIn } from '#users/usersSlice';
 
 import { BudgetFileSelection } from './BudgetFileSelection';
 import { ConfigServer } from './ConfigServer';
@@ -53,18 +55,18 @@ function Version() {
         },
       }}
     >
-      {`App: v${window.Actual.ACTUAL_VERSION} | Server: ${version}`}
+      <Trans>
+        App: v{{ appVersion: window.Actual.ACTUAL_VERSION }} | Server:{' '}
+        {{ serverVersion: version }}
+      </Trans>
     </Text>
   );
 }
 
 export function ManagementApp() {
-  const { isNarrowWidth } = useResponsive();
-  useMetaThemeColor(
-    isNarrowWidth ? theme.mobileConfigServerViewTheme : undefined,
-  );
+  useMetaThemeColor(theme.mobileConfigServerViewTheme);
 
-  const files = useSelector(state => state.budgets.allFiles);
+  const files = useSelector(state => state.budgetfiles.allFiles);
   const isLoading = useSelector(state => state.app.loadingText !== null);
   const userData = useSelector(state => state.user.data);
   const multiuserEnabled = useMultiuserEnabled();
@@ -82,7 +84,7 @@ export function ManagementApp() {
       dispatch(setAppState({ managerHasInitialized: true }));
     }
 
-    fetchData();
+    void fetchData();
   }, [dispatch]);
 
   return (

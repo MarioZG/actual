@@ -11,15 +11,14 @@ import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 import { css } from '@emotion/css';
 
-import * as monthUtils from 'loot-core/shared/months';
-
-import { useLocale } from '../../../../hooks/useLocale';
-import { useUndo } from '../../../../hooks/useUndo';
-import { NotesButton } from '../../../NotesButton';
-import { NamespaceContext } from '../../../spreadsheet/NamespaceContext';
-import { useEnvelopeBudget } from '../EnvelopeBudgetContext';
+import { useEnvelopeBudget } from '#components/budget/envelope/EnvelopeBudgetContext';
+import { NotesButton } from '#components/NotesButton';
+import { useLocale } from '#hooks/useLocale';
+import { SheetNameProvider } from '#hooks/useSheetName';
+import { useUndo } from '#hooks/useUndo';
 
 import { BudgetMonthMenu } from './BudgetMonthMenu';
 import { ToBudget } from './ToBudget';
@@ -59,7 +58,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
     ? SvgArrowButtonDown1
     : SvgArrowButtonUp1;
 
-  const displayMonth = monthUtils.format(month, 'MMMM ‘yy', locale);
+  const displayMonth = monthUtils.format(month, "MMMM ''yy", locale);
   const { t } = useTranslation();
 
   return (
@@ -88,7 +87,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
         },
       }}
     >
-      <NamespaceContext.Provider value={monthUtils.sheetForMonth(month)}>
+      <SheetNameProvider name={monthUtils.sheetForMonth(month)}>
         <View
           style={{
             padding: '0 13px',
@@ -116,7 +115,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                 width={13}
                 height={13}
                 // The margin is to make it the exact same size as the dots button
-                style={{ color: theme.tableTextLight, margin: 1 }}
+                style={{ color: theme.pageTextLight, margin: 1 }}
               />
             </Button>
           </View>
@@ -151,7 +150,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                 width={15}
                 height={15}
                 tooltipPosition="bottom right"
-                defaultColor={theme.tableTextLight}
+                defaultColor={theme.pageTextLight}
               />
             </View>
             <View style={{ userSelect: 'none', marginLeft: 2 }}>
@@ -179,7 +178,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
                     onMenuClose();
                     showUndoNotification({
                       message: t(
-                        '{{displayMonth}} budgets have all been set to last month’s budgeted amounts.',
+                        "{{displayMonth}} budgets have all been set to last month's budgeted amounts.",
                         { displayMonth },
                       ),
                     });
@@ -254,7 +253,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
               alignItems: 'center',
               padding: '10px 20px',
               justifyContent: 'space-between',
-              backgroundColor: theme.tableBackground,
+              backgroundColor: theme.budgetCurrentMonth,
               borderTop: '1px solid ' + theme.tableBorder,
             }}
           >
@@ -272,7 +271,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
               style={{
                 padding: '5px 0',
                 marginTop: 17,
-                backgroundColor: theme.tableRowHeaderBackground,
+                backgroundColor: theme.budgetHeaderCurrentMonth,
                 borderTopWidth: 1,
                 borderBottomWidth: 1,
                 borderColor: theme.tableBorder,
@@ -287,7 +286,7 @@ export const BudgetSummary = memo(({ month }: BudgetSummaryProps) => {
             </View>
           </>
         )}
-      </NamespaceContext.Provider>
+      </SheetNameProvider>
     </View>
   );
 });

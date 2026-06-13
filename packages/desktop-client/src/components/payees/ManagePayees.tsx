@@ -1,67 +1,54 @@
-import {
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-  type ComponentProps,
-} from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgExpandArrow } from '@actual-app/components/icons/v0';
+import { SvgExpandArrow, SvgSubtract } from '@actual-app/components/icons/v0';
 import { Popover } from '@actual-app/components/popover';
+import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { getNormalisedString } from '@actual-app/core/shared/normalisation';
+import { groupById } from '@actual-app/core/shared/util';
+import type { Diff } from '@actual-app/core/shared/util';
+import type { PayeeEntity } from '@actual-app/core/types/models';
 import memoizeOne from 'memoize-one';
 
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-import { getNormalisedString } from 'loot-core/shared/normalisation';
-import { type Diff, groupById } from 'loot-core/shared/util';
-import { type PayeeEntity } from 'loot-core/types/models';
-
+import { Search } from '#components/common/Search';
+import { Cell, SelectCell, TableHeader } from '#components/table';
 import {
-  useSelected,
   SelectedProvider,
+  useSelected,
   useSelectedDispatch,
   useSelectedItems,
-} from '../../hooks/useSelected';
-import { useDispatch } from '../../redux';
-import { Search } from '../common/Search';
-import { TableHeader, Cell, SelectCell } from '../table';
+} from '#hooks/useSelected';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 import { PayeeMenu } from './PayeeMenu';
 import { PayeeTable } from './PayeeTable';
 
 const getPayeesById = memoizeOne((payees: PayeeEntity[]) => groupById(payees));
 
-function plural(count: number, singleText: string, pluralText: string) {
-  return count === 1 ? singleText : pluralText;
-}
-
 function PayeeTableHeader() {
+  const { t } = useTranslation();
+
   const dispatchSelected = useSelectedDispatch();
   const selectedItems = useSelectedItems();
 
   return (
     <View>
-      <TableHeader
-        style={{
-          backgroundColor: theme.tableBackground,
-          color: theme.pageTextLight,
-          zIndex: 200,
-          userSelect: 'none',
-        }}
-        collapsed={true}
-      >
+      <TableHeader collapsed>
         <SelectCell
-          exposed={true}
+          exposed
           focused={false}
           selected={selectedItems.size > 0}
+          icon={<SvgSubtract width={6} height={6} />}
           onSelect={e =>
             dispatchSelected({ type: 'select-all', isRangeSelect: e.shiftKey })
           }
         />
-        <Cell value="Name" width="flex" />
+        <Cell value={t('Name')} width="flex" />
       </TableHeader>
     </View>
   );
@@ -199,9 +186,25 @@ export const ManagePayees = ({
 
   async function onMerge() {
     const ids = [...selected.items];
-    await props.onMerge(ids);
+    if (ids.length < 2) return;
 
-    selected.dispatch({ type: 'select-none' });
+    const targetPayeeId = ids[0];
+
+    dispatch(
+      pushModal({
+        modal: {
+          name: 'confirm-payees-merge',
+          options: {
+            payeeIds: ids.filter(id => id !== targetPayeeId),
+            targetPayeeId,
+            onConfirm: async () => {
+              await props.onMerge(ids);
+              selected.dispatch({ type: 'select-none' });
+            },
+          },
+        },
+      }),
+    );
   }
 
   const onChangeCategoryLearning = useCallback(() => {
@@ -233,9 +236,9 @@ export const ManagePayees = ({
           >
             {buttonsDisabled
               ? t('No payees selected')
-              : selected.items.size +
-                ' ' +
-                t(plural(selected.items.size, 'payee', 'payees'))}
+              : t('{{count}} payees', {
+                  count: selected.items.size,
+                })}
             <SvgExpandArrow width={8} height={8} style={{ marginLeft: 5 }} />
           </Button>
 
@@ -270,13 +273,9 @@ export const ManagePayees = ({
             >
               {orphanedOnly
                 ? t('Show all payees')
-                : t(
-                    `Show ${
-                      orphanedPayees.length === 1
-                        ? '1 unused payee'
-                        : `${orphanedPayees.length} unused payees`
-                    }`,
-                  )}
+                : t('Show {{count}} unused payees', {
+                    count: orphanedPayees.length,
+                  })}
             </Button>
           )}
         </View>
@@ -289,15 +288,7 @@ export const ManagePayees = ({
       </View>
 
       <SelectedProvider instance={selected} fetchAllIds={getSelectableIds}>
-        <View
-          style={{
-            flex: 1,
-            border: '1px solid ' + theme.tableBorder,
-            borderTopLeftRadius: 4,
-            borderTopRightRadius: 4,
-            overflow: 'hidden',
-          }}
-        >
+        <View style={styles.tableContainer}>
           <PayeeTableHeader />
           {filteredPayees.length === 0 ? (
             <View
@@ -309,7 +300,7 @@ export const ManagePayees = ({
                 marginTop: 5,
               }}
             >
-              {t('No payees')}
+              <Trans>No payees</Trans>
             </View>
           ) : (
             <PayeeTable
@@ -319,7 +310,7 @@ export const ManagePayees = ({
               onUpdate={onUpdate}
               onViewRules={onViewRules}
               onCreateRule={onCreateRule}
-              onDelete={id => onDelete([{ id }])}
+              onDelete={ids => onDelete(ids.map(id => ({ id })))}
             />
           )}
         </View>

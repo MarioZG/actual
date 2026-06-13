@@ -4,7 +4,7 @@ import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { View } from '@actual-app/components/view';
 import { useDebounceCallback } from 'usehooks-ts';
 
-import { useGlobalPref } from '../../hooks/useGlobalPref';
+import { useGlobalPref } from '#hooks/useGlobalPref';
 
 import { Sidebar } from './Sidebar';
 import { useSidebar } from './SidebarProvider';

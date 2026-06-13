@@ -1,7 +1,7 @@
-import {
-  type QueryDataEntity,
-  type UncategorizedEntity,
-} from '../ReportOptions';
+import type {
+  QueryDataEntity,
+  UncategorizedEntity,
+} from '#components/reports/ReportOptions';
 
 export function filterHiddenItems(
   item: UncategorizedEntity,

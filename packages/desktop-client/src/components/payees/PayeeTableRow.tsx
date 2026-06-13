@@ -1,6 +1,7 @@
 // @ts-strict-ignore
-import { memo, useRef, type CSSProperties } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { memo, useMemo, useRef } from 'react';
+import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   SvgArrowThinRight,
@@ -9,15 +10,10 @@ import {
 } from '@actual-app/components/icons/v1';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
-import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
+import type { PayeeEntity } from '@actual-app/core/types/models';
 
-import { type PayeeEntity } from 'loot-core/types/models';
-
-import { useContextMenu } from '../../hooks/useContextMenu';
-import { useSelectedDispatch } from '../../hooks/useSelected';
-import { useSyncedPref } from '../../hooks/useSyncedPref';
 import {
   Cell,
   CellButton,
@@ -25,7 +21,12 @@ import {
   InputCell,
   Row,
   SelectCell,
-} from '../table';
+} from '#components/table';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useSelectedDispatch, useSelectedItems } from '#hooks/useSelected';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+
+import { PayeeRuleCountLabel } from './PayeeRuleCountLabel';
 
 type RuleButtonProps = {
   ruleCount: number;
@@ -35,8 +36,6 @@ type RuleButtonProps = {
 };
 
 function RuleButton({ ruleCount, focused, onEdit, onClick }: RuleButtonProps) {
-  const count = ruleCount;
-
   return (
     <Cell
       name="rule-count"
@@ -53,17 +52,13 @@ function RuleButton({ ruleCount, focused, onEdit, onClick }: RuleButtonProps) {
           border: '1px solid ' + theme.noticeBackground,
           color: theme.noticeTextDark,
           fontSize: 12,
+          cursor: 'pointer',
+          ':hover': { backgroundColor: theme.noticeBackgroundLight },
         }}
         onEdit={onEdit}
         onSelect={onClick}
       >
-        <Text style={{ paddingRight: 5 }}>
-          {ruleCount > 0 ? (
-            <Trans count={ruleCount}>{{ count }} associated rules</Trans>
-          ) : (
-            <Trans>Create rule</Trans>
-          )}
-        </Text>
+        <PayeeRuleCountLabel count={ruleCount} style={{ paddingRight: 5 }} />
         <SvgArrowThinRight style={{ width: 8, height: 8 }} />
       </CellButton>
     </Cell>
@@ -89,7 +84,7 @@ type PayeeTableRowProps = {
     field: T,
     value: PayeeEntity[T],
   ) => void;
-  onDelete: (id: PayeeEntity['id']) => void;
+  onDelete: (ids: PayeeEntity['id'][]) => void;
   onViewRules: (id: PayeeEntity['id']) => void;
   onCreateRule: (id: PayeeEntity['id']) => void;
   style?: CSSProperties;
@@ -113,6 +108,13 @@ export const PayeeTableRow = memo(
   }: PayeeTableRowProps) => {
     const { id } = payee;
     const dispatchSelected = useSelectedDispatch();
+    const selectedItems = useSelectedItems();
+    const selectedIds = useMemo(() => {
+      const ids =
+        selectedItems && selectedItems.size > 0 ? selectedItems : [payee.id];
+      return Array.from(new Set(ids));
+    }, [payee, selectedItems]);
+
     const borderColor = selected
       ? theme.tableBorderSelected
       : theme.tableBorder;
@@ -169,7 +171,10 @@ export const PayeeTableRow = memo(
                 text: payee.favorite ? t('Unfavorite') : t('Favorite'),
               },
               ruleCount > 0 && { name: 'view-rules', text: t('View rules') },
-              { name: 'create-rule', text: t('Create rule') },
+              selectedIds.length === 1 && {
+                name: 'create-rule',
+                text: t('Create rule'),
+              },
               isLearnCategoriesEnabled &&
                 (payee.learn_categories
                   ? {
@@ -181,13 +186,17 @@ export const PayeeTableRow = memo(
             onMenuSelect={name => {
               switch (name) {
                 case 'delete':
-                  onDelete(id);
+                  onDelete(selectedIds);
                   break;
                 case 'favorite':
-                  onUpdate(id, 'favorite', !payee.favorite);
+                  selectedIds.forEach(id => {
+                    onUpdate(id, 'favorite', !payee.favorite);
+                  });
                   break;
                 case 'learn':
-                  onUpdate(id, 'learn_categories', !payee.learn_categories);
+                  selectedIds.forEach(id => {
+                    onUpdate(id, 'learn_categories', !payee.learn_categories);
+                  });
                   break;
                 case 'view-rules':
                   onViewRules(id);
@@ -196,7 +205,7 @@ export const PayeeTableRow = memo(
                   onCreateRule(id);
                   break;
                 default:
-                  throw new Error(`Unrecognized menu option: ${name}`);
+                  throw new Error(`Unrecognized menu option: ${String(name)}`);
               }
               setMenuOpen(false);
             }}
@@ -222,9 +231,6 @@ export const PayeeTableRow = memo(
         <CustomCell
           width={20}
           exposed={!payee.transfer_acct}
-          onBlur={() => {}}
-          onUpdate={() => {}}
-          onClick={() => {}}
           style={{
             display: 'flex',
             justifyContent: 'center',

@@ -1,41 +1,27 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgQuestion } from '@actual-app/components/icons/v1';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
-import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import type { AccountEntity } from '@actual-app/core/types/models';
 
-import { useTransactions } from 'loot-core/client/data-hooks/transactions';
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-import {
-  defaultMappings,
-  type Mappings,
-  mappingsFromString,
-  mappingsToString,
-} from 'loot-core/server/util/custom-sync-mapping';
-import { q } from 'loot-core/shared/query';
-import {
-  type TransactionEntity,
-  type AccountEntity,
-} from 'loot-core/types/models';
+import { useUnlinkAccountMutation } from '#accounts';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
-import { unlinkAccount } from '../../accounts/accountsSlice';
-import { useSyncedPref } from '../../hooks/useSyncedPref';
-import { useDispatch } from '../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { CheckboxOption } from '../modals/ImportTransactionsModal/CheckboxOption';
-
+import { BankSyncCheckboxOptions } from './BankSyncCheckboxOptions';
 import { FieldMapping } from './FieldMapping';
+import { useBankSyncAccountSettings } from './useBankSyncAccountSettings';
 
 export type TransactionDirection = 'payment' | 'deposit';
 
 type MappableActualFields = 'date' | 'payee' | 'notes';
 
-export type MappableField = {
+type MappableField = {
   actualField: MappableActualFields;
   syncFields: string[];
 };
@@ -56,6 +42,9 @@ const mappableFields: MappableField[] = [
       'valueDate',
       'postedDate',
       'transactedDate',
+      'booking_date',
+      'value_date',
+      'transaction_date',
     ],
   },
   {
@@ -78,6 +67,10 @@ const mappableFields: MappableField[] = [
       'merchant.name',
       'merchant.businessName',
       'merchant.cnpj',
+      'creditor.name',
+      'debtor.name',
+      'account_servicer.name',
+      'meta.other_account',
     ],
   },
   {
@@ -99,19 +92,50 @@ const mappableFields: MappableField[] = [
       'merchant.name',
       'merchant.businessName',
       'merchant.cnpj',
+      'entry_reference',
+      'transaction_id',
+      'meta.particulars',
+      'meta.code',
+      'meta.reference',
+      'meta.other_account',
+      'meta.card_suffix',
     ],
   },
 ];
 
-const getFields = (transaction: TransactionEntity) =>
+function getByPath(obj: unknown, path: string): unknown {
+  if (obj == null) {
+    return undefined;
+  }
+
+  const keys = path.split('.');
+  let current: unknown = obj;
+
+  for (const key of keys) {
+    if (current == null || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return current;
+}
+
+export const getFields = (
+  transaction: Record<string, unknown>,
+): MappableFieldWithExample[] =>
   mappableFields.map(field => ({
     actualField: field.actualField,
     syncFields: field.syncFields
-      .filter(syncField => transaction[syncField as keyof TransactionEntity])
-      .map(syncField => ({
-        field: syncField,
-        example: transaction[syncField as keyof TransactionEntity],
-      })),
+      .map(syncField => {
+        const value = getByPath(transaction, syncField);
+        return value !== undefined
+          ? { field: syncField, example: String(value) }
+          : null;
+      })
+      .filter(
+        (item): item is { field: string; example: string } => item !== null,
+      ),
   }));
 
 export type EditSyncAccountProps = {
@@ -120,73 +144,33 @@ export type EditSyncAccountProps = {
 
 export function EditSyncAccount({ account }: EditSyncAccountProps) {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
 
-  const [savedMappings = mappingsToString(defaultMappings), setSavedMappings] =
-    useSyncedPref(`custom-sync-mappings-${account.id}`);
-  const [savedImportNotes = true, setSavedImportNotes] = useSyncedPref(
-    `sync-import-notes-${account.id}`,
-  );
-  const [savedImportPending = true, setSavedImportPending] = useSyncedPref(
-    `sync-import-pending-${account.id}`,
-  );
-  const [savedReimportDeleted = true, setSavedReimportDeleted] = useSyncedPref(
-    `sync-reimport-deleted-${account.id}`,
-  );
-
-  const [transactionDirection, setTransactionDirection] =
-    useState<TransactionDirection>('payment');
-  const [importPending, setImportPending] = useState(
-    String(savedImportPending) === 'true',
-  );
-  const [importNotes, setImportNotes] = useState(
-    String(savedImportNotes) === 'true',
-  );
-  const [reimportDeleted, setReimportDeleted] = useState(
-    String(savedReimportDeleted) === 'true',
-  );
-  const [mappings, setMappings] = useState<Mappings>(
-    mappingsFromString(savedMappings),
-  );
-
-  const transactionQuery = useMemo(
-    () =>
-      q('transactions')
-        .filter({
-          account: account.id,
-          amount: transactionDirection === 'payment' ? { $lte: 0 } : { $gt: 0 },
-          raw_synced_data: { $ne: null },
-        })
-        .options({ splits: 'none' })
-        .select('*'),
-    [account.id, transactionDirection],
-  );
-
-  const { transactions } = useTransactions({
-    query: transactionQuery,
-  });
-
-  const exampleTransaction = useMemo(() => {
-    const data = transactions?.[0]?.raw_synced_data;
-    if (!data) return undefined;
-    try {
-      return JSON.parse(data);
-    } catch (error) {
-      console.error('Failed to parse transaction data:', error);
-      return undefined;
-    }
-  }, [transactions]);
+  const {
+    transactionDirection,
+    setTransactionDirection,
+    importPending,
+    setImportPending,
+    importNotes,
+    setImportNotes,
+    reimportDeleted,
+    setReimportDeleted,
+    importTransactions,
+    setImportTransactions,
+    updateDates,
+    setUpdateDates,
+    mappings,
+    setMapping,
+    fields,
+    saveSettings,
+  } = useBankSyncAccountSettings(account.id);
 
   const onSave = async (close: () => void) => {
-    const mappingsStr = mappingsToString(mappings);
-    setSavedMappings(mappingsStr);
-    setSavedImportPending(String(importPending));
-    setSavedImportNotes(String(importNotes));
-    setSavedReimportDeleted(String(reimportDeleted));
+    saveSettings();
     close();
   };
 
-  const dispatch = useDispatch();
-
+  const unlinkAccount = useUnlinkAccountMutation();
   const onUnlink = async (close: () => void) => {
     dispatch(
       pushModal({
@@ -196,8 +180,12 @@ export function EditSyncAccount({ account }: EditSyncAccountProps) {
             accountName: account.name,
             isViewBankSyncSettings: true,
             onUnlink: () => {
-              dispatch(unlinkAccount({ id: account.id }));
-              close();
+              unlinkAccount.mutate(
+                { id: account.id },
+                {
+                  onSuccess: close,
+                },
+              );
             },
           },
         },
@@ -205,32 +193,24 @@ export function EditSyncAccount({ account }: EditSyncAccountProps) {
     );
   };
 
-  const setMapping = (field: string, value: string) => {
-    setMappings(prev => {
-      const updated = new Map(prev);
-      updated?.get(transactionDirection)?.set(field, value);
-      return updated;
-    });
-  };
-
   const potentiallyTruncatedAccountName =
     account.name.length > 30 ? account.name.slice(0, 30) + '...' : account.name;
 
-  const fields = exampleTransaction ? getFields(exampleTransaction) : [];
-  const mapping = mappings.get(transactionDirection);
+  const mapping =
+    mappings.get(transactionDirection) ?? new Map<string, string>();
 
   return (
     <Modal
       name="synced-account-edit"
       containerProps={{ style: { width: 800 } }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('{{accountName}} bank sync settings', {
               accountName: potentiallyTruncatedAccountName,
             })}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
 
           <Text style={{ fontSize: 15 }}>
@@ -240,8 +220,8 @@ export function EditSyncAccount({ account }: EditSyncAccountProps) {
           <FieldMapping
             transactionDirection={transactionDirection}
             setTransactionDirection={setTransactionDirection}
-            fields={fields as MappableFieldWithExample[]}
-            mapping={mapping!}
+            fields={fields}
+            mapping={mapping}
             setMapping={setMapping}
           />
 
@@ -249,46 +229,19 @@ export function EditSyncAccount({ account }: EditSyncAccountProps) {
             <Trans>Options</Trans>
           </Text>
 
-          <CheckboxOption
-            id="form_pending"
-            checked={importPending}
-            onChange={() => setImportPending(!importPending)}
-          >
-            <Trans>Import pending transactions</Trans>
-          </CheckboxOption>
-
-          <CheckboxOption
-            id="form_notes"
-            checked={importNotes}
-            onChange={() => setImportNotes(!importNotes)}
-          >
-            <Trans>Import transaction notes</Trans>
-          </CheckboxOption>
-
-          <CheckboxOption
-            id="form_reimport_deleted"
-            checked={reimportDeleted}
-            onChange={() => setReimportDeleted(!reimportDeleted)}
-          >
-            <Tooltip
-              content={t(
-                'By default imported transactions that you delete will be re-imported with the next bank sync operation. To disable this behaviour - untick this box.',
-              )}
-            >
-              <View
-                style={{
-                  display: 'flex',
-                  flexWrap: 'nowrap',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <Trans>Reimport deleted transactions</Trans>
-                <SvgQuestion height={12} width={12} cursor="pointer" />
-              </View>
-            </Tooltip>
-          </CheckboxOption>
+          <BankSyncCheckboxOptions
+            importPending={importPending}
+            setImportPending={setImportPending}
+            importNotes={importNotes}
+            setImportNotes={setImportNotes}
+            reimportDeleted={reimportDeleted}
+            setReimportDeleted={setReimportDeleted}
+            importTransactions={importTransactions}
+            setImportTransactions={setImportTransactions}
+            updateDates={updateDates}
+            setUpdateDates={setUpdateDates}
+            helpMode="desktop"
+          />
 
           <View
             style={{
@@ -302,25 +255,25 @@ export function EditSyncAccount({ account }: EditSyncAccountProps) {
             <Button
               style={{ color: theme.errorText }}
               onPress={() => {
-                onUnlink(close);
+                void onUnlink(() => state.close());
               }}
             >
               <Trans>Unlink account</Trans>
             </Button>
 
-            <Stack direction="row">
-              <Button style={{ marginRight: 10 }} onPress={close}>
+            <SpaceBetween gap={10}>
+              <Button onPress={() => state.close()}>
                 <Trans>Cancel</Trans>
               </Button>
               <Button
                 variant="primary"
                 onPress={() => {
-                  onSave(close);
+                  void onSave(() => state.close());
                 }}
               >
                 <Trans>Save</Trans>
               </Button>
-            </Stack>
+            </SpaceBetween>
           </View>
         </>
       )}

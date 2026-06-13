@@ -1,15 +1,19 @@
 import express from 'express';
 
-import { handleError } from '../app-gocardless/util/handle-error.js';
-import { SecretName, secretsService } from '../services/secrets-service.js';
-import { requestLoggerMiddleware } from '../util/middlewares.js';
+import { handleError } from '#app-gocardless/util/handle-error';
+import { SecretName, secretsService } from '#services/secrets-service';
+import {
+  requestLoggerMiddleware,
+  validateSessionMiddleware,
+} from '#util/middlewares';
 
-import { pluggyaiService } from './pluggyai-service.js';
+import { pluggyaiService } from './pluggyai-service';
 
 const app = express();
 export { app as handlers };
-app.use(express.json());
 app.use(requestLoggerMiddleware);
+app.use(express.json());
+app.use(validateSessionMiddleware);
 
 app.post(
   '/status',
@@ -62,7 +66,7 @@ app.post(
 app.post(
   '/transactions',
   handleError(async (req, res) => {
-    const { accountId, startDate } = req.body;
+    const { accountId, startDate } = req.body || {};
 
     try {
       const transactions = await pluggyaiService.getTransactions(

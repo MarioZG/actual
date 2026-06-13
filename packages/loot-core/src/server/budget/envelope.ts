@@ -1,12 +1,12 @@
+import * as db from '#server/db';
+import * as sheet from '#server/sheet';
+import { resolveName } from '#server/spreadsheet/util';
 // @ts-strict-ignore
-import * as monthUtils from '../../shared/months';
-import { safeNumber } from '../../shared/util';
-import * as db from '../db';
-import * as sheet from '../sheet';
-import { resolveName } from '../spreadsheet/util';
+import * as monthUtils from '#shared/months';
+import { safeNumber } from '#shared/util';
 
 import { createCategory as createCategoryFromBase } from './base';
-import { number, sumAmounts, flatten2, unflatten2 } from './util';
+import { flatten2, number, sumAmounts, unflatten2 } from './util';
 
 function getBlankSheet(months) {
   const blankMonth = monthUtils.prevMonth(months[0]);
@@ -98,12 +98,16 @@ export function createCategoryGroup(group, sheetName) {
 export function createSummary(groups, categories, prevSheetName, sheetName) {
   const incomeGroup = groups.filter(group => group.is_income)[0];
   const expenseCategories = categories.filter(cat => !cat.is_income);
+  const incomeCategories = categories.filter(cat => cat.is_income);
 
   sheet.get().createStatic(sheetName, 'buffered', 0);
 
   sheet.get().createDynamic(sheetName, 'from-last-month', {
     initialValue: 0,
-    dependencies: [`${prevSheetName}!to-budget`, `${prevSheetName}!buffered`],
+    dependencies: [
+      `${prevSheetName}!to-budget`,
+      `${prevSheetName}!buffered-selected`,
+    ],
     run: (toBudget, buffered) =>
       safeNumber(number(toBudget) + number(buffered)),
   });
@@ -155,6 +159,36 @@ export function createSummary(groups, categories, prevSheetName, sheetName) {
   });
 
   sheet.get().createDynamic(sheetName, 'buffered', { initialValue: 0 });
+  sheet.get().createDynamic(sheetName, 'buffered-auto', {
+    initialValue: 0,
+    dependencies: flatten2(
+      incomeCategories.map(c => [
+        `${sheetName}!sum-amount-${c.id}`,
+        `${sheetName}!carryover-${c.id}`,
+      ]),
+    ),
+    run: (...data) => {
+      data = unflatten2(data);
+      return safeNumber(
+        data.reduce((total, [sumAmount, carryover]) => {
+          if (carryover) {
+            return total + sumAmount;
+          }
+          return total;
+        }, 0),
+      );
+    },
+  });
+  sheet.get().createDynamic(sheetName, 'buffered-selected', {
+    initialValue: 0,
+    dependencies: [`${sheetName}!buffered`, `${sheetName}!buffered-auto`],
+    run: (man, auto) => {
+      if (man !== 0) {
+        return man;
+      }
+      return auto;
+    },
+  });
 
   sheet.get().createDynamic(sheetName, 'to-budget', {
     initialValue: 0,
@@ -162,7 +196,7 @@ export function createSummary(groups, categories, prevSheetName, sheetName) {
       'available-funds',
       'last-month-overspent',
       'total-budgeted',
-      'buffered',
+      'buffered-selected',
     ],
     run: (available, lastOverspent, totalBudgeted, buffered) => {
       return safeNumber(
@@ -273,6 +307,18 @@ export function handleCategoryChange(months, oldValue, newValue) {
         ]);
 
       addDeps(sheetName, groupId, id);
+      if (newValue.is_income) {
+        sheet
+          .get()
+          .addDependencies(
+            sheetName,
+            'buffered-auto',
+            flatten2([
+              `${sheetName}!sum-amount-${id}`,
+              `${sheetName}!carryover-${id}`,
+            ]),
+          );
+      }
     });
   } else if (oldValue && oldValue.cat_group !== newValue.cat_group) {
     // The category moved so we need to update the dependencies

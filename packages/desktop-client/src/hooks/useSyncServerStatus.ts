@@ -1,5 +1,5 @@
-import { useServerURL } from '../components/ServerContext';
-import { useSelector } from '../redux';
+import { useServerURL } from '#components/ServerContext';
+import { useSelector } from '#redux';
 
 type SyncServerStatus = 'offline' | 'no-server' | 'online';
 

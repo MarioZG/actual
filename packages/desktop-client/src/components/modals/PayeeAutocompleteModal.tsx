@@ -4,18 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { theme } from '@actual-app/components/theme';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { useAccounts } from '../../hooks/useAccounts';
-import { useNavigate } from '../../hooks/useNavigate';
-import { usePayees } from '../../hooks/usePayees';
-import { PayeeAutocomplete } from '../autocomplete/PayeeAutocomplete';
+import { PayeeAutocomplete } from '#components/autocomplete/PayeeAutocomplete';
 import {
-  ModalCloseButton,
   Modal,
-  ModalTitle,
+  ModalCloseButton,
   ModalHeader,
-} from '../common/Modal';
+  ModalTitle,
+} from '#components/common/Modal';
+import { useAccounts } from '#hooks/useAccounts';
+import { useNavigate } from '#hooks/useNavigate';
+import { usePayees } from '#hooks/usePayees';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type PayeeAutocompleteModalProps = Extract<
   ModalType,
@@ -27,8 +26,8 @@ export function PayeeAutocompleteModal({
   onClose,
 }: PayeeAutocompleteModalProps) {
   const { t } = useTranslation();
-  const payees = usePayees() || [];
-  const accounts = useAccounts() || [];
+  const { data: payees = [] } = usePayees();
+  const { data: accounts = [] } = useAccounts();
   const navigate = useNavigate();
 
   const { isNarrowWidth } = useResponsive();
@@ -52,7 +51,7 @@ export function PayeeAutocompleteModal({
         },
       }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           {isNarrowWidth && (
             <ModalHeader
@@ -64,7 +63,7 @@ export function PayeeAutocompleteModal({
               }
               rightContent={
                 <ModalCloseButton
-                  onPress={close}
+                  onPress={() => state.close()}
                   style={{ color: theme.menuAutoCompleteText }}
                 />
               }
@@ -73,10 +72,10 @@ export function PayeeAutocompleteModal({
           <PayeeAutocomplete
             payees={payees}
             accounts={accounts}
-            focused={true}
-            embedded={true}
+            focused
+            embedded
             closeOnBlur={false}
-            onClose={close}
+            onClose={() => state.close()}
             onManagePayees={onManagePayees}
             showManagePayees={!isNarrowWidth}
             showMakeTransfer={!isNarrowWidth}

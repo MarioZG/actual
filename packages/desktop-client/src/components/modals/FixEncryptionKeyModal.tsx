@@ -1,29 +1,28 @@
 // @ts-strict-ignore
 import React, { useState } from 'react';
 import { Form } from 'react-aria-components';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button, ButtonWithLoading } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { InitialFocus } from '@actual-app/components/initial-focus';
-import { Input } from '@actual-app/components/input';
+import { BigInput } from '@actual-app/components/input';
 import { Paragraph } from '@actual-app/components/paragraph';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { getTestKeyError } from 'loot-core/shared/errors';
-
-import { Link } from '../common/Link';
+import { Link } from '#components/common/Link';
 import {
   Modal,
   ModalButtons,
   ModalCloseButton,
   ModalHeader,
-} from '../common/Modal';
+} from '#components/common/Modal';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { getTestKeyError } from '#util/error';
 
 type FixEncryptionKeyModalProps = Extract<
   ModalType,
@@ -64,15 +63,15 @@ export function FixEncryptionKeyModal({
 
   return (
     <Modal name="fix-encryption-key">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={
               hasExistingKey
-                ? t('Unable to decrypt file')
+                ? t('Decrypt budget file')
                 : t('This file is encrypted')
             }
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -85,25 +84,25 @@ export function FixEncryptionKeyModal({
             {hasExistingKey ? (
               <Paragraph>
                 {t(
-                  'This file was encrypted with a different key than you are currently using. This probably means you changed your password. Enter your current password to update your key.',
+                  'Please provide the encryption key to unlock this budget file. You may be unlocking it for the first time, or the key has changed. Enter your password to continue.',
                 )}{' '}
                 <Link
                   variant="external"
                   to="https://actualbudget.org/docs/getting-started/sync/#end-to-end-encryption"
                 >
-                  {t('Learn more')}
+                  <Trans>Learn more</Trans>
                 </Link>
               </Paragraph>
             ) : (
               <Paragraph>
                 {t(
-                  'We don’t have a key that encrypts or decrypts this file. Enter the password for this file to create the key for encryption.',
+                  "We don't have a key that encrypts or decrypts this file. Enter the password for this file to create the key for encryption.",
                 )}{' '}
                 <Link
                   variant="external"
                   to="https://actualbudget.org/docs/getting-started/sync/#end-to-end-encryption"
                 >
-                  {t('Learn more')}
+                  <Trans>Learn more</Trans>
                 </Link>
               </Paragraph>
             )}
@@ -111,7 +110,7 @@ export function FixEncryptionKeyModal({
           <Form
             onSubmit={e => {
               e.preventDefault();
-              onUpdateKey(close);
+              void onUpdateKey(() => state.close());
             }}
           >
             <View
@@ -122,7 +121,7 @@ export function FixEncryptionKeyModal({
               }}
             >
               <Text style={{ fontWeight: 600, marginBottom: 5 }}>
-                {t('Password')}
+                <Trans>Password</Trans>
               </Text>{' '}
               {error && (
                 <View
@@ -137,13 +136,13 @@ export function FixEncryptionKeyModal({
                 </View>
               )}
               <InitialFocus>
-                <Input
+                <BigInput
                   type={showPassword ? 'text' : 'password'}
                   style={{
                     width: isNarrowWidth ? '100%' : '50%',
                     height: isNarrowWidth ? styles.mobileMinHeight : undefined,
                   }}
-                  onChange={e => setPassword(e.target.value)}
+                  onChangeValue={setPassword}
                 />
               </InitialFocus>
               <Text style={{ marginTop: 5 }}>
@@ -152,7 +151,7 @@ export function FixEncryptionKeyModal({
                     type="checkbox"
                     onClick={() => setShowPassword(!showPassword)}
                   />{' '}
-                  {t('Show password')}
+                  <Trans>Show password</Trans>
                 </label>
               </Text>
             </View>
@@ -164,9 +163,9 @@ export function FixEncryptionKeyModal({
                   height: isNarrowWidth ? styles.mobileMinHeight : undefined,
                   marginRight: 10,
                 }}
-                onPress={close}
+                onPress={() => state.close()}
               >
-                {t('Back')}
+                <Trans>Back</Trans>
               </Button>
               <ButtonWithLoading
                 type="submit"
@@ -176,7 +175,7 @@ export function FixEncryptionKeyModal({
                 }}
                 isLoading={loading}
               >
-                {hasExistingKey ? t('Update key') : t('Create key')}
+                {hasExistingKey ? t('Unlock budget file') : t('Create key')}
               </ButtonWithLoading>
             </ModalButtons>
           </Form>

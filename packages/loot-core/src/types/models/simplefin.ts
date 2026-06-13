@@ -1,5 +1,5 @@
-import { AccountEntity } from './account';
-import { BankSyncResponse } from './bank-sync';
+import type { AccountEntity } from './account';
+import type { BankSyncResponse } from './bank-sync';
 
 export type SimpleFinOrganization = {
   id: string;
@@ -14,11 +14,12 @@ export type SimpleFinAccount = {
   org: SimpleFinOrganization;
 };
 
-export interface SimpleFinBatchSyncResponse {
+export type SimpleFinBatchSyncResponse = {
   [accountId: NonNullable<AccountEntity['account_id']>]: BankSyncResponse;
-}
+};
 
 export type SyncServerSimpleFinAccount = {
+  balance: number;
   account_id: string;
   institution?: string;
   orgDomain?: string;

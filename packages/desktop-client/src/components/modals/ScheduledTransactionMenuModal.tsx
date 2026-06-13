@@ -1,32 +1,28 @@
-import React, {
-  useMemo,
-  type ComponentPropsWithoutRef,
-  type CSSProperties,
-} from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useMemo } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Menu } from '@actual-app/components/menu';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-
-import { useSchedules } from 'loot-core/client/data-hooks/schedules';
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { format } from 'loot-core/shared/months';
-import { q } from 'loot-core/shared/query';
+import { format } from '@actual-app/core/shared/months';
+import { q } from '@actual-app/core/shared/query';
 import {
-  scheduleIsRecurring,
   extractScheduleConds,
-} from 'loot-core/shared/schedules';
+  scheduleIsRecurring,
+} from '@actual-app/core/shared/schedules';
 
-import { useLocale } from '../../hooks/useLocale';
 import {
   Modal,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
-} from '../common/Modal';
+} from '#components/common/Modal';
+import { useLocale } from '#hooks/useLocale';
+import { useSchedules } from '#hooks/useSchedules';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type ScheduledTransactionMenuModalProps = Extract<
   ModalType,
@@ -40,7 +36,6 @@ export function ScheduledTransactionMenuModal({
   onComplete,
 }: ScheduledTransactionMenuModalProps) {
   const locale = useLocale();
-  const { t } = useTranslation();
   const defaultMenuItemStyle: CSSProperties = {
     ...styles.mobileMenuItem,
     color: theme.menuItemText,
@@ -68,11 +63,11 @@ export function ScheduledTransactionMenuModal({
 
   return (
     <Modal name="scheduled-transaction-menu">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={<ModalTitle title={schedule?.name || ''} shrinkOnOverflow />}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -82,7 +77,7 @@ export function ScheduledTransactionMenuModal({
             }}
           >
             <Text style={{ fontSize: 17, fontWeight: 400 }}>
-              {t('Scheduled date')}
+              <Trans>Scheduled date</Trans>
             </Text>
             <Text style={{ fontSize: 17, fontWeight: 700 }}>
               {format(schedule?.next_date || '', 'MMMM dd, yyyy', locale)}
@@ -109,7 +104,7 @@ type ScheduledTransactionMenuProps = Omit<
 > & {
   transactionId: string;
   onSkip: (transactionId: string) => void;
-  onPost: (transactionId: string) => void;
+  onPost: (transactionId: string, today?: boolean) => void;
   onComplete: (transactionId: string) => void;
 };
 
@@ -135,6 +130,9 @@ function ScheduledTransactionMenu({
           case 'post':
             onPost?.(transactionId);
             break;
+          case 'post-today':
+            onPost?.(transactionId, true);
+            break;
           case 'skip':
             onSkip?.(transactionId);
             break;
@@ -146,7 +144,8 @@ function ScheduledTransactionMenu({
         }
       }}
       items={[
-        { name: 'post', text: t('Post transaction today') },
+        { name: 'post', text: t('Post transaction') },
+        { name: 'post-today', text: t('Post transaction today') },
         ...(canBeSkipped
           ? [{ name: 'skip', text: t('Skip next scheduled date') }]
           : []),

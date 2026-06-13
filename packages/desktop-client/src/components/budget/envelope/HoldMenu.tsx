@@ -1,34 +1,25 @@
-import React, { useState, type ChangeEvent } from 'react';
+import React, { useState } from 'react';
+import { Form } from 'react-aria-components';
 import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { InitialFocus } from '@actual-app/components/initial-focus';
-import { Input } from '@actual-app/components/input';
 import { View } from '@actual-app/components/view';
+import type { IntegerAmount } from '@actual-app/core/shared/util';
 
-import { evalArithmetic } from 'loot-core/shared/arithmetic';
-import { integerToCurrency, amountToInteger } from 'loot-core/shared/util';
-
-import { useSheetValue } from '../../spreadsheet/useSheetValue';
+import { FinancialInput } from '#components/util/FinancialInput';
+import { useSheetValue } from '#hooks/useSheetValue';
 
 type HoldMenuProps = {
   onSubmit: (amount: number) => void;
   onClose: () => void;
 };
 export function HoldMenu({ onSubmit, onClose }: HoldMenuProps) {
-  const [amount, setAmount] = useState<string | null>(null);
+  const [amount, setAmount] = useState<IntegerAmount | null>(null);
 
   useSheetValue<'envelope-budget', 'to-budget'>('to-budget', ({ value }) => {
-    setAmount(integerToCurrency(Math.max(value || 0, 0)));
+    setAmount(Math.max(value || 0, 0));
   });
-
-  function submit(newAmount: string) {
-    const parsedAmount = evalArithmetic(newAmount);
-    if (parsedAmount) {
-      onSubmit(amountToInteger(parsedAmount));
-    }
-    onClose();
-  }
 
   if (amount === null) {
     // See `TransferMenu` for more info about this
@@ -36,39 +27,41 @@ export function HoldMenu({ onSubmit, onClose }: HoldMenuProps) {
   }
 
   return (
-    <View style={{ padding: 10 }}>
-      <View style={{ marginBottom: 5 }}>
-        <Trans>Hold this amount:</Trans>
-      </View>
-      <View>
-        <InitialFocus>
-          <Input
-            value={amount}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setAmount(e.target.value)
-            }
-            onEnter={() => submit(amount)}
-          />
-        </InitialFocus>
-      </View>
-      <View
-        style={{
-          alignItems: 'flex-end',
-          marginTop: 10,
-        }}
-      >
-        <Button
-          variant="primary"
+    <Form
+      onSubmit={e => {
+        e.preventDefault();
+        onSubmit(amount);
+        onClose();
+      }}
+    >
+      <View style={{ padding: 10 }}>
+        <View style={{ marginBottom: 5 }}>
+          <Trans>Hold this amount:</Trans>
+        </View>
+        <View>
+          <InitialFocus>
+            <FinancialInput value={amount} onChangeValue={setAmount} />
+          </InitialFocus>
+        </View>
+        <View
           style={{
-            fontSize: 12,
-            paddingTop: 3,
-            paddingBottom: 3,
+            alignItems: 'flex-end',
+            marginTop: 10,
           }}
-          onPress={() => submit(amount)}
         >
-          <Trans>Hold</Trans>
-        </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            style={{
+              fontSize: 12,
+              paddingTop: 3,
+              paddingBottom: 3,
+            }}
+          >
+            <Trans>Hold</Trans>
+          </Button>
+        </View>
       </View>
-    </View>
+    </Form>
   );
 }

@@ -1,6 +1,6 @@
-import { type RuleConditionEntity } from './rule';
+import type { RuleConditionEntity } from './rule';
 
-export interface CustomReportEntity {
+export type CustomReportEntity = {
   id: string;
   name: string;
   startDate: string;
@@ -17,19 +17,22 @@ export interface CustomReportEntity {
   showHiddenCategories: boolean;
   includeCurrentInterval: boolean;
   showUncategorized: boolean;
+  trimIntervals: boolean;
+  showTrendLines: boolean;
   graphType: string;
   conditions?: RuleConditionEntity[];
   conditionsOp: 'and' | 'or';
-  data?: GroupedEntity;
+  metadata?: GroupedEntity;
   tombstone?: boolean;
-}
+};
 
 export type balanceTypeOpType =
   | 'totalAssets'
   | 'totalDebts'
   | 'totalTotals'
   | 'netAssets'
-  | 'netDebts';
+  | 'netDebts'
+  | 'totalBudgeted';
 
 export type sortByOpType = 'asc' | 'desc' | 'name' | 'budget';
 
@@ -43,15 +46,15 @@ export type SpendingMonthEntity = Record<
   }
 >;
 
-export interface SpendingDataEntity {
+export type SpendingDataEntity = {
   date: string;
   totalAssets: number;
   totalDebts: number;
   totalTotals: number;
   cumulative: number;
-}
+};
 
-export interface SpendingEntity {
+export type SpendingEntity = {
   intervalData: {
     months: SpendingMonthEntity;
     day: string;
@@ -60,14 +63,19 @@ export interface SpendingEntity {
     compareTo: number;
     budget: number;
   }[];
+  averageRange?: {
+    startMonth: string | null;
+    endMonth: string | null;
+    months: string[];
+  };
   startDate?: string;
   endDate?: string;
   totalDebts: number;
   totalAssets: number;
   totalTotals: number;
-}
+};
 
-export interface DataEntity {
+export type DataEntity = {
   data?: GroupedEntity[];
   intervalData: IntervalEntity[];
   groupedData?: GroupedEntity[] | null;
@@ -79,16 +87,19 @@ export interface DataEntity {
   netAssets: number;
   netDebts: number;
   totalTotals: number;
-}
+  totalBudgeted: number;
+};
 
 export type LegendEntity = {
   name: string;
   id: string | null;
   color: string;
+  dataKey: string; // Uses id for unique data lookup when categories have same name
+  uncategorizedId?: 'off_budget' | 'transfer' | 'other' | 'all';
 };
 
 export type IntervalEntity = {
-  date?: string;
+  date: string;
   change?: number;
   intervalStartDate?: string;
   intervalEndDate?: string;
@@ -97,11 +108,13 @@ export type IntervalEntity = {
   netAssets: number;
   netDebts: number;
   totalTotals: number;
+  totalBudgeted: number;
 };
 
-export interface GroupedEntity {
+export type GroupedEntity = {
   id: string;
   name: string;
+  uncategorizedId?: 'off_budget' | 'transfer' | 'other' | 'all';
   date?: string;
   intervalData: IntervalEntity[];
   totalAssets: number;
@@ -109,14 +122,15 @@ export interface GroupedEntity {
   totalTotals: number;
   netAssets: number;
   netDebts: number;
+  totalBudgeted: number;
   categories?: GroupedEntity[];
-}
+};
 
 export type Interval = {
   interval: string;
 };
 
-export interface CustomReportData {
+export type CustomReportData = {
   id: string;
   name: string;
   start_date: string;
@@ -132,10 +146,12 @@ export interface CustomReportData {
   show_hidden: number;
   include_current: number;
   show_uncategorized: number;
+  trim_intervals: number;
+  show_trend_lines: number;
   graph_type: string;
   conditions?: RuleConditionEntity[];
   conditions_op: 'and' | 'or';
   metadata?: GroupedEntity;
   interval: string;
   color_scheme?: string;
-}
+};

@@ -1,28 +1,32 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Block } from '@actual-app/components/block';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { styles } from '@actual-app/components/styles';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  AccountEntity,
+  NetWorthWidget,
+} from '@actual-app/core/types/models';
 
-import { integerToCurrency } from 'loot-core/shared/util';
-import {
-  type AccountEntity,
-  type NetWorthWidget,
-} from 'loot-core/types/models';
-
-import { useLocale } from '../../../hooks/useLocale';
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { Change } from '../Change';
-import { DateRange } from '../DateRange';
-import { NetWorthGraph } from '../graphs/NetWorthGraph';
-import { LoadingIndicator } from '../LoadingIndicator';
-import { ReportCard } from '../ReportCard';
-import { ReportCardName } from '../ReportCardName';
-import { calculateTimeRange } from '../reportRanges';
-import { createSpreadsheet as netWorthSpreadsheet } from '../spreadsheets/net-worth-spreadsheet';
-import { useReport } from '../useReport';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { Change } from '#components/reports/Change';
+import { DateRange } from '#components/reports/DateRange';
+import { NetWorthGraph } from '#components/reports/graphs/NetWorthGraph';
+import { LoadingIndicator } from '#components/reports/LoadingIndicator';
+import { ReportCard } from '#components/reports/ReportCard';
+import { ReportCardName } from '#components/reports/ReportCardName';
+import { calculateTimeRange } from '#components/reports/reportRanges';
+import { createSpreadsheet as netWorthSpreadsheet } from '#components/reports/spreadsheets/net-worth-spreadsheet';
+import { useDashboardWidgetCopyMenu } from '#components/reports/useDashboardWidgetCopyMenu';
+import { useReport } from '#components/reports/useReport';
+import { useFormat } from '#hooks/useFormat';
+import { useLocale } from '#hooks/useLocale';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 
 type NetWorthCardProps = {
   widgetId: string;
@@ -31,6 +35,7 @@ type NetWorthCardProps = {
   meta?: NetWorthWidget['meta'];
   onMetaChange: (newMeta: NetWorthWidget['meta']) => void;
   onRemove: () => void;
+  onCopy: (targetDashboardId: string) => void;
 };
 
 export function NetWorthCard({
@@ -40,15 +45,37 @@ export function NetWorthCard({
   meta = {},
   onMetaChange,
   onRemove,
+  onCopy,
 }: NetWorthCardProps) {
   const locale = useLocale();
   const { t } = useTranslation();
   const { isNarrowWidth } = useResponsive();
+  const [_firstDayOfWeekIdx] = useSyncedPref('firstDayOfWeekIdx');
+  const firstDayOfWeekIdx = _firstDayOfWeekIdx || '0';
+  const format = useFormat();
 
+  const [latestTransaction, setLatestTransaction] = useState<string>('');
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
-
-  const [start, end] = calculateTimeRange(meta?.timeFrame);
   const [isCardHovered, setIsCardHovered] = useState(false);
+
+  const { menuItems: copyMenuItems, handleMenuSelect: handleCopyMenuSelect } =
+    useDashboardWidgetCopyMenu(onCopy);
+
+  useEffect(() => {
+    async function fetchLatestTransaction() {
+      const latestTrans = await send('get-latest-transaction');
+      setLatestTransaction(
+        latestTrans ? latestTrans.date : monthUtils.currentDay(),
+      );
+    }
+    void fetchLatestTransaction();
+  }, []);
+
+  const [start, end] = calculateTimeRange(
+    meta?.timeFrame,
+    undefined,
+    latestTransaction,
+  );
   const onCardHover = useCallback(() => setIsCardHovered(true), []);
   const onCardHoverEnd = useCallback(() => setIsCardHovered(false), []);
 
@@ -61,8 +88,21 @@ export function NetWorthCard({
         meta?.conditions,
         meta?.conditionsOp,
         locale,
+        meta?.interval || 'Monthly',
+        firstDayOfWeekIdx,
+        format,
       ),
-    [start, end, accounts, meta?.conditions, meta?.conditionsOp, locale],
+    [
+      start,
+      end,
+      accounts,
+      meta?.conditions,
+      meta?.conditionsOp,
+      locale,
+      meta?.interval,
+      firstDayOfWeekIdx,
+      format,
+    ],
   );
   const data = useReport('net_worth', params);
 
@@ -80,8 +120,10 @@ export function NetWorthCard({
           name: 'remove',
           text: t('Remove'),
         },
+        ...copyMenuItems,
       ]}
       onMenuSelect={item => {
+        if (handleCopyMenuSelect(item)) return;
         switch (item) {
           case 'rename':
             setNameMenuOpen(true);
@@ -125,7 +167,9 @@ export function NetWorthCard({
                 }}
               >
                 <PrivacyFilter activationFilters={[!isCardHovered]}>
-                  {integerToCurrency(data.netWorth)}
+                  <FinancialText>
+                    {format(data.netWorth, 'financial')}
+                  </FinancialText>
                 </PrivacyFilter>
               </Block>
               <PrivacyFilter activationFilters={[!isCardHovered]}>
@@ -138,8 +182,11 @@ export function NetWorthCard({
         {data ? (
           <NetWorthGraph
             graphData={data.graphData}
-            compact={true}
+            accounts={data.accounts}
+            compact
             showTooltip={!isEditing && !isNarrowWidth}
+            interval={meta?.interval || 'Monthly'}
+            mode={meta?.mode || 'trend'}
             style={{ height: 'auto', flex: 1 }}
           />
         ) : (

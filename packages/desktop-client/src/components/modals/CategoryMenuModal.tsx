@@ -1,9 +1,11 @@
 // @ts-strict-ignore
-import React, { useRef, useState, type CSSProperties } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import {
+  SvgChartPie,
   SvgDotsHorizontalTriple,
   SvgTrash,
 } from '@actual-app/components/icons/v1';
@@ -18,18 +20,17 @@ import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { useCategory } from '../../hooks/useCategory';
-import { useCategoryGroup } from '../../hooks/useCategoryGroup';
-import { useNotes } from '../../hooks/useNotes';
 import {
   Modal,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
-} from '../common/Modal';
-import { Notes } from '../Notes';
+} from '#components/common/Modal';
+import { Notes } from '#components/Notes';
+import { useCategory } from '#hooks/useCategory';
+import { useCategoryGroup } from '#hooks/useCategoryGroup';
+import { useNotes } from '#hooks/useNotes';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type CategoryMenuModalProps = Extract<
   ModalType,
@@ -42,11 +43,12 @@ export function CategoryMenuModal({
   onEditNotes,
   onDelete,
   onToggleVisibility,
+  onEditAutomations,
   onClose,
 }: CategoryMenuModalProps) {
   const { t } = useTranslation();
-  const category = useCategory(categoryId);
-  const categoryGroup = useCategoryGroup(category?.group);
+  const { data: category } = useCategory(categoryId);
+  const { data: categoryGroup } = useCategoryGroup(category?.group);
   const originalNotes = useNotes(category.id);
 
   const onRename = newName => {
@@ -70,6 +72,10 @@ export function CategoryMenuModal({
     onDelete?.(category.id);
   };
 
+  const _onEditAutomations = () => {
+    onEditAutomations?.(category.id);
+  };
+
   const buttonStyle: CSSProperties = {
     ...styles.mediumText,
     height: styles.mobileMinHeight,
@@ -86,7 +92,7 @@ export function CategoryMenuModal({
         style: { height: '45vh' },
       }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             leftContent={
@@ -104,7 +110,7 @@ export function CategoryMenuModal({
                 onTitleUpdate={onRename}
               />
             }
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -140,6 +146,7 @@ export function CategoryMenuModal({
                 flexWrap: 'wrap',
                 justifyContent: 'space-between',
                 alignContent: 'space-between',
+                gap: 8,
                 paddingTop: 10,
               }}
             >
@@ -149,8 +156,18 @@ export function CategoryMenuModal({
                   height={20}
                   style={{ paddingRight: 5 }}
                 />
-                {t('Edit notes')}
+                <Trans>Edit notes</Trans>
               </Button>
+              {onEditAutomations && (
+                <Button style={buttonStyle} onPress={_onEditAutomations}>
+                  <SvgChartPie
+                    width={20}
+                    height={20}
+                    style={{ paddingRight: 5 }}
+                  />
+                  <Trans>Budget automations</Trans>
+                </Button>
+              )}
             </View>
           </View>
         </>

@@ -1,26 +1,26 @@
 // @ts-strict-ignore
-import React, { type CSSProperties, type Ref, useRef } from 'react';
+import React, { useRef } from 'react';
+import type { CSSProperties, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SvgCheveronDown } from '@actual-app/components/icons/v1';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
+import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+} from '@actual-app/core/types/models';
 
-import {
-  type CategoryGroupEntity,
-  type CategoryEntity,
-} from 'loot-core/types/models';
+import { InputCell } from '#components/table';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useGlobalPref } from '#hooks/useGlobalPref';
 
-import { useContextMenu } from '../../hooks/useContextMenu';
-import { useFeatureFlag } from '../../hooks/useFeatureFlag';
-import { useGlobalPref } from '../../hooks/useGlobalPref';
-import { NotesButton } from '../NotesButton';
-import { InputCell } from '../table';
-
-import { CategoryAutomationButton } from './goals/CategoryAutomationButton';
+import { SidebarCategoryButtons } from './SidebarCategoryButtons';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
 
 type SidebarCategoryProps = {
   innerRef: Ref<HTMLDivElement>;
@@ -28,16 +28,23 @@ type SidebarCategoryProps = {
   categoryGroup?: CategoryGroupEntity;
   dragPreview?: boolean;
   dragging?: boolean;
-  editing: boolean;
   goalsShown?: boolean;
   style?: CSSProperties;
   borderColor?: string;
   isLast?: boolean;
   onEditName: (id: CategoryEntity['id']) => void;
   onSave: (category: CategoryEntity) => void;
-  onDelete: (id: CategoryEntity['id']) => Promise<void>;
   onHideNewCategory?: () => void;
-};
+} & (
+  | {
+      editing: true;
+      onDelete?: never;
+    }
+  | {
+      editing: boolean;
+      onDelete: (id: CategoryEntity['id']) => void;
+    }
+);
 
 export function SidebarCategory({
   innerRef,
@@ -77,17 +84,7 @@ export function SidebarCategory({
       ref={triggerRef}
       onContextMenu={handleContextMenu}
     >
-      <div
-        data-testid="category-name"
-        style={{
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          minWidth: 0,
-        }}
-      >
-        {category.name}
-      </div>
+      <TextOneLine data-testid="category-name">{category.name}</TextOneLine>
       <View style={{ flexShrink: 0, marginLeft: 5 }}>
         <Button
           variant="bare"
@@ -136,22 +133,11 @@ export function SidebarCategory({
           />
         </Popover>
       </View>
-      <View style={{ flex: 1 }} />
-      {!goalsShown && goalTemplatesUIEnabled && (
-        <View style={{ flexShrink: 0 }}>
-          <CategoryAutomationButton
-            style={dragging && { color: 'currentColor' }}
-            defaultColor={theme.pageTextLight}
-          />
-        </View>
-      )}
-      <View style={{ flexShrink: 0 }}>
-        <NotesButton
-          id={category.id}
-          style={dragging && { color: 'currentColor' }}
-          defaultColor={theme.pageTextLight}
-        />
-      </View>
+      <SidebarCategoryButtons
+        category={category}
+        dragging={dragging}
+        goalsShown={goalsShown}
+      />
     </View>
   );
 
@@ -170,11 +156,11 @@ export function SidebarCategory({
               display: 'flex',
             },
           }),
-        ...(dragging && { color: theme.formInputTextPlaceholderSelected }),
+        ...(dragging && { color: theme.pageTextSubdued }), //always visible color
         // The zIndex here forces the the view on top of a row below
         // it that may be "collapsed" and show a border on top
         ...(dragPreview && {
-          backgroundColor: theme.tableBackground,
+          backgroundColor: theme.budgetCurrentMonth,
           zIndex: 10000,
           borderRadius: 6,
           overflow: 'hidden',

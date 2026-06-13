@@ -1,40 +1,24 @@
-import { type RecurConfig, type ScheduleEntity } from './schedule';
+import type { RecurConfig, ScheduleEntity } from './schedule';
 
-export interface NewRuleEntity {
+export type NewRuleEntity = {
   stage: 'pre' | null | 'post';
   conditionsOp: 'or' | 'and';
   conditions: RuleConditionEntity[];
   actions: RuleActionEntity[];
   tombstone?: boolean;
-}
+};
 
-export interface RuleEntity extends NewRuleEntity {
+export type RuleEntity = {
   id: string;
-}
+} & NewRuleEntity;
 
-export type RuleConditionOp =
-  | 'is'
-  | 'isNot'
-  | 'oneOf'
-  | 'notOneOf'
-  | 'isapprox'
-  | 'isbetween'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'contains'
-  | 'doesNotContain'
-  | 'hasTags'
-  | 'and'
-  | 'matches'
-  | 'onBudget'
-  | 'offBudget';
+export type RuleConditionOp = RuleConditionEntity['op'];
 
 export type FieldValueTypes = {
   account: string;
   amount: number;
   category: string;
+  category_group: string;
   date: string | RecurConfig;
   notes: string;
   payee: string;
@@ -64,7 +48,7 @@ type BaseConditionEntity<
     month?: boolean;
     year?: boolean;
   };
-  conditionsOp?: string;
+  conditionsOp?: 'and' | 'or';
   type?: 'id' | 'boolean' | 'date' | 'number' | 'string';
   customName?: string;
   queryFilter?: Record<string, { $oneof: string[] }>;
@@ -94,6 +78,16 @@ export type RuleConditionEntity =
       | 'matches'
     >
   | BaseConditionEntity<
+      'category_group',
+      | 'is'
+      | 'isNot'
+      | 'oneOf'
+      | 'notOneOf'
+      | 'contains'
+      | 'doesNotContain'
+      | 'matches'
+    >
+  | BaseConditionEntity<
       'amount',
       'is' | 'isapprox' | 'isbetween' | 'gt' | 'gte' | 'lt' | 'lte'
     >
@@ -105,12 +99,11 @@ export type RuleConditionEntity =
       'notes',
       | 'is'
       | 'isNot'
-      | 'oneOf'
-      | 'notOneOf'
       | 'contains'
       | 'doesNotContain'
       | 'matches'
       | 'hasTags'
+      | 'hasAnyTag'
     >
   | BaseConditionEntity<
       'payee',
@@ -134,46 +127,55 @@ export type RuleConditionEntity =
     >
   | BaseConditionEntity<'saved', 'is'>
   | BaseConditionEntity<'cleared', 'is'>
-  | BaseConditionEntity<'reconciled', 'is'>;
+  | BaseConditionEntity<'reconciled', 'is'>
+  | BaseConditionEntity<'transfer', 'is'>;
 
 export type RuleActionEntity =
   | SetRuleActionEntity
   | SetSplitAmountRuleActionEntity
   | LinkScheduleRuleActionEntity
   | PrependNoteRuleActionEntity
-  | AppendNoteRuleActionEntity;
+  | AppendNoteRuleActionEntity
+  | DeleteTransactionRuleActionEntity;
 
-export interface SetRuleActionEntity {
+export type SetRuleActionEntity = {
   field: string;
   op: 'set';
   value: unknown;
   options?: {
     template?: string;
+    formula?: string;
     splitIndex?: number;
   };
   type?: string;
-}
+};
 
-export interface SetSplitAmountRuleActionEntity {
+export type SetSplitAmountRuleActionEntity = {
   op: 'set-split-amount';
-  value: number;
+  value: number | null;
   options?: {
     splitIndex?: number;
-    method: 'fixed-amount' | 'fixed-percent' | 'remainder';
+    method: 'fixed-amount' | 'fixed-percent' | 'formula' | 'remainder';
+    formula?: string;
   };
-}
+};
 
-export interface LinkScheduleRuleActionEntity {
+export type LinkScheduleRuleActionEntity = {
   op: 'link-schedule';
   value: ScheduleEntity;
-}
+};
 
-export interface PrependNoteRuleActionEntity {
+export type PrependNoteRuleActionEntity = {
   op: 'prepend-notes';
   value: string;
-}
+};
 
-export interface AppendNoteRuleActionEntity {
+export type AppendNoteRuleActionEntity = {
   op: 'append-notes';
   value: string;
-}
+};
+
+export type DeleteTransactionRuleActionEntity = {
+  op: 'delete-transaction';
+  value: string;
+};

@@ -1,11 +1,11 @@
 // @ts-strict-ignore
-import React, {
-  type ComponentType,
-  type ComponentPropsWithoutRef,
-  type CSSProperties,
-  useCallback,
+import React, { useCallback } from 'react';
+import type {
+  ComponentPropsWithoutRef,
+  ComponentType,
+  CSSProperties,
 } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
 import { SvgArrowThinRight } from '@actual-app/components/icons/v1';
@@ -13,15 +13,14 @@ import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import type { TransObjectLiteral } from '@actual-app/core/types/util';
 import { css } from '@emotion/css';
 
-import { type TransObjectLiteral } from 'loot-core/types/util';
-
-import { useFeatureFlag } from '../../hooks/useFeatureFlag';
-import { type Binding } from '../spreadsheet';
-import { CellValue, CellValueText } from '../spreadsheet/CellValue';
-import { useFormat } from '../spreadsheet/useFormat';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
+import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
+import { useFormat } from '#hooks/useFormat';
+import { useSheetValue } from '#hooks/useSheetValue';
+import type { Binding } from '#spreadsheet';
 
 import { makeBalanceAmountStyle } from './util';
 
@@ -80,14 +79,22 @@ type BalanceWithCarryoverProps = Omit<
   'children' | 'binding'
 > & {
   children?: ChildrenWithClassName;
-  carryover: Binding<'envelope-budget', 'carryover'>;
-  balance: Binding<'envelope-budget', 'leftover'>;
-  goal: Binding<'envelope-budget', 'goal'>;
-  budgeted: Binding<'envelope-budget', 'budget'>;
-  longGoal: Binding<'envelope-budget', 'long-goal'>;
+  carryover: Binding<'envelope-budget' | 'tracking-budget', 'carryover'>;
+  /**
+   * Expense category balance binding is `leftover`,
+   * while income category balance binding is `sum-amount`.
+   */
+  balance: Binding<
+    'envelope-budget' | 'tracking-budget',
+    'leftover' | 'sum-amount'
+  >;
+  goal: Binding<'envelope-budget' | 'tracking-budget', 'goal'>;
+  budgeted: Binding<'envelope-budget' | 'tracking-budget', 'budget'>;
+  longGoal: Binding<'envelope-budget' | 'tracking-budget', 'long-goal'>;
   isDisabled?: boolean;
-  isMobileEnvelopeModal?: boolean;
+  shouldInlineGoalStatus?: boolean;
   CarryoverIndicator?: ComponentType<CarryoverIndicatorProps>;
+  tooltipDisabled?: boolean;
 };
 
 export function BalanceWithCarryover({
@@ -97,8 +104,9 @@ export function BalanceWithCarryover({
   budgeted,
   longGoal,
   isDisabled,
-  isMobileEnvelopeModal,
+  shouldInlineGoalStatus,
   CarryoverIndicator: CarryoverIndicatorComponent = CarryoverIndicator,
+  tooltipDisabled,
   children,
   ...props
 }: BalanceWithCarryoverProps) {
@@ -148,11 +156,11 @@ export function BalanceWithCarryover({
         <>
           <span style={{ fontWeight: 'bold' }}>
             {getDifferenceToGoal(balanceValue) === 0 ? (
-              <span style={{ color: theme.noticeText }}>
+              <span style={{ color: theme.templateNumberFunded }}>
                 <Trans>Fully funded</Trans>
               </span>
             ) : getDifferenceToGoal(balanceValue) > 0 ? (
-              <span style={{ color: theme.noticeText }}>
+              <span style={{ color: theme.templateNumberFunded }}>
                 <Trans>
                   Overfunded (
                   {{
@@ -165,7 +173,7 @@ export function BalanceWithCarryover({
                 </Trans>
               </span>
             ) : (
-              <span style={{ color: theme.errorText }}>
+              <span style={{ color: theme.templateNumberUnderFunded }}>
                 <Trans>
                   Underfunded (
                   {{
@@ -185,7 +193,7 @@ export function BalanceWithCarryover({
               <div>
                 {
                   {
-                    type: longGoalValue === 1 ? t('Long') : t('Template'),
+                    type: longGoalValue === 1 ? t('Goal') : t('Automation'),
                   } as TransObjectLiteral
                 }
               </div>
@@ -249,7 +257,10 @@ export function BalanceWithCarryover({
             triggerProps={{
               delay: 750,
               isDisabled:
-                !isGoalTemplatesEnabled || goalValue == null || isNarrowWidth,
+                !isGoalTemplatesEnabled ||
+                goalValue == null ||
+                isNarrowWidth ||
+                tooltipDisabled,
             }}
           >
             {children ? (
@@ -274,7 +285,7 @@ export function BalanceWithCarryover({
               style={getBalanceAmountStyle(balanceValue)}
             />
           )}
-          {isMobileEnvelopeModal &&
+          {shouldInlineGoalStatus &&
             isGoalTemplatesEnabled &&
             goalValue !== null && (
               <>

@@ -1,9 +1,9 @@
 import { join } from 'path';
 
-import { type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
-import { type AccountPage } from './page-models/account-page';
+import type { AccountPage } from './page-models/account-page';
 import { ConfigurationPage } from './page-models/configuration-page';
 import { Navigation } from './page-models/navigation';
 
@@ -23,7 +23,7 @@ test.describe('Accounts', () => {
   });
 
   test.afterEach(async () => {
-    await page.close();
+    await page?.close();
   });
 
   test('creates a new account and views the initial balance transaction', async () => {
@@ -56,6 +56,68 @@ test.describe('Accounts', () => {
     await expect(page).toMatchThemeScreenshots();
   });
 
+  test('shift-click range selection skips hidden reconciled transactions', async () => {
+    accountPage = await navigation.createAccount({
+      name: 'Range Select',
+      offBudget: false,
+      balance: 0,
+    });
+    await accountPage.waitFor();
+
+    // Newest transactions are shown first, so the rows read
+    // 'range-three' through 'range-one' from top to bottom.
+    for (const note of ['one', 'two', 'three']) {
+      await accountPage.createSingleTransaction({
+        payee: '',
+        notes: `range-${note}`,
+        debit: '10.00',
+      });
+    }
+
+    // Mark the middle transaction as cleared and lock it via
+    // reconciliation so it becomes reconciled.
+    await accountPage.transactionTableRow
+      .filter({ hasText: 'range-two' })
+      .getByTestId('cleared')
+      .click();
+
+    await page.getByRole('button', { name: 'Reconcile' }).click();
+    // The reconciliation amount is pre-filled with the cleared balance,
+    // so submitting right away results in a zero difference.
+    const reconcilePopover = page.locator('[data-popover]');
+    await reconcilePopover.getByRole('textbox').waitFor();
+    await reconcilePopover.getByRole('button', { name: 'Reconcile' }).click();
+    await page.getByRole('button', { name: 'Lock transactions' }).click();
+
+    // Showing the running balance keeps reconciled transactions loaded
+    // even when they are hidden; they must still be excluded from
+    // range selection.
+    await accountPage.accountMenuButton.click();
+    await page.getByRole('button', { name: 'Show running balance' }).click();
+    await accountPage.accountMenuButton.click();
+    await page
+      .getByRole('button', { name: 'Hide reconciled transactions' })
+      .click();
+
+    await expect(
+      accountPage.transactionTableRow.filter({ hasText: 'range-two' }),
+    ).not.toBeVisible();
+
+    // Shift-click from the first to the last visible transaction.
+    await accountPage.transactionTableRow
+      .filter({ hasText: 'range-three' })
+      .getByTestId('select')
+      .click();
+    await accountPage.transactionTableRow
+      .filter({ hasText: 'range-one' })
+      .getByTestId('select')
+      .click({ modifiers: ['Shift'] });
+
+    // Only the two visible transactions should be selected — not the
+    // hidden reconciled one in between.
+    await expect(accountPage.selectButton).toHaveText('2 transactions');
+  });
+
   test.describe('On Budget Accounts', () => {
     // Reset filters
     test.afterEach(async () => {
@@ -86,7 +148,14 @@ test.describe('Accounts', () => {
         credit: '34.56',
       });
 
-      await page.waitForTimeout(100); // Give time for the previous transaction to be rendered
+      // Wait for both newly created transactions to actually be in the
+      // transaction list before selecting them. A bare waitForTimeout(100)
+      // here is not enough under parallel CI load: the second
+      // createSingleTransaction's row may still be mounting when the
+      // selection clicks land, so the selection doesn't stick and the
+      // 'Make transfer' button (rendered only when items are selected)
+      // never appears.
+      await expect(accountPage.getNthTransaction(1).payee).toBeVisible();
 
       await accountPage.selectNthTransaction(0);
       await accountPage.selectNthTransaction(1);
@@ -123,11 +192,14 @@ test.describe('Accounts', () => {
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/test.csv'));
 
-      if (screenshot) await expect(page).toMatchThemeScreenshots();
-
       const importButton = accountPage.page.getByRole('button', {
         name: /Import \d+ transactions/,
       });
+
+      await importButton.waitFor({ state: 'visible' });
+
+      if (screenshot) await expect(page).toMatchThemeScreenshots();
+
       await importButton.click();
 
       await expect(importButton).not.toBeVisible();
@@ -146,16 +218,16 @@ test.describe('Accounts', () => {
       const fileChooser = await fileChooserPromise;
       await fileChooser.setFiles(join(__dirname, 'data/test.csv'));
 
-      await expect(page).toMatchThemeScreenshots();
-
       const importButton = accountPage.page.getByRole('button', {
         name: /Import \d+ transactions/,
       });
 
+      await importButton.waitFor({ state: 'visible' });
+
+      await expect(page).toMatchThemeScreenshots();
+
       await expect(importButton).toBeDisabled();
-      await expect(await importButton.innerText()).toMatch(
-        /Import 0 transactions/,
-      );
+      expect(await importButton.innerText()).toMatch(/Import 0 transactions/);
 
       await accountPage.page.getByRole('button', { name: 'Close' }).click();
 

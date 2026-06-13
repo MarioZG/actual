@@ -1,26 +1,25 @@
 // @ts-strict-ignore
 import React, { useState } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { InitialFocus } from '@actual-app/components/initial-focus';
 import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { getSecretsError } from 'loot-core/shared/errors';
-
-import { Error } from '../alerts';
-import { Link } from '../common/Link';
+import { Error } from '#components/alerts';
+import { Link } from '#components/common/Link';
 import {
   Modal,
   ModalButtons,
   ModalCloseButton,
   ModalHeader,
-} from '../common/Modal';
-import { FormField, FormLabel } from '../forms';
+} from '#components/common/Modal';
+import { FormField, FormLabel } from '#components/forms';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { getSecretsError } from '#util/error';
 
 type GoCardlessInitialiseModalProps = Extract<
   ModalType,
@@ -83,11 +82,11 @@ export const GoCardlessInitialiseModal = ({
 
   return (
     <Modal name="gocardless-init" containerProps={{ style: { width: '30vw' } }}>
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Set up GoCardless')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ display: 'flex', gap: 10 }}>
             <Text>
@@ -142,7 +141,7 @@ export const GoCardlessInitialiseModal = ({
               variant="primary"
               isLoading={isLoading}
               onPress={() => {
-                onSubmit(close);
+                void onSubmit(() => state.close());
               }}
             >
               <Trans>Save and continue</Trans>

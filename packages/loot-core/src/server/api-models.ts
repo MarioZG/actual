@@ -1,17 +1,20 @@
-import { Budget } from '../types/budget';
+import type { Budget } from '#types/budget';
 import type {
   AccountEntity,
   CategoryEntity,
   CategoryGroupEntity,
   PayeeEntity,
-} from '../types/models';
+  ScheduleEntity,
+  TagEntity,
+} from '#types/models';
 
-import { RemoteFile } from './cloud-storage';
+import type { RemoteFile } from './cloud-storage';
 import * as models from './models';
 
 export type APIAccountEntity = Pick<AccountEntity, 'id' | 'name'> & {
-  offbudget: boolean;
-  closed: boolean;
+  offbudget?: boolean;
+  closed?: boolean;
+  balance_current?: number | null;
 };
 
 export const accountModel = {
@@ -23,6 +26,7 @@ export const accountModel = {
       name: account.name,
       offbudget: account.offbudget ? true : false,
       closed: account.closed ? true : false,
+      balance_current: account.balance_current ?? null,
     };
   },
 
@@ -72,7 +76,7 @@ export type APICategoryGroupEntity = Pick<
   CategoryGroupEntity,
   'id' | 'name' | 'is_income' | 'hidden'
 > & {
-  categories: APICategoryEntity[];
+  categories?: APICategoryEntity[];
 };
 
 export const categoryGroupModel = {
@@ -84,14 +88,17 @@ export const categoryGroupModel = {
       name: group.name,
       is_income: group.is_income ? true : false,
       hidden: group.hidden ? true : false,
-      categories: group.categories?.map(categoryModel.toExternal) || [],
+      categories:
+        group.categories?.map(cat => categoryModel.toExternal(cat)) || [],
     };
   },
 
   fromExternal(group: APICategoryGroupEntity) {
     const result = { ...group } as unknown as CategoryGroupEntity;
-    if ('categories' in group) {
-      result.categories = group.categories.map(categoryModel.fromExternal);
+    if ('categories' in group && group.categories) {
+      result.categories = group.categories.map(cat =>
+        categoryModel.fromExternal(cat),
+      );
     }
     return result;
   },
@@ -113,6 +120,26 @@ export const payeeModel = {
   fromExternal(payee: APIPayeeEntity) {
     // No translation is needed
     return payee as PayeeEntity;
+  },
+};
+
+export type APITagEntity = Pick<
+  TagEntity,
+  'id' | 'tag' | 'color' | 'description'
+>;
+
+export const tagModel = {
+  toExternal(tag: TagEntity): APITagEntity {
+    return {
+      id: tag.id,
+      tag: tag.tag,
+      color: tag.color ?? null,
+      description: tag.description ?? null,
+    };
+  },
+
+  fromExternal(tag: Partial<APITagEntity>): Partial<TagEntity> {
+    return tag;
   },
 };
 
@@ -151,5 +178,67 @@ export const budgetModel = {
 
   fromExternal(file: APIFileEntity) {
     return file as Budget;
+  },
+};
+
+export type AmountOPType = 'is' | 'isapprox' | 'isbetween';
+
+export type APIScheduleEntity = Pick<
+  ScheduleEntity,
+  'id' | 'name' | 'posts_transaction'
+> & {
+  rule?: ScheduleEntity['rule']; //All schedules has an associated underlying rule. not to be supplied iwth a new schedule
+  next_date?: ScheduleEntity['next_date']; //Next occurence of a schedule. not to be supplied iwth a new schedule
+  completed?: ScheduleEntity['completed']; //not to be supplied with a new schedule
+  payee?: ScheduleEntity['_payee']; // Optional will default to null
+  account?: ScheduleEntity['_account']; // Optional will default to null
+  amount?: ScheduleEntity['_amount']; // Provide only 1 number except if the Amount
+  amountOp: AmountOPType; // 'is' | 'isapprox' | 'isbetween'
+  date: ScheduleEntity['_date']; // mandatory field in creating a schedule Mandatory field in creation
+};
+
+export const scheduleModel = {
+  toExternal(schedule: ScheduleEntity): APIScheduleEntity {
+    return {
+      id: schedule.id,
+      name: schedule.name,
+      rule: schedule.rule,
+      next_date: schedule.next_date,
+      completed: schedule.completed,
+      posts_transaction: schedule.posts_transaction,
+      payee: schedule._payee,
+      account: schedule._account,
+      amount: schedule._amount,
+      amountOp: schedule._amountOp as 'is' | 'isapprox' | 'isbetween', // e.g. 'isapprox', 'is', etc.
+      date: schedule._date,
+    };
+  },
+  //just an update
+
+  fromExternal(schedule: APIScheduleEntity): ScheduleEntity {
+    const amount = schedule.amount ?? 0;
+    const result: ScheduleEntity = {
+      id: schedule.id,
+      name: schedule.name,
+      rule: String(schedule.rule),
+      next_date: String(schedule.next_date),
+      completed: Boolean(schedule.completed),
+      posts_transaction: schedule.posts_transaction,
+      tombstone: false,
+      _payee: String(schedule.payee),
+      _account: String(schedule.account),
+      _amount: amount,
+      _amountOp: schedule.amountOp, // e.g. 'isapprox', 'is', etc.
+      _date: schedule.date,
+      _conditions: [
+        { op: 'is', field: 'payee', value: String(schedule.payee) },
+        { op: 'is', field: 'account', value: String(schedule.account) },
+        { op: 'isapprox', field: 'date', value: schedule.date },
+        { op: schedule.amountOp, field: 'amount', value: amount },
+      ],
+      _actions: [], // empty array, as you requested
+    };
+
+    return result;
   },
 };

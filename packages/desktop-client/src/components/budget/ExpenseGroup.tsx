@@ -1,35 +1,40 @@
 // @ts-strict-ignore
-import React, { type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+} from '@actual-app/core/types/models';
 
-import { useDragRef } from '../../hooks/useDragRef';
-import {
-  useDraggable,
-  useDroppable,
-  DropHighlight,
-  type OnDragChangeCallback,
-  type OnDropCallback,
-  type DragState,
-} from '../sort';
-import { Row, ROW_HEIGHT } from '../table';
+import { DropHighlight, useDraggable, useDroppable } from '#components/sort';
+import type {
+  DragState,
+  OnDragChangeCallback,
+  OnDropCallback,
+} from '#components/sort';
+import { Row, ROW_HEIGHT } from '#components/table';
+import { useDragRef } from '#hooks/useDragRef';
 
 import { RenderMonths } from './RenderMonths';
 import { SidebarGroup } from './SidebarGroup';
+
+import { useBudgetComponents } from '.';
 
 type ExpenseGroupProps = {
   group: ComponentProps<typeof SidebarGroup>['group'];
   collapsed: boolean;
   editingCell: { id: string; cell: string } | null;
-  dragState: DragState<ComponentProps<typeof SidebarGroup>['group']>;
-  MonthComponent: ComponentProps<typeof RenderMonths>['component'];
+  dragState: DragState<CategoryEntity> | DragState<CategoryGroupEntity> | null;
   onEditName?: ComponentProps<typeof SidebarGroup>['onEdit'];
   onSave?: ComponentProps<typeof SidebarGroup>['onSave'];
   onDelete?: ComponentProps<typeof SidebarGroup>['onDelete'];
   onApplyBudgetTemplatesInGroup?: ComponentProps<
     typeof SidebarGroup
   >['onApplyBudgetTemplatesInGroup'];
+  onSortCategories?: ComponentProps<typeof SidebarGroup>['onSortCategories'];
   onDragChange: OnDragChangeCallback<
     ComponentProps<typeof SidebarGroup>['group']
   >;
@@ -44,11 +49,11 @@ export function ExpenseGroup({
   collapsed,
   editingCell,
   dragState,
-  MonthComponent,
   onEditName,
   onSave,
   onDelete,
   onApplyBudgetTemplatesInGroup,
+  onSortCategories,
   onDragChange,
   onReorderGroup,
   onReorderCategory,
@@ -82,13 +87,15 @@ export function ExpenseGroup({
     },
   });
 
+  const { ExpenseGroupComponent: MonthComponent } = useBudgetComponents();
+
   return (
     <Row
-      collapsed={true}
+      collapsed
       style={{
         fontWeight: 600,
         opacity: group.hidden ? 0.33 : undefined,
-        backgroundColor: theme.tableRowHeaderBackground,
+        backgroundColor: theme.budgetHeaderCurrentMonth, //use budget colors
       }}
     >
       {dragState && !dragState.preview && dragState.type === 'group' && (
@@ -133,9 +140,12 @@ export function ExpenseGroup({
           onSave={onSave}
           onDelete={onDelete}
           onApplyBudgetTemplatesInGroup={onApplyBudgetTemplatesInGroup}
+          onSortCategories={onSortCategories}
           onShowNewCategory={onShowNewCategory}
         />
-        <RenderMonths component={MonthComponent} args={{ group }} />
+        <RenderMonths>
+          {({ month }) => <MonthComponent month={month} group={group} />}
+        </RenderMonths>
       </View>
     </Row>
   );

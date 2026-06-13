@@ -1,15 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import {
-  type CustomReportData,
-  type CustomReportEntity,
-} from '../../types/models';
-import { createApp } from '../app';
-import * as db from '../db';
-import { ValidationError } from '../errors';
-import { requiredFields } from '../models';
-import { mutator } from '../mutators';
-import { undoable } from '../undo';
+import { createApp } from '#server/app';
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
+import { ValidationError } from '#server/errors';
+import { requiredFields } from '#server/models';
+import { mutator } from '#server/mutators';
+import { undoable } from '#server/undo';
+import { q } from '#shared/query';
+import type { CustomReportData, CustomReportEntity } from '#types/models';
 
 export const reportModel = {
   validate(
@@ -29,10 +28,10 @@ export const reportModel = {
     return report;
   },
 
-  toJS(row: CustomReportData) {
+  toJS(row: CustomReportData): CustomReportEntity {
     return {
       id: row.id,
-      name: row.name,
+      name: row.name ?? '',
       startDate: row.start_date,
       endDate: row.end_date,
       isDateStatic: row.date_static === 1,
@@ -46,14 +45,17 @@ export const reportModel = {
       showOffBudget: row.show_offbudget === 1,
       showHiddenCategories: row.show_hidden === 1,
       showUncategorized: row.show_uncategorized === 1,
+      trimIntervals: row.trim_intervals === 1,
+      showTrendLines: row.show_trend_lines === 1,
       includeCurrentInterval: row.include_current === 1,
       graphType: row.graph_type,
-      conditions: row.conditions,
-      conditionsOp: row.conditions_op,
+      conditions: row.conditions ?? [],
+      conditionsOp: row.conditions_op ?? 'and',
+      metadata: row.metadata,
     };
   },
 
-  fromJS(report: CustomReportEntity) {
+  fromJS(report: CustomReportEntity): CustomReportData {
     return {
       id: report.id,
       name: report.name,
@@ -63,13 +65,15 @@ export const reportModel = {
       date_range: report.dateRange,
       mode: report.mode,
       group_by: report.groupBy,
-      sort_by: report.sortBy,
+      sort_by: report.sortBy ?? 'desc',
       interval: report.interval,
       balance_type: report.balanceType,
       show_empty: report.showEmpty ? 1 : 0,
       show_offbudget: report.showOffBudget ? 1 : 0,
       show_hidden: report.showHiddenCategories ? 1 : 0,
       show_uncategorized: report.showUncategorized ? 1 : 0,
+      trim_intervals: report.trimIntervals ? 1 : 0,
+      show_trend_lines: report.showTrendLines ? 1 : 0,
       include_current: report.includeCurrentInterval ? 1 : 0,
       graph_type: report.graphType,
       conditions: report.conditions,
@@ -77,6 +81,25 @@ export const reportModel = {
     };
   },
 };
+
+// Sort reports by alphabetical order
+function sort(reports: CustomReportEntity[]) {
+  return reports.sort((a, b) =>
+    a.name && b.name
+      ? a.name.trim().localeCompare(b.name.trim(), undefined, {
+          ignorePunctuation: true,
+        })
+      : 0,
+  );
+}
+
+async function getReports() {
+  // Use aql because it auto deserialized json columns e.g. conditions
+  const { data }: { data: CustomReportData[] } = await aqlQuery(
+    q('custom_reports').select('*'),
+  );
+  return sort(data.map(r => reportModel.toJS(r)));
+}
 
 async function reportNameExists(
   name: string,
@@ -151,6 +174,7 @@ async function deleteReport(id: CustomReportEntity['id']) {
 }
 
 export type ReportsHandlers = {
+  'report/get': typeof getReports;
   'report/create': typeof createReport;
   'report/update': typeof updateReport;
   'report/delete': typeof deleteReport;
@@ -159,6 +183,7 @@ export type ReportsHandlers = {
 // Expose functions to the client
 export const app = createApp<ReportsHandlers>();
 
+app.method('report/get', getReports);
 app.method('report/create', mutator(undoable(createReport)));
 app.method('report/update', mutator(undoable(updateReport)));
 app.method('report/delete', mutator(undoable(deleteReport)));

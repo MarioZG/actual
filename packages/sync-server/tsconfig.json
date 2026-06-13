@@ -1,22 +1,36 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    // DOM for URL global in Node 16+
+    "composite": true,
     "lib": ["ES2021"],
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "experimentalDecorators": true,
-    "resolveJsonModule": true,
-    "downlevelIteration": true,
-    "skipLibCheck": true,
-    "jsx": "preserve",
-    // Check JS files too
-    "allowJs": true,
-    "moduleResolution": "node16",
-    "module": "node16",
+    "noEmit": false,
+    "strict": false, // TODO: fix issues and remove this
+    "strictFunctionTypes": true,
+    "declaration": true,
+    "declarationMap": true,
     "outDir": "build",
-    "types": ["vite/client", "vitest/globals"]
+    "tsBuildInfoFile": "build/.tsbuildinfo",
+    "plugins": [
+      {
+        "name": "typescript-strict-plugin",
+        "paths": ["."]
+      }
+    ]
   },
-  "include": ["src/**/*.js", "types/global.d.ts"],
-  "exclude": ["node_modules", "build", "./app-plaid.js", "coverage"]
+  "references": [
+    {
+      "path": "../crdt"
+    },
+    {
+      "path": "../desktop-client"
+    }
+  ],
+  "include": [
+    "src/**/*",
+    "migrations/**/*",
+    "types/**/*",
+    "app.ts",
+    "bin/**/*"
+  ],
+  "exclude": ["node_modules", "build", "coverage"]
 }

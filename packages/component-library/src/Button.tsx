@@ -1,13 +1,8 @@
-import React, {
-  forwardRef,
-  useMemo,
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-  type CSSProperties,
-} from 'react';
+import React, { forwardRef, useMemo } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react';
 import { Button as ReactAriaButton } from 'react-aria-components';
 
-import { css } from '@emotion/css';
+import { css, cx } from '@emotion/css';
 
 import { AnimatedLoading } from './icons/AnimatedLoading';
 import { styles } from './styles';
@@ -145,26 +140,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const defaultButtonClassName: string = useMemo(
       () =>
-        String(
-          css({
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            padding: _getPadding(variant),
-            margin: 0,
-            overflow: 'hidden',
-            display: 'flex',
-            borderRadius: 4,
-            backgroundColor: backgroundColor[variantWithDisabled],
-            border: _getBorder(variant, variantWithDisabled),
-            color: textColor[variantWithDisabled],
-            transition: 'box-shadow .25s',
-            WebkitAppRegion: 'no-drag',
-            ...styles.smallText,
-            '&[data-hovered]': _getHoveredStyles(variant),
-            '&[data-pressed]': _getActiveStyles(variant, bounce),
-          }),
-        ),
+        css({
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          padding: _getPadding(variant),
+          margin: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          borderRadius: 4,
+          backgroundColor: backgroundColor[variantWithDisabled],
+          border: _getBorder(variant, variantWithDisabled),
+          color: textColor[variantWithDisabled],
+          transition: 'box-shadow .25s',
+          WebkitAppRegion: 'no-drag',
+          ...styles.smallText,
+          '&[data-hovered]': _getHoveredStyles(variant),
+          '&[data-pressed]': _getActiveStyles(variant, bounce),
+        }),
       [bounce, variant, variantWithDisabled],
     );
 
@@ -176,9 +169,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...restProps}
         className={
           typeof className === 'function'
-            ? renderProps =>
-                `${defaultButtonClassName} ${className(renderProps)}`
-            : `${defaultButtonClassName} ${className || ''}`
+            ? renderProps => cx(defaultButtonClassName, className(renderProps))
+            : cx(defaultButtonClassName, className)
         }
       >
         {children}

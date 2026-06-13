@@ -1,0 +1,428 @@
+import * as db from '#server/db';
+import * as sheet from '#server/sheet';
+import { resolveName } from '#server/spreadsheet/util';
+// @ts-strict-ignore
+
+import * as monthUtils from '#shared/months';
+import { safeNumber } from '#shared/util';
+import { currentMonth,sheetForMonth } from '../../shared/months';
+import { createCategory as createCategoryFromBase } from './base';
+import { number, sumAmounts, sumAmountsgt0 } from './util';
+
+export async function createCategory(cat, sheetName, prevSheetName) {
+  sheet.get().createStatic(sheetName, `budget-${cat.id}`, 0);
+
+  // This makes the app more robust by "fixing up" null budget values.
+  // Those should not be allowed, but in case somehow a null value
+  // ends up there, we are resilient to it. Preferrably the
+  // spreadsheet would have types and be more strict about what is
+  // allowed to be set.
+  if (sheet.get().getCellValue(sheetName, `budget-${cat.id}`) == null) {
+    sheet.get().set(resolveName(sheetName, `budget-${cat.id}`), 0);
+  }
+
+  sheet.get().createDynamic(sheetName, `leftover-${cat.id}`, {
+    initialValue: 0,
+    dependencies: [
+      `budget-${cat.id}`,
+      `sum-amount-${cat.id}`,
+      `${prevSheetName}!carryover-${cat.id}`,
+      `${prevSheetName}!leftover-${cat.id}`,
+    ],
+    run: (budgeted, sumAmount, prevCarryover, prevLeftover) => {
+      if (cat.is_income) {
+        return safeNumber(
+          number(budgeted) -
+            number(sumAmount) +
+            (prevCarryover ? number(prevLeftover) : 0),
+        );
+      }
+
+      return safeNumber(
+        number(budgeted) +
+          number(sumAmount) +
+          (prevCarryover ? number(prevLeftover) : 0),
+      );
+    },
+  });
+  sheet.get().createDynamic(sheetName, `spent-with-carryover-${cat.id}`, {
+    initialValue: 0,
+    dependencies: [
+      `budget-${cat.id}`,
+      `sum-amount-${cat.id}`,
+      `carryover-${cat.id}`,
+    ],
+    // TODO: Why refresh??
+    refresh: true,
+    run: (budgeted, sumAmount, carryover) => {
+      return carryover
+        ? Math.max(0, safeNumber(number(budgeted) + number(sumAmount)))
+        : sumAmount;
+    },
+  });
+
+  sheet.get().createStatic(sheetName, `carryover-${cat.id}`, false);
+}
+
+export function createCategoryGroup(group, sheetName) {
+  // different sum amount dependencies
+  sheet.get().createDynamic(sheetName, 'group-sum-amount-' + group.id, {
+    initialValue: 0,
+    dependencies: group.categories
+      .filter(cat => !cat.hidden)
+      .map(cat => `sum-amount-${cat.id}`),
+    run: sumAmounts,
+  });
+  sheet.get().createDynamic(sheetName, 'group-budget-' + group.id, {
+    initialValue: 0,
+    dependencies: group.categories
+      .filter(cat => !cat.hidden)
+      .map(cat => `budget-${cat.id}`),
+    run: sumAmounts,
+  });
+  sheet.get().createDynamic(sheetName, 'group-leftover-' + group.id, {
+    initialValue: 0,
+    dependencies: group.categories
+      .filter(cat => !cat.hidden)
+      .map(cat => `leftover-${cat.id}`),
+    run: sumAmounts,
+  });
+
+  //create annual expenses leftover amount
+  if(group.name.startsWith("Annual")) {
+    
+    console.log(`createCategoryGroup sum-amount-annual and group-leftover-annual  (${group}, ${sheetName}, )`);
+
+    //spend in annual category
+    sheet.get().createDynamic(sheetName, 'sum-amount-annual', {
+      initialValue: 0,
+      dependencies: group.categories
+        .filter(cat => !cat.hidden)
+        .map(cat => `sum-amount-${cat.id}`),
+      run: sumAmounts,
+    });
+
+    //budgeted left in annual category
+    sheet.get().createDynamic(sheetName, 'group-leftover-annual', {
+      initialValue: 0,
+      dependencies: group.categories
+        .filter(cat => !cat.hidden)
+        .map(cat => `leftover-${cat.id}`),
+      run: sumAmountsgt0,
+    });
+  }
+}
+
+export function createSummary(groups, categories, sheetName, prevSheetName) {
+  const incomeGroup = groups.filter(group => group.is_income)[0];
+  const expenseGroups = groups.filter(
+    group => !group.is_income && !group.hidden,
+  );
+
+  sheet.get().createDynamic(sheetName, 'total-budgeted', {
+    initialValue: 0,
+    dependencies: expenseGroups.map(group => `group-budget-${group.id}`),
+    run: sumAmounts,
+  });
+
+  sheet.get().createDynamic(sheetName, 'total-spent', {
+    initialValue: 0,
+    refresh: true,
+    dependencies: expenseGroups.map(group => `group-sum-amount-${group.id}`),
+    run: sumAmounts,
+  });
+
+  sheet.get().createDynamic(sheetName, 'total-income', {
+    initialValue: 0,
+    dependencies: [`group-sum-amount-${incomeGroup.id}`],
+    run: amount => amount,
+  });
+
+  sheet.get().createDynamic(sheetName, 'total-leftover', {
+    initialValue: 0,
+    dependencies: expenseGroups.map(g => `group-leftover-${g.id}`),
+    run: sumAmounts,
+  });
+
+  sheet.get().createDynamic(sheetName, 'total-budget-income', {
+    initialValue: 0,
+    dependencies: [`group-budget-${incomeGroup.id}`],
+    run: amount => amount,
+  });
+
+  sheet.get().createDynamic(sheetName, 'total-saved', {
+    initialValue: 0,
+    dependencies: ['total-budget-income', 'total-budgeted'],
+    run: (income, budgeted) => {
+      return income - budgeted;
+    },
+  });
+
+  sheet.get().createDynamic(sheetName, 'real-saved', {
+    initialValue: 0,
+    dependencies: ['total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
+    run: (income, spent, budgetedIncome, budgetedSpent) => {
+      console.log(`calc real-saved  (${income}, ${spent}, ${budgetedIncome}, ${budgetedSpent}, )`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(budgetedIncome - budgetedSpent);
+
+      }
+      else {
+        return safeNumber(income - -spent);
+      }
+    },
+  });
+
+  sheet.get().createDynamic(sheetName, 'cashflow', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted'],
+    run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent) => {
+      console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent)})`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(prefcashflow + budgetedIncome - budgetedSpent);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(prefcashflow + income - -spent);
+
+      }
+    },
+  });  
+
+  sheet.get().createDynamic(sheetName, 'cashflow-annual', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!cashflow`, 'total-income', 'total-spent', 'total-budget-income', 'total-budgeted', 'group-leftover-annual'],
+    run: (prefcashflow, income, spent, budgetedIncome, budgetedSpent, groupLeftoverAnnual) => {
+      console.log(`calc cashflow  (${safeNumber(prefcashflow + income - -spent - groupLeftoverAnnual)})`);
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(prefcashflow + budgetedIncome - budgetedSpent- groupLeftoverAnnual);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(prefcashflow + income - -spent - groupLeftoverAnnual);
+
+      }
+    },
+  });
+
+  sheet.get().createDynamic(sheetName, 'running-income', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!running-income`, 'total-income', 'total-budget-income'],
+    run: (runningIncome, income, budgetedIncome) => {
+      console.log(`calc running-income  (${sheetName}-${runningIncome}-${income}-${budgetedIncome})`);
+      if (sheetName.endsWith("04")) {
+        runningIncome = 0;
+      }
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(runningIncome + budgetedIncome);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(runningIncome + income);
+
+      }
+    },
+  }); 
+
+  sheet.get().createDynamic(sheetName, 'running-spend', {
+    initialValue: 0,
+    dependencies: [`${prevSheetName}!running-spend`, 'total-spent', 'total-budgeted'],
+    run: (runningSpend, spend, budgetedSpend) => {
+      console.log(`calc running-spend'  (${sheetName}-${runningSpend}-${spend}-${budgetedSpend})`);
+      if (sheetName.endsWith("04")) {
+        runningSpend = 0;
+      }
+      if (sheetName >=  sheetForMonth(currentMonth())) {
+        //prjected nmumbers
+        return safeNumber(runningSpend - budgetedSpend);
+
+      }
+      else {
+        //actual numbers
+        return safeNumber(runningSpend + spend);
+
+      }
+    },
+  }); 
+  sheet.get().createDynamic(sheetName, 'running-cashflow', {
+    initialValue: 0,
+    dependencies: ['running-income', 'running-spend'],
+    run: ( runningIncome, runningSpend) => {
+      console.log(`calc running-cashflow ${sheetName} (${runningIncome}-${runningSpend})`);
+      return safeNumber(runningIncome + runningSpend);
+    },
+  }); 
+
+}
+
+export function handleCategoryChange(months, oldValue, newValue) {
+  function addDeps(sheetName, groupId, catId) {
+    sheet
+      .get()
+      .addDependencies(sheetName, `group-sum-amount-${groupId}`, [
+        `sum-amount-${catId}`,
+      ]);
+    sheet
+      .get()
+      .addDependencies(sheetName, `group-budget-${groupId}`, [
+        `budget-${catId}`,
+      ]);
+    sheet
+      .get()
+      .addDependencies(sheetName, `group-leftover-${groupId}`, [
+        `leftover-${catId}`,
+      ]);
+  }
+
+  function removeDeps(sheetName, groupId, catId) {
+    sheet
+      .get()
+      .removeDependencies(sheetName, `group-sum-amount-${groupId}`, [
+        `sum-amount-${catId}`,
+      ]);
+    sheet
+      .get()
+      .removeDependencies(sheetName, `group-budget-${groupId}`, [
+        `budget-${catId}`,
+      ]);
+    sheet
+      .get()
+      .removeDependencies(sheetName, `group-leftover-${groupId}`, [
+        `leftover-${catId}`,
+      ]);
+  }
+
+  if (oldValue && oldValue.tombstone === 0 && newValue.tombstone === 1) {
+    const id = newValue.id;
+    const groupId = newValue.cat_group;
+
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+      removeDeps(sheetName, groupId, id);
+    });
+  } else if (
+    newValue.tombstone === 0 &&
+    (!oldValue || oldValue.tombstone === 1)
+  ) {
+    months.forEach(month => {
+      const prevMonth = monthUtils.prevMonth(month);
+      const prevSheetName = monthUtils.sheetForMonth(prevMonth);
+      const sheetName = monthUtils.sheetForMonth(month);
+      const { start, end } = monthUtils.bounds(month);
+
+      createCategoryFromBase(newValue, sheetName, prevSheetName, start, end);
+
+      const id = newValue.id;
+      const groupId = newValue.cat_group;
+
+      addDeps(sheetName, groupId, id);
+    });
+  } else if (oldValue && oldValue.cat_group !== newValue.cat_group) {
+    // The category moved so we need to update the dependencies
+    const id = newValue.id;
+
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+      removeDeps(sheetName, oldValue.cat_group, id);
+      addDeps(sheetName, newValue.cat_group, id);
+    });
+  } else if (oldValue && oldValue.hidden !== newValue.hidden) {
+    const id = newValue.id;
+    const groupId = newValue.cat_group;
+
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+      if (newValue.hidden) {
+        removeDeps(sheetName, groupId, id);
+      } else {
+        addDeps(sheetName, groupId, id);
+      }
+    });
+  }
+}
+
+export function handleCategoryGroupChange(months, oldValue, newValue) {
+  function addDeps(sheetName, groupId) {
+    sheet
+      .get()
+      .addDependencies(sheetName, 'total-budgeted', [
+        `group-budget-${groupId}`,
+      ]);
+    sheet
+      .get()
+      .addDependencies(sheetName, 'total-spent', [
+        `group-sum-amount-${groupId}`,
+      ]);
+    sheet
+      .get()
+      .addDependencies(sheetName, 'total-leftover', [
+        `group-leftover-${groupId}`,
+      ]);
+  }
+
+  function removeDeps(sheetName, groupId) {
+    sheet
+      .get()
+      .removeDependencies(sheetName, 'total-budgeted', [
+        `group-budget-${groupId}`,
+      ]);
+    sheet
+      .get()
+      .removeDependencies(sheetName, 'total-spent', [
+        `group-sum-amount-${groupId}`,
+      ]);
+    sheet
+      .get()
+      .removeDependencies(sheetName, 'total-leftover', [
+        `group-leftover-${groupId}`,
+      ]);
+  }
+
+  if (newValue.tombstone === 1 && oldValue && oldValue.tombstone === 0) {
+    const id = newValue.id;
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+      removeDeps(sheetName, id);
+    });
+  } else if (
+    newValue.tombstone === 0 &&
+    (!oldValue || oldValue.tombstone === 1)
+  ) {
+    const group = newValue;
+
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+
+      // Dirty, dirty hack. These functions should not be async, but this is
+      // OK because we're leveraging the sync nature of queries. Ideally we
+      // wouldn't be querying here. But I think we have to. At least for now
+      // we do
+      const categories = db.runQuery(
+        'SELECT * FROM categories WHERE tombstone = 0 AND cat_group = ?',
+        [group.id],
+        true,
+      );
+      createCategoryGroup({ ...group, categories }, sheetName);
+
+      addDeps(sheetName, group.id);
+    });
+  } else if (oldValue && oldValue.hidden !== newValue.hidden) {
+    const group = newValue;
+
+    months.forEach(month => {
+      const sheetName = monthUtils.sheetForMonth(month);
+      if (newValue.hidden) {
+        removeDeps(sheetName, group.id);
+      } else {
+        addDeps(sheetName, group.id);
+      }
+    });
+  }
+}

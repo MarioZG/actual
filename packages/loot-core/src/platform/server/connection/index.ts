@@ -1,9 +1,10 @@
+import { captureException } from '#platform/exceptions';
+import { logger } from '#platform/server/log';
 // @ts-strict-ignore
-import { APIError } from '../../../server/errors';
-import { runHandler, isMutating } from '../../../server/mutators';
-import { captureException } from '../../exceptions';
+import { APIError } from '#server/errors';
+import { isMutating, runHandler } from '#server/mutators';
 
-import type * as T from './index.d';
+import type * as T from './index-types';
 
 function getGlobalObject() {
   const obj =
@@ -27,7 +28,7 @@ function coerceError(error) {
     return error;
   }
 
-  return { type: 'InternalError', message: error.message };
+  return { type: 'ServerError', message: error.message, cause: error };
 }
 
 export const init: T.Init = function (serverChn, handlers) {
@@ -46,7 +47,7 @@ export const init: T.Init = function (serverChn, handlers) {
 
       if (msg.name === 'client-connected-to-backend') {
         // the client is indicating that it is connected to this backend. Stop attempting to connect
-        console.info('Backend: Client connected');
+        logger.info('Backend: Client connected');
         clearInterval(reconnectToClientInterval);
         return;
       }
@@ -78,11 +79,11 @@ export const init: T.Init = function (serverChn, handlers) {
                 result: { error, data: null },
               });
             } else {
-              serverChannel.postMessage({ type: 'error', id });
+              serverChannel.postMessage({ type: 'error', id, error });
             }
 
             // Only report internal errors
-            if (error.type === 'InternalError') {
+            if (error.type === 'ServerError') {
               captureException(nativeError);
             }
 
@@ -93,13 +94,23 @@ export const init: T.Init = function (serverChn, handlers) {
           },
         );
       } else {
-        console.warn('Unknown method: ' + name);
-        serverChannel.postMessage({
-          type: 'reply',
-          id,
-          result: null,
-          error: APIError('Unknown method: ' + name),
-        });
+        logger.error('Unknown server method: ' + name);
+        captureException(new Error('Unknown server method: ' + name));
+        const unknownMethodError = APIError('Unknown server method: ' + name);
+
+        if (catchErrors) {
+          serverChannel.postMessage({
+            type: 'reply',
+            id,
+            result: { error: unknownMethodError, data: null },
+          });
+        } else {
+          serverChannel.postMessage({
+            type: 'error',
+            id,
+            error: unknownMethodError,
+          });
+        }
       }
     },
     false,
@@ -110,7 +121,7 @@ export const init: T.Init = function (serverChn, handlers) {
   let reconnectAttempts = 0;
 
   const reconnectToClientInterval = setInterval(() => {
-    console.info('Backend: Trying to connect to client');
+    logger.info('Backend: Trying to connect to client');
     serverChannel.postMessage({ type: 'connect' });
     reconnectAttempts++;
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -136,4 +147,6 @@ export const getNumClients = function () {
   return 1;
 };
 
-export const resetEvents: T.ResetEvents = function () {};
+export const resetEvents: T.ResetEvents = function () {
+  // resetEvents is used in tests to mock the server
+};

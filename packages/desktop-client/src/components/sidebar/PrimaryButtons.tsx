@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 import {
   SvgCheveronDown,
@@ -9,13 +9,15 @@ import {
   SvgCreditCard,
   SvgReports,
   SvgStoreFront,
+  SvgTag,
   SvgTuning,
   SvgWallet,
 } from '@actual-app/components/icons/v1';
 import { SvgCalendar3 } from '@actual-app/components/icons/v2';
 import { View } from '@actual-app/components/view';
 
-import { useSyncServerStatus } from '../../hooks/useSyncServerStatus';
+import { useIsTestEnv } from '#hooks/useIsTestEnv';
+import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
 
 import { Item } from './Item';
 import { SecondaryItem } from './SecondaryItem';
@@ -27,7 +29,8 @@ export function PrimaryButtons() {
   const location = useLocation();
 
   const syncServerStatus = useSyncServerStatus();
-  const isUsingServer = syncServerStatus !== 'no-server';
+  const isTestEnv = useIsTestEnv();
+  const isUsingServer = syncServerStatus !== 'no-server' || isTestEnv;
 
   const isActive = [
     '/payees',
@@ -77,6 +80,12 @@ export function PrimaryButtons() {
               indent={15}
             />
           )}
+          <SecondaryItem
+            title={t('Tags')}
+            Icon={SvgTag}
+            to="/tags"
+            indent={15}
+          />
           <SecondaryItem
             title={t('Settings')}
             Icon={SvgCog}

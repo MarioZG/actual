@@ -3,12 +3,11 @@ import { Trans } from 'react-i18next';
 
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { Text } from '@actual-app/components/text';
+import { send } from '@actual-app/core/platform/client/connection';
 
-import { resetSync } from 'loot-core/client/app/appSlice';
-import { send } from 'loot-core/platform/client/fetch';
-
-import { useMetadataPref } from '../../hooks/useMetadataPref';
-import { useDispatch } from '../../redux';
+import { resetSync } from '#app/appSlice';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useDispatch } from '#redux';
 
 import { Setting } from './UI';
 
@@ -34,7 +33,7 @@ export function ResetCache() {
           <strong>Reset budget cache</strong> will clear all cached values for
           the budget and recalculate the entire budget. All values in the budget
           are cached for performance reasons, and if there is a bug in the cache
-          you won’t see correct values. There is no danger in resetting the
+          you won't see correct values. There is no danger in resetting the
           cache. Hopefully you never have to do this.
         </Trans>
       </Text>
@@ -81,6 +80,7 @@ export function ResetSync() {
         <Text>
           <Trans>
             <strong>Reset sync</strong> is only available when syncing is
+            enabled.
           </Trans>
         </Text>
       )}

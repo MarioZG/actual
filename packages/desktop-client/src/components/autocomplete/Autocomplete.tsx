@@ -1,14 +1,10 @@
 // @ts-strict-ignore
-import React, {
-  type ChangeEvent,
-  type ComponentProps,
-  type HTMLProps,
-  type KeyboardEvent,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  ComponentProps,
+  HTMLProps,
+  KeyboardEvent,
+  ReactNode,
 } from 'react';
 
 import { Button } from '@actual-app/components/button';
@@ -18,22 +14,20 @@ import { Input } from '@actual-app/components/input';
 import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
-import { View } from '@actual-app/components/view';
+import { View, viewStyles } from '@actual-app/components/view';
+import { getNormalisedString } from '@actual-app/core/shared/normalisation';
 import { css, cx } from '@emotion/css';
-import Downshift, { type StateChangeTypes } from 'downshift';
+import Downshift from 'downshift';
+import type { StateChangeTypes } from 'downshift';
 
-import { getNormalisedString } from 'loot-core/shared/normalisation';
+import { useProperFocus } from '#hooks/useProperFocus';
 
-import { useProperFocus } from '../../hooks/useProperFocus';
-
-type CommonAutocompleteProps<T extends Item> = {
+type CommonAutocompleteProps<T extends AutocompleteItem> = {
   focused?: boolean;
   embedded?: boolean;
   containerProps?: HTMLProps<HTMLDivElement>;
   labelProps?: { id?: string };
-  inputProps?: Omit<ComponentProps<typeof Input>, 'onChange'> & {
-    onChange?: (value: string) => void;
-  };
+  inputProps?: ComponentProps<typeof Input>;
   suggestions?: T[];
   renderInput?: (props: ComponentProps<typeof Input>) => ReactNode;
   renderItems?: (
@@ -54,17 +48,18 @@ type CommonAutocompleteProps<T extends Item> = {
   clearOnSelect?: boolean;
   closeOnBlur?: boolean;
   closeOnSelect?: boolean;
+  updateOnValueChange?: boolean;
   onClose?: () => void;
 };
 
-type Item = {
+export type AutocompleteItem = {
   id?: string;
   name: string;
 };
 
 const inst: { lastChangeType?: StateChangeTypes } = {};
 
-function findItem<T extends Item>(
+function findItem<T extends AutocompleteItem>(
   strict: boolean,
   suggestions: T[],
   value: T | T['id'],
@@ -77,7 +72,9 @@ function findItem<T extends Item>(
   return value;
 }
 
-function getItemName<T extends Item>(item: T | T['name'] | null): string {
+function getItemName<T extends AutocompleteItem>(
+  item: T | T['name'] | null,
+): string {
   if (item == null) {
     return '';
   } else if (typeof item === 'string') {
@@ -86,14 +83,14 @@ function getItemName<T extends Item>(item: T | T['name'] | null): string {
   return item.name || '';
 }
 
-function getItemId<T extends Item>(item: T | T['id']) {
+function getItemId<T extends AutocompleteItem>(item: T | NonNullable<T['id']>) {
   if (typeof item === 'string') {
     return item;
   }
   return item ? item.id : null;
 }
 
-export function defaultFilterSuggestion<T extends Item>(
+export function defaultFilterSuggestion<T extends AutocompleteItem>(
   suggestion: T,
   value: string,
 ) {
@@ -101,7 +98,7 @@ export function defaultFilterSuggestion<T extends Item>(
   return getNormalisedString(name).includes(getNormalisedString(value));
 }
 
-function defaultFilterSuggestions<T extends Item>(
+function defaultFilterSuggestions<T extends AutocompleteItem>(
   suggestions: T[],
   value: string,
 ) {
@@ -110,7 +107,7 @@ function defaultFilterSuggestions<T extends Item>(
   );
 }
 
-function fireUpdate<T extends Item>(
+function fireUpdate<T extends AutocompleteItem>(
   onUpdate: ((selected: string | null, value: string) => void) | undefined,
   strict: boolean,
   suggestions: T[],
@@ -146,7 +143,7 @@ function defaultRenderInput(props: ComponentProps<typeof Input>) {
   return <Input data-1p-ignore {...props} />;
 }
 
-function defaultRenderItems<T extends Item>(
+function defaultRenderItems<T extends AutocompleteItem>(
   items: T[],
   getItemProps: (arg: { item: T }) => ComponentProps<typeof View>,
   highlightedIndex: number,
@@ -157,6 +154,7 @@ function defaultRenderItems<T extends Item>(
         const name = getItemName(item);
         return (
           <div
+            key={name}
             {...getItemProps({ item })}
             // Downshift calls `setTimeout(..., 250)` in the `onMouseMove`
             // event handler they set on this element. When this code runs
@@ -179,8 +177,8 @@ function defaultRenderItems<T extends Item>(
             // * https://github.com/WebKit/WebKit/blob/447d90b0c52b2951a69df78f06bb5e6b10262f4b/LayoutTests/fast/events/touch/ios/content-observation/400ms-hover-intent.html
             // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebCore/page/ios/ContentChangeObserver.cpp
             // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebKit/WebProcess/WebPage/ios/WebPageIOS.mm#L783
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
             role="button"
-            key={name}
             className={css({
               padding: 5,
               cursor: 'default',
@@ -202,17 +200,18 @@ function defaultShouldSaveFromKey(e: KeyboardEvent) {
   return e.code === 'Enter';
 }
 
-function defaultItemToString<T extends Item>(item?: T) {
+function defaultItemToString<T extends AutocompleteItem>(item?: T) {
   return item ? getItemName(item) : '';
 }
 
-type SingleAutocompleteProps<T extends Item> = CommonAutocompleteProps<T> & {
-  type?: 'single' | never;
-  onSelect: (id: T['id'], value: string) => void;
-  value: null | T | T['id'];
-};
+type SingleAutocompleteProps<T extends AutocompleteItem> =
+  CommonAutocompleteProps<T> & {
+    type?: 'single' | never;
+    onSelect: (id: T['id'], value: string) => void;
+    value: null | T | T['id'];
+  };
 
-function SingleAutocomplete<T extends Item>({
+function SingleAutocomplete<T extends AutocompleteItem>({
   focused,
   embedded = false,
   containerProps,
@@ -234,6 +233,7 @@ function SingleAutocomplete<T extends Item>({
   clearOnSelect = false,
   closeOnBlur = true,
   closeOnSelect = !clearOnSelect,
+  updateOnValueChange = false,
   onClose,
   value: initialValue,
 }: SingleAutocompleteProps<T>) {
@@ -251,21 +251,43 @@ function SingleAutocomplete<T extends Item>({
   );
   const [highlightedIndex, setHighlightedIndex] = useState(null);
   const [isOpen, setIsOpen] = useState(embedded);
-  const open = () => setIsOpen(true);
+  const [allowOpening, setAllowOpening] = useState(true);
+  useEffect(() => {
+    // without this logic, leaving the window and returning will always reopen the
+    // dropdown, which makes a poor user experience, especially when clicking into the window.
+    // You will find that the dropdown is "invisible" but reappears instantly, resulting in clicking
+    // on the "ghost" dropdown's first option
+    const setAllowOpenChange = () => setTimeout(() => setAllowOpening(true));
+    window.addEventListener('focus', setAllowOpenChange);
+    const setDontAllowOpenChange = () => setAllowOpening(false);
+    window.addEventListener('blur', setDontAllowOpenChange);
+    return () => {
+      window.removeEventListener('focus', setAllowOpenChange);
+      window.removeEventListener('blur', setDontAllowOpenChange);
+    };
+  }, []);
+  const open = () => {
+    if (allowOpening) {
+      setIsOpen(true);
+    }
+  };
   const close = () => {
-    setIsOpen(false);
-    onClose?.();
+    if (document.hasFocus()) {
+      setIsOpen(false);
+      onClose?.();
+    }
   };
 
   const triggerRef = useRef(null);
   const itemsViewRef = useRef(null);
 
   const { isNarrowWidth } = useResponsive();
-  const narrowInputStyle = isNarrowWidth
-    ? {
-        ...styles.mobileMenuItem,
-      }
-    : {};
+  const narrowInputStyle =
+    embedded && isNarrowWidth
+      ? {
+          ...styles.mobileMenuItem,
+        }
+      : {};
 
   inputProps = {
     ...inputProps,
@@ -280,6 +302,16 @@ function SingleAutocomplete<T extends Item>({
   useEffect(() => {
     setSelectedItem(findItem(strict, suggestions, initialValue));
   }, [initialValue, suggestions, strict]);
+
+  // Sometimes (khem, khem.. on mobile) we want to force update
+  // the "value" field (which is also used as a search term) if
+  // the initial value changes.
+  useEffect(() => {
+    if (updateOnValueChange) {
+      const item = findItem(strict, suggestions, initialValue);
+      setValue(item ? getItemName(item) : '');
+    }
+  }, [strict, suggestions, initialValue, updateOnValueChange]);
 
   function resetState(newValue?: string) {
     const val = newValue === undefined ? initialValue : newValue;
@@ -450,176 +482,190 @@ function SingleAutocomplete<T extends Item>({
         isOpen,
         inputValue,
         highlightedIndex,
-      }) => (
-        // Super annoying but it works best to return a div so we
-        // can't use a View here, but we can fake it be using the
-        // className
-        <div
-          className={cx('view', css({ display: 'flex' }))}
-          {...containerProps}
-        >
-          <View ref={triggerRef} style={{ flexShrink: 0 }}>
-            {renderInput(
-              getInputProps({
-                inputRef,
-                ...inputProps,
-                onFocus: e => {
-                  inputProps.onFocus?.(e);
+      }) => {
+        const wrappedGetItemProps = itemProps => getItemProps({ ...itemProps });
+        return (
+          // Super annoying but it works best to return a div so we
+          // can't use a View here, but we can fake it be using the
+          // className
+          <div
+            className={cx(viewStyles, css({ display: 'flex' }))}
+            {...containerProps}
+          >
+            <View ref={triggerRef} style={{ flexShrink: 0 }}>
+              {renderInput(
+                (() => {
+                  const { className, style, ...restInputProps } =
+                    inputProps || {};
+                  const downshiftProps = getInputProps({
+                    ref: inputRef,
+                    ...restInputProps,
+                    onFocus: e => {
+                      inputProps.onFocus?.(e);
 
-                  if (openOnFocus) {
-                    open();
-                  }
-                },
-                onBlur: e => {
-                  // Should this be e.nativeEvent
-                  e['preventDownshiftDefault'] = true;
-                  inputProps.onBlur?.(e);
+                      if (openOnFocus) {
+                        open();
+                      }
+                    },
+                    onBlur: e => {
+                      // Should this be e.nativeEvent
+                      e['preventDownshiftDefault'] = true;
+                      inputProps.onBlur?.(e);
 
-                  if (!closeOnBlur) {
-                    return;
-                  }
+                      if (!closeOnBlur) {
+                        return;
+                      }
 
-                  if (itemsViewRef.current?.contains(e.relatedTarget)) {
-                    // Do not close when the user clicks on any of the items.
-                    e.stopPropagation();
-                    return;
-                  }
+                      if (itemsViewRef.current?.contains(e.relatedTarget)) {
+                        // Do not close when the user clicks on any of the items.
+                        e.stopPropagation();
+                        return;
+                      }
 
-                  if (clearOnBlur) {
-                    if (e.target.value === '') {
-                      onSelect?.(null, e.target.value);
-                      setSelectedItem(null);
-                      close();
-                      return;
-                    }
+                      if (clearOnBlur) {
+                        if (e.target.value === '') {
+                          onSelect?.(null, e.target.value);
+                          setSelectedItem(null);
+                          close();
+                          return;
+                        }
 
-                    // If not using table behavior, reset the input on blur. Tables
-                    // handle saving the value on blur.
-                    const value = selectedItem ? getItemId(selectedItem) : null;
+                        // If not using table behavior, reset the input on blur. Tables
+                        // handle saving the value on blur.
+                        const value = selectedItem
+                          ? getItemId(selectedItem)
+                          : null;
 
-                    resetState(value);
-                  } else {
-                    close();
-                  }
-                },
-                onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
-                  const { onKeyDown } = inputProps || {};
+                        resetState(value);
+                      } else {
+                        close();
+                      }
+                    },
+                    onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
+                      const { onKeyDown } = inputProps || {};
 
-                  // If the dropdown is open, an item is highlighted, and the user
-                  // pressed enter, always capture that and handle it ourselves
-                  if (isOpen) {
-                    if (e.key === 'Enter') {
-                      if (highlightedIndex != null) {
-                        if (
-                          inst.lastChangeType ===
-                          Downshift.stateChangeTypes.itemMouseEnter
-                        ) {
-                          // If the last thing the user did was hover an item, intentionally
-                          // ignore the default behavior of selecting the item. It's too
-                          // common to accidentally hover an item and then save it
+                      // If the dropdown is open, an item is highlighted, and the user
+                      // pressed enter, always capture that and handle it ourselves
+                      if (isOpen) {
+                        if (e.key === 'Enter') {
+                          if (highlightedIndex != null) {
+                            if (
+                              inst.lastChangeType ===
+                              Downshift.stateChangeTypes.itemMouseEnter
+                            ) {
+                              // If the last thing the user did was hover an item, intentionally
+                              // ignore the default behavior of selecting the item. It's too
+                              // common to accidentally hover an item and then save it
+                              e.preventDefault();
+                            } else {
+                              // Otherwise, stop propagation so that the table navigator
+                              // doesn't handle it
+                              e.stopPropagation();
+                            }
+                          } else if (!strict) {
+                            // Handle it ourselves
+                            e.stopPropagation();
+                            onSelect(
+                              value,
+                              (e.target as HTMLInputElement).value,
+                            );
+                            return onSelectAfter();
+                          } else {
+                            // No highlighted item, still allow the table to save the item
+                            // as `null`, even though we're allowing the table to move
+                            e.preventDefault();
+                            onKeyDown?.(e);
+                          }
+                        } else if (shouldSaveFromKey(e)) {
                           e.preventDefault();
-                        } else {
-                          // Otherwise, stop propagation so that the table navigator
-                          // doesn't handle it
+                          onKeyDown?.(e);
+                        }
+                      }
+
+                      // Handle escape ourselves
+                      if (e.key === 'Escape') {
+                        e.nativeEvent['preventDownshiftDefault'] = true;
+
+                        if (!embedded && isOpen) {
                           e.stopPropagation();
                         }
-                      } else if (!strict) {
-                        // Handle it ourselves
-                        e.stopPropagation();
-                        onSelect(value, (e.target as HTMLInputElement).value);
-                        return onSelectAfter();
-                      } else {
-                        // No highlighted item, still allow the table to save the item
-                        // as `null`, even though we're allowing the table to move
-                        e.preventDefault();
-                        onKeyDown?.(e);
+
+                        fireUpdate(
+                          onUpdate,
+                          strict,
+                          suggestions,
+                          null,
+                          getItemId(originalItem),
+                        );
+
+                        setValue(getItemName(originalItem));
+                        setSelectedItem(
+                          findItem(strict, suggestions, originalItem),
+                        );
+                        setHighlightedIndex(null);
+                        if (embedded) {
+                          open();
+                        } else {
+                          close();
+                        }
                       }
-                    } else if (shouldSaveFromKey(e)) {
-                      e.preventDefault();
-                      onKeyDown?.(e);
-                    }
-                  }
+                    },
+                  });
 
-                  // Handle escape ourselves
-                  if (e.key === 'Escape') {
-                    e.nativeEvent['preventDownshiftDefault'] = true;
-
-                    if (!embedded) {
-                      e.stopPropagation();
-                    }
-
-                    fireUpdate(
-                      onUpdate,
-                      strict,
-                      suggestions,
-                      null,
-                      getItemId(originalItem),
-                    );
-
-                    setValue(getItemName(originalItem));
-                    setSelectedItem(
-                      findItem(strict, suggestions, originalItem),
-                    );
-                    setHighlightedIndex(null);
-                    if (embedded) {
-                      open();
-                    } else {
-                      close();
-                    }
-                  }
-                },
-                onChange: (e: ChangeEvent<HTMLInputElement>) => {
-                  const { onChange } = inputProps || {};
-                  onChange?.(e.target.value);
-                },
-              }),
-            )}
-          </View>
-          {isOpen &&
-            filtered.length > 0 &&
-            (embedded ? (
-              <View
-                ref={itemsViewRef}
-                style={{ ...styles.darkScrollbar, marginTop: 5 }}
-                data-testid="autocomplete"
-              >
-                {renderItems(
-                  filtered,
-                  getItemProps,
-                  highlightedIndex,
-                  inputValue,
-                )}
-              </View>
-            ) : (
-              <Popover
-                triggerRef={triggerRef}
-                placement="bottom start"
-                offset={2}
-                isOpen={isOpen}
-                onOpenChange={close}
-                isNonModal
-                style={{
-                  ...styles.darkScrollbar,
-                  ...styles.popover,
-                  backgroundColor: theme.menuAutoCompleteBackground,
-                  color: theme.menuAutoCompleteText,
-                  minWidth: 200,
-                  width: triggerRef.current?.clientWidth,
-                }}
-                data-testid="autocomplete"
-              >
-                <View ref={itemsViewRef}>
+                  return {
+                    ...downshiftProps,
+                    ...(className && { className }),
+                    ...(style && { style }),
+                  };
+                })(),
+              )}
+            </View>
+            {isOpen &&
+              filtered.length > 0 &&
+              (embedded ? (
+                <View
+                  ref={itemsViewRef}
+                  style={{ ...styles.darkScrollbar, marginTop: 5 }}
+                  data-testid="autocomplete"
+                >
                   {renderItems(
                     filtered,
-                    getItemProps,
+                    wrappedGetItemProps,
                     highlightedIndex,
                     inputValue,
                   )}
                 </View>
-              </Popover>
-            ))}
-        </div>
-      )}
+              ) : (
+                <Popover
+                  triggerRef={triggerRef}
+                  placement="bottom start"
+                  offset={2}
+                  isOpen={isOpen}
+                  onOpenChange={close}
+                  isNonModal
+                  style={{
+                    ...styles.darkScrollbar,
+                    ...styles.popover,
+                    backgroundColor: theme.menuAutoCompleteBackground,
+                    color: theme.menuAutoCompleteText,
+                    minWidth: 200,
+                    width: triggerRef.current?.clientWidth,
+                  }}
+                  data-testid="autocomplete"
+                >
+                  <View ref={itemsViewRef}>
+                    {renderItems(
+                      filtered,
+                      wrappedGetItemProps,
+                      highlightedIndex,
+                      inputValue,
+                    )}
+                  </View>
+                </Popover>
+              ))}
+          </div>
+        );
+      }}
     </Downshift>
   );
 }
@@ -635,13 +681,24 @@ function MultiItem({ name, onRemove }: MultiItemProps) {
       style={{
         alignItems: 'center',
         flexDirection: 'row',
+        flexWrap: 'nowrap',
         backgroundColor: theme.pillBackgroundSelected,
         padding: '2px 4px',
         margin: '2px',
         borderRadius: 4,
       }}
     >
-      {name}
+      <span
+        style={{
+          overflow: 'hidden',
+          maxWidth: '100%',
+          textOverflow: 'ellipsis',
+          textWrap: 'nowrap',
+          display: 'inline-block',
+        }}
+      >
+        {name}
+      </span>
       <Button variant="bare" style={{ marginLeft: 1 }} onPress={onRemove}>
         <SvgRemove style={{ width: 8, height: 8 }} />
       </Button>
@@ -649,18 +706,28 @@ function MultiItem({ name, onRemove }: MultiItemProps) {
   );
 }
 
-type MultiAutocompleteProps<T extends Item> = CommonAutocompleteProps<T> & {
-  type: 'multi';
-  onSelect: (ids: T['id'][], id?: T['id']) => void;
-  value: null | T[] | T['id'][];
-};
+const defaultMultiAutocompleteInputClassName = css({
+  flex: 1,
+  minWidth: 30,
+  border: 0,
+  '&[data-focused]': { border: 0, boxShadow: 'none' },
+});
 
-function MultiAutocomplete<T extends Item>({
+type MultiAutocompleteProps<T extends AutocompleteItem> =
+  CommonAutocompleteProps<T> & {
+    type: 'multi';
+    onSelect: (ids: NonNullable<T['id']>[], id?: NonNullable<T['id']>) => void;
+    value: null | T[] | NonNullable<T['id']>[];
+    renderMultiItem?: (props: MultiItemProps) => ReactNode;
+  };
+
+function MultiAutocomplete<T extends AutocompleteItem>({
   value: selectedItems = [],
   onSelect,
   suggestions,
   strict,
   clearOnBlur = true,
+  renderMultiItem = MultiItem,
   ...props
 }: MultiAutocompleteProps<T>) {
   const [focused, setFocused] = useState(false);
@@ -691,20 +758,22 @@ function MultiAutocomplete<T extends Item>({
     prevOnKeyDown?.(e);
   }
 
+  const RenderMultiItem = renderMultiItem;
+
   return (
     <Autocomplete
       {...props}
       type="single"
       value={null}
       clearOnBlur={clearOnBlur}
-      clearOnSelect={true}
+      clearOnSelect
       suggestions={suggestions.filter(
         item => !selectedItemIds.includes(getItemId(item)),
       )}
       onSelect={onAddItem}
       highlightFirst
       strict={strict}
-      renderInput={inputProps => (
+      renderInput={({ className: inputClassName, ...inputProps }) => (
         <View
           style={{
             display: 'flex',
@@ -724,7 +793,7 @@ function MultiAutocomplete<T extends Item>({
             item = findItem(strict, suggestions, item);
             return (
               item && (
-                <MultiItem
+                <RenderMultiItem
                   key={getItemId(item) || idx}
                   name={getItemName(item)}
                   onRemove={() => onRemoveItem(getItemId(item))}
@@ -734,7 +803,7 @@ function MultiAutocomplete<T extends Item>({
           })}
           <Input
             {...inputProps}
-            inputRef={inputRef}
+            ref={inputRef}
             onKeyDown={e => onKeyDown(e, inputProps.onKeyDown)}
             onFocus={e => {
               setFocused(true);
@@ -744,13 +813,15 @@ function MultiAutocomplete<T extends Item>({
               setFocused(false);
               inputProps.onBlur(e);
             }}
-            style={{
-              flex: 1,
-              minWidth: 30,
-              border: 0,
-              ':focus': { border: 0, boxShadow: 'none' },
-              ...inputProps.style,
-            }}
+            className={
+              typeof inputClassName === 'function'
+                ? renderProps =>
+                    cx(
+                      defaultMultiAutocompleteInputClassName,
+                      inputClassName(renderProps),
+                    )
+                : cx(defaultMultiAutocompleteInputClassName, inputClassName)
+            }
           />
         </View>
       )}
@@ -785,11 +856,11 @@ export function AutocompleteFooter({
   );
 }
 
-type AutocompleteProps<T extends Item> =
+type AutocompleteProps<T extends AutocompleteItem> =
   | ComponentProps<typeof SingleAutocomplete<T>>
   | ComponentProps<typeof MultiAutocomplete<T>>;
 
-export function Autocomplete<T extends Item>({
+export function Autocomplete<T extends AutocompleteItem>({
   ...props
 }: AutocompleteProps<T>) {
   if (props.type === 'multi') {

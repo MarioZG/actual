@@ -1,9 +1,10 @@
 // @ts-strict-ignore
 import * as d from 'date-fns';
+import type { Locale } from 'date-fns';
 import memoizeOne from 'memoize-one';
 
-import * as Platform from '../client/platform';
-import { type SyncedPrefs } from '../types/prefs';
+import * as Platform from '#shared/platform';
+import type { SyncedPrefs } from '#types/prefs';
 
 type DateLike = string | Date;
 type Day = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -89,6 +90,13 @@ export function monthFromDate(date: DateLike): string {
   return d.format(_parse(date), 'yyyy-MM');
 }
 
+export function isValidYearMonth(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12;
+}
+
 export function weekFromDate(
   date: DateLike,
   firstDayOfWeekIdx: SyncedPrefs['firstDayOfWeekIdx'],
@@ -162,8 +170,8 @@ export function nextMonth(month: DateLike): string {
   return d.format(d.addMonths(_parse(month), 1), 'yyyy-MM');
 }
 
-export function prevYear(month: DateLike): string {
-  return d.format(d.subMonths(_parse(month), 12), 'yyyy-MM');
+export function prevYear(month: DateLike, format = 'yyyy-MM'): string {
+  return d.format(d.subMonths(_parse(month), 12), format);
 }
 
 export function prevMonth(month: DateLike): string {
@@ -226,6 +234,10 @@ export function isAfter(month1: DateLike, month2: DateLike): boolean {
 
 export function isCurrentMonth(month: DateLike): boolean {
   return month === currentMonth();
+}
+
+export function isCurrentDay(day: DateLike): boolean {
+  return day === currentDay();
 }
 
 // TODO: This doesn't really fit in this module anymore, should
@@ -394,7 +406,7 @@ export function sheetForMonth(month: string): string {
 }
 
 export function nameForMonth(month: DateLike, locale?: Locale): string {
-  return d.format(_parse(month), 'MMMM ‘yy', { locale });
+  return d.format(_parse(month), "MMMM ''yy", { locale });
 }
 
 export function format(
@@ -403,6 +415,18 @@ export function format(
   locale?: Locale,
 ): string {
   return d.format(_parse(month), format, { locale });
+}
+
+export function formatDistance(
+  date1: DateLike,
+  date2: DateLike,
+  locale?: Locale,
+  options?: { addSuffix?: boolean; includeSeconds?: boolean },
+): string {
+  return d.formatDistance(_parse(date1), _parse(date2), {
+    locale,
+    ...options,
+  });
 }
 
 export const getDateFormatRegex = memoizeOne((format: string) => {

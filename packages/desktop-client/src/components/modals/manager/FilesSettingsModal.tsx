@@ -8,12 +8,11 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { loadAllFiles } from 'loot-core/client/budgets/budgetsSlice';
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-
-import { useGlobalPref } from '../../../hooks/useGlobalPref';
-import { useDispatch } from '../../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
+import { loadAllFiles } from '#budgetfiles/budgetfilesSlice';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 function FileLocationSettings() {
   const [documentDir, _setDocumentDirPref] = useGlobalPref('documentDir');
@@ -58,7 +57,7 @@ function FileLocationSettings() {
     >
       <Text>
         <Trans>
-          <strong>Actual’s data directory</strong>{' '}
+          <strong>Actual's data directory</strong>{' '}
           <small style={{ marginLeft: '0.5rem' }}>
             <i>where your files are stored</i>
           </small>
@@ -153,18 +152,20 @@ export function FilesSettingsModal() {
   const dispatch = useDispatch();
 
   function closeModal(close: () => void) {
-    dispatch(loadAllFiles());
+    void dispatch(loadAllFiles());
     close();
   }
 
   return (
     <Modal name="files-settings">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Settings')}
             rightContent={
-              <ModalCloseButton onPress={() => closeModal(close)} />
+              <ModalCloseButton
+                onPress={() => closeModal(() => state.close())}
+              />
             }
           />
           <View
@@ -186,7 +187,7 @@ export function FilesSettingsModal() {
                 fontSize: 14,
                 alignSelf: 'center',
               }}
-              onPress={() => closeModal(close)}
+              onPress={() => closeModal(() => state.close())}
             >
               <Trans>OK</Trans>
             </Button>

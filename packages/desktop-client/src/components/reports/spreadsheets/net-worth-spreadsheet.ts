@@ -1,20 +1,18 @@
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import { q } from '@actual-app/core/shared/query';
+import type {
+  AccountEntity,
+  RuleConditionEntity,
+} from '@actual-app/core/types/models';
 import * as d from 'date-fns';
+import type { Locale } from 'date-fns';
 import keyBy from 'lodash/keyBy';
 
-import { runQuery } from 'loot-core/client/query-helpers';
-import { type useSpreadsheet } from 'loot-core/client/SpreadsheetProvider';
-import { send } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
-import { q } from 'loot-core/shared/query';
-import {
-  integerToCurrency,
-  integerToAmount,
-  amountToInteger,
-} from 'loot-core/shared/util';
-import {
-  type AccountEntity,
-  type RuleConditionEntity,
-} from 'loot-core/types/models';
+import { ReportOptions } from '#components/reports/ReportOptions';
+import type { FormatType } from '#hooks/useFormat';
+import type { useSpreadsheet } from '#hooks/useSpreadsheet';
+import { aqlQuery } from '#queries/aqlQuery';
 
 type Balance = {
   date: string;
@@ -28,6 +26,9 @@ export function createSpreadsheet(
   conditions: RuleConditionEntity[] = [],
   conditionsOp: 'and' | 'or' = 'and',
   locale: Locale,
+  interval: string = 'Monthly',
+  firstDayOfWeekIdx: string = '0',
+  format: (value: unknown, type?: FormatType) => string,
 ) {
   return async (
     spreadsheet: ReturnType<typeof useSpreadsheet>,
@@ -38,20 +39,75 @@ export function createSpreadsheet(
     });
     const conditionsOpKey = conditionsOp === 'or' ? '$or' : '$and';
 
+    // Go back exactly one interval before the selected range start
+    // to get the correct starting balance for the first period
+    const rangeStart = d.parseISO(monthUtils.firstDayOfMonth(start));
+    let startDate: string;
+    if (interval === 'Daily') {
+      startDate = monthUtils.dayFromDate(d.subDays(rangeStart, 1));
+    } else if (interval === 'Weekly') {
+      startDate = monthUtils.weekFromDate(
+        d.subDays(rangeStart, 1),
+        firstDayOfWeekIdx,
+      );
+    } else {
+      // Monthly or yearly
+      startDate = monthUtils.firstDayOfMonth(monthUtils.prevMonth(start));
+    }
+
+    // If the earliest transaction is on or after the first day of the start
+    // month, the prior period lookback would be empty (all zeros). Skip it to
+    // avoid rendering an empty data point.
+    const earliestTransaction = await send('get-earliest-transaction');
+    if (
+      earliestTransaction &&
+      earliestTransaction.date >= monthUtils.firstDayOfMonth(start)
+    ) {
+      if (interval === 'Daily') {
+        startDate = earliestTransaction.date;
+      } else if (interval === 'Weekly') {
+        startDate = monthUtils.weekFromDate(
+          earliestTransaction.date,
+          firstDayOfWeekIdx,
+        );
+      } else {
+        // Monthly or Yearly
+        startDate = monthUtils.firstDayOfMonth(start);
+      }
+    }
+
+    // Start with the provided end-of-month date, then adjust for current context
+    let endDate = monthUtils.lastDayOfMonth(end);
+
+    if (interval === 'Daily') {
+      const today = monthUtils.currentDay();
+      if (monthUtils.isAfter(endDate, today)) {
+        endDate = today;
+      }
+    } else if (interval === 'Weekly') {
+      // Include the ongoing (current) week up to today instead of clamping to the
+      // start of the current week. This ensures the current week appears in the
+      // report even if the week hasn't finished yet.
+      const today = monthUtils.currentDay();
+      if (monthUtils.isAfter(endDate, today)) {
+        endDate = today;
+      }
+    }
+
     const data = await Promise.all(
       accounts.map(async acct => {
         const [starting, balances]: [number, Balance[]] = await Promise.all([
-          runQuery(
+          aqlQuery(
             q('transactions')
               .filter({
                 [conditionsOpKey]: filters,
                 account: acct.id,
-                date: { $lt: monthUtils.firstDayOfMonth(start) },
+                date: { $lt: startDate },
               })
               .calculate({ $sum: '$amount' }),
           ).then(({ data }) => data),
 
-          runQuery(
+          aqlQuery(
             q('transactions')
               .filter({
                 [conditionsOpKey]: filters,
@@ -59,52 +115,115 @@ export function createSpreadsheet(
               .filter({
                 account: acct.id,
                 $and: [
-                  { date: { $gte: monthUtils.firstDayOfMonth(start) } },
-                  { date: { $lte: monthUtils.lastDayOfMonth(end) } },
+                  { date: { $gte: startDate } },
+                  { date: { $lte: endDate } },
                 ],
               })
-              .groupBy({ $month: '$date' })
+              .groupBy(
+                interval === 'Yearly'
+                  ? { $year: '$date' }
+                  : interval === 'Daily' || interval === 'Weekly'
+                    ? 'date'
+                    : { $month: '$date' },
+              )
               .select([
-                { date: { $month: '$date' } },
+                {
+                  date:
+                    interval === 'Yearly'
+                      ? { $year: '$date' }
+                      : interval === 'Daily' || interval === 'Weekly'
+                        ? 'date'
+                        : { $month: '$date' },
+                },
                 { amount: { $sum: '$amount' } },
               ]),
           ).then(({ data }) => data),
         ]);
 
+        // For weekly intervals, transform dates to week format and properly aggregate
+        let processedBalances: Record<string, Balance>;
+        if (interval === 'Weekly') {
+          // Group transactions by week and sum their amounts
+          const weeklyBalances: Record<string, number> = {};
+          balances.forEach(b => {
+            const weekDate = monthUtils.weekFromDate(b.date, firstDayOfWeekIdx);
+            weeklyBalances[weekDate] =
+              (weeklyBalances[weekDate] || 0) + b.amount;
+          });
+
+          // Convert back to Balance format
+          processedBalances = {};
+          Object.entries(weeklyBalances).forEach(([date, amount]) => {
+            processedBalances[date] = { date, amount };
+          });
+        } else {
+          processedBalances = keyBy(balances, 'date');
+        }
+
         return {
           id: acct.id,
-          balances: keyBy(balances, 'date'),
+          name: acct.name,
+          balances: processedBalances,
           starting,
         };
       }),
     );
 
-    setData(recalculate(data, start, end, locale));
+    setData(
+      recalculate(
+        data,
+        startDate,
+        endDate,
+        locale,
+        interval,
+        firstDayOfWeekIdx,
+        format,
+      ),
+    );
   };
 }
 
 function recalculate(
   data: Array<{
     id: string;
+    name: string;
     balances: Record<string, Balance>;
     starting: number;
   }>,
-  start: string,
-  end: string,
+  startDate: string,
+  endDate: string,
   locale: Locale,
+  interval: string = 'Monthly',
+  firstDayOfWeekIdx: string = '0',
+  format: (value: unknown, type?: FormatType) => string,
 ) {
-  const months = monthUtils.rangeInclusive(start, end);
+  // Get intervals using the same pattern as other working spreadsheets
+  const intervals =
+    interval === 'Weekly'
+      ? monthUtils.weekRangeInclusive(startDate, endDate, firstDayOfWeekIdx)
+      : interval === 'Daily'
+        ? monthUtils.dayRangeInclusive(startDate, endDate)
+        : interval === 'Yearly'
+          ? monthUtils.yearRangeInclusive(startDate, endDate)
+          : monthUtils.rangeInclusive(
+              monthUtils.getMonth(startDate),
+              monthUtils.getMonth(endDate),
+            );
 
   const accountBalances = data.map(account => {
-    // Start off with the balance at that point in time
     let balance = account.starting;
-    return months.map(month => {
-      if (account.balances[month]) {
-        balance += account.balances[month].amount;
+    return intervals.map(intervalItem => {
+      if (account.balances[intervalItem]) {
+        balance += account.balances[intervalItem].amount;
       }
       return balance;
     });
   });
+
+  const priorPeriodNetWorth = data.reduce(
+    (sum, account) => sum + account.starting,
+    0,
+  );
 
   let hasNegative = false;
   let startNetWorth = 0;
@@ -112,7 +231,7 @@ function recalculate(
   let lowestNetWorth: number | null = null;
   let highestNetWorth: number | null = null;
 
-  const graphData = months.reduce<
+  const graphData = intervals.reduce<
     Array<{
       x: string;
       y: number;
@@ -122,14 +241,17 @@ function recalculate(
       networth: string;
       date: string;
     }>
-  >((arr, month, idx) => {
+  >((arr, intervalItem, idx) => {
     let debt = 0;
     let assets = 0;
     let total = 0;
     const last = arr.length === 0 ? null : arr[arr.length - 1];
 
-    accountBalances.forEach(balances => {
-      const balance = balances[idx];
+    const balances: Record<string, number> = {};
+    accountBalances.forEach((acctBalances, i) => {
+      const balance = acctBalances[idx];
+      balances[data[i].id] = balance;
+
       if (balance < 0) {
         debt += -balance;
       } else {
@@ -142,45 +264,77 @@ function recalculate(
       hasNegative = true;
     }
 
-    const x = d.parseISO(month + '-01');
-    const change = last ? total - amountToInteger(last.y) : 0;
+    // Parse dates based on interval type - following the working pattern
+    let x: Date;
+    if (interval === 'Daily' || interval === 'Weekly') {
+      x = d.parseISO(intervalItem);
+    } else if (interval === 'Yearly') {
+      x = d.parseISO(intervalItem + '-01-01');
+    } else {
+      x = d.parseISO(intervalItem + '-01');
+    }
+
+    const change = last ? total - last.y : total - priorPeriodNetWorth;
 
     if (arr.length === 0) {
       startNetWorth = total;
     }
     endNetWorth = total;
 
-    arr.push({
-      x: d.format(x, 'MMM ’yy', { locale }),
-      y: integerToAmount(total),
-      assets: integerToCurrency(assets),
-      debt: `-${integerToCurrency(debt)}`,
-      change: integerToCurrency(change),
-      networth: integerToCurrency(total),
-      date: d.format(x, 'MMMM yyyy', { locale }),
-    });
+    // Use standardized format from ReportOptions
+    const displayFormat =
+      ReportOptions.intervalFormat.get(interval) ?? "MMM ''yy";
 
-    arr.forEach(item => {
-      if (lowestNetWorth === null || item.y < lowestNetWorth) {
-        lowestNetWorth = item.y;
-      }
-      if (highestNetWorth === null || item.y > highestNetWorth) {
-        highestNetWorth = item.y;
-      }
-    });
+    const tooltipFormat =
+      interval === 'Daily'
+        ? 'MMMM d, yyyy'
+        : interval === 'Weekly'
+          ? 'MMM d, yyyy'
+          : interval === 'Yearly'
+            ? 'yyyy'
+            : 'MMMM yyyy';
+
+    const graphPoint = {
+      x: d.format(x, displayFormat, { locale }),
+      y: total,
+      assets: format(assets, 'financial'),
+      debt: `-${format(debt, 'financial')}`,
+      change: format(change, 'financial'),
+      networth: format(total, 'financial'),
+      date: d.format(x, tooltipFormat, { locale }),
+      ...balances,
+    };
+
+    arr.push(graphPoint);
+
+    // Track min/max for the current point only
+    if (lowestNetWorth === null || graphPoint.y < lowestNetWorth) {
+      lowestNetWorth = graphPoint.y;
+    }
+    if (highestNetWorth === null || graphPoint.y > highestNetWorth) {
+      highestNetWorth = graphPoint.y;
+    }
+
     return arr;
   }, []);
+
+  const hasBalance = accountBalances.map(balances =>
+    balances.some(b => b !== 0),
+  );
 
   return {
     graphData: {
       data: graphData,
       hasNegative,
-      start,
-      end,
+      start: startDate,
+      end: endDate,
     },
     netWorth: endNetWorth,
     totalChange: endNetWorth - startNetWorth,
     lowestNetWorth,
     highestNetWorth,
+    accounts: data
+      .filter((_, i) => hasBalance[i])
+      .map(d => ({ id: d.id, name: d.name })),
   };
 }

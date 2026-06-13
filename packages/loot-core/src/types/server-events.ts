@@ -1,5 +1,5 @@
-import { type Backup } from '../server/budgetfiles/backups';
-import { type UndoState } from '../server/undo';
+import type { Backup } from '#server/budgetfiles/backups';
+import type { UndoState } from '#server/undo';
 
 type SyncSubtype =
   | 'out-of-sync'
@@ -53,6 +53,7 @@ type CellsChangedEvent = Array<{
 type FallbackWriteErrorEvent = undefined;
 type FinishImportEvent = undefined;
 type FinishLoadEvent = undefined;
+type IndexeddbQuotaErrorEvent = undefined;
 
 type OrphanedPayeesEvent = {
   orphanedIds: string[];
@@ -67,12 +68,13 @@ type StartImportEvent = { budgetName: string };
 type StartLoadEvent = undefined;
 type ApiFetchRedirectedEvent = undefined;
 
-export interface ServerEvents {
+export type ServerEvents = {
   'backups-updated': BackupUpdatedEvent;
   'cells-changed': CellsChangedEvent;
   'fallback-write-error': FallbackWriteErrorEvent;
   'finish-import': FinishImportEvent;
   'finish-load': FinishLoadEvent;
+  'indexeddb-quota-error': IndexeddbQuotaErrorEvent;
   'orphaned-payees': OrphanedPayeesEvent;
   'prefs-updated': PrefsUpdatedEvent;
   'schedules-offline': SchedulesOfflineEvent;
@@ -83,4 +85,4 @@ export interface ServerEvents {
   'sync-event': SyncEvent;
   'undo-event': UndoState;
   'api-fetch-redirected': ApiFetchRedirectedEvent;
-}
+};

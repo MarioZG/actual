@@ -9,11 +9,10 @@ import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { importBudget } from 'loot-core/client/budgets/budgetsSlice';
-
-import { useNavigate } from '../../../hooks/useNavigate';
-import { useDispatch } from '../../../redux';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
+import { importBudget } from '#budgetfiles/budgetfilesSlice';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { useNavigate } from '#hooks/useNavigate';
+import { useDispatch } from '#redux';
 
 function getErrorMessage(error: string): string {
   switch (error) {
@@ -41,7 +40,7 @@ export function ImportYNAB4Modal() {
       setError(null);
       try {
         await dispatch(importBudget({ filepath: res[0], type: 'ynab4' }));
-        navigate('/budget');
+        void navigate('/budget');
       } catch (err) {
         setError(err.message);
       } finally {
@@ -52,11 +51,11 @@ export function ImportYNAB4Modal() {
 
   return (
     <Modal name="import-ynab4" containerProps={{ style: { width: 400 } }}>
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Import from YNAB4')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ ...styles.smallText, lineHeight: 1.5, marginTop: 20 }}>
             {error && (
@@ -76,11 +75,11 @@ export function ImportYNAB4Modal() {
               </Paragraph>
               <Paragraph>
                 <Trans>
-                  When you’ve located your data,{' '}
+                  When you've located your data,{' '}
                   <strong>compress it into a zip file</strong>. On macOS,
-                  right-click the folder and select “Compress”. On Windows,
-                  right-click and select “Send to &rarr; Compressed (zipped)
-                  folder”. Upload the zipped folder for importing.
+                  right-click the folder and select "Compress". On Windows,
+                  right-click and select "Send to &rarr; Compressed (zipped)
+                  folder". Upload the zipped folder for importing.
                 </Trans>
               </Paragraph>
               <View>

@@ -7,13 +7,12 @@ import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-
-import { useGlobalPref } from '../../../hooks/useGlobalPref';
-import { useDispatch } from '../../../redux';
-import { Information } from '../../alerts';
-import { Modal, ModalCloseButton, ModalHeader } from '../../common/Modal';
-import { Checkbox } from '../../forms';
+import { Information } from '#components/alerts';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Checkbox } from '#components/forms';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
 
 function DirectoryDisplay({ directory }: { directory: string }) {
   return (
@@ -78,7 +77,7 @@ export function ConfirmChangeDocumentDirModal({
         addNotification({
           notification: {
             type: 'message',
-            message: t('Actual’s data directory successfully changed.'),
+            message: t("Actual's data directory successfully changed."),
           },
         }),
       );
@@ -97,11 +96,11 @@ export function ConfirmChangeDocumentDirModal({
 
   return (
     <Modal name="confirm-change-document-dir">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Are you sure?')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -127,7 +126,7 @@ export function ConfirmChangeDocumentDirModal({
             >
               <Text>
                 <Trans>
-                  You are about to change Actual’s data directory from:
+                  You are about to change Actual's data directory from:
                 </Trans>
               </Text>
               <DirectoryDisplay directory={currentBudgetDirectory} />
@@ -165,7 +164,7 @@ export function ConfirmChangeDocumentDirModal({
               {!moveFiles && (
                 <Information style={{ padding: 0 }}>
                   <Trans>
-                    Your files won’t be moved. You can manually move them to the
+                    Your files won't be moved. You can manually move them to the
                     folder.
                   </Trans>
                 </Information>
@@ -187,7 +186,7 @@ export function ConfirmChangeDocumentDirModal({
                   fontSize: 14,
                   alignSelf: 'center',
                 }}
-                onPress={close}
+                onPress={() => state.close()}
               >
                 <Trans>Cancel</Trans>
               </Button>
@@ -199,7 +198,7 @@ export function ConfirmChangeDocumentDirModal({
                   fontSize: 14,
                   alignSelf: 'center',
                 }}
-                onPress={() => moveDirectory(close)}
+                onPress={() => moveDirectory(() => state.close())}
               >
                 <Trans>Change directory</Trans>
               </ButtonWithLoading>

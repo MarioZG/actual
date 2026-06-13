@@ -1,8 +1,18 @@
 // @ts-strict-ignore
-import csvStringify from 'csv-stringify/lib/sync';
+import { stringify as csvStringify } from 'csv-stringify/sync';
 
-import { integerToAmount } from '../../../shared/util';
-import { runQuery as aqlQuery } from '../../aql';
+import { aqlQuery } from '#server/aql';
+import { integerToAmount } from '#shared/util';
+
+const FORMULA_TRIGGERS = /^[=+\-@\t\r]/;
+
+const csvStringifyOptions = {
+  header: true,
+  cast: {
+    string: (value: string) =>
+      FORMULA_TRIGGERS.test(value) ? "'" + value : value,
+  },
+};
 
 export async function exportToCSV(
   transactions,
@@ -53,7 +63,7 @@ export async function exportToCSV(
     }),
   );
 
-  return csvStringify(transactionsForExport, { header: true });
+  return csvStringify(transactionsForExport, csvStringifyOptions);
 }
 
 export async function exportQueryToCSV(query) {
@@ -69,6 +79,7 @@ export async function exportQueryToCSV(query) {
         { IsChild: 'is_child' },
         { SortOrder: 'sort_order' },
         { Notes: 'notes' },
+        { CategoryGroup: 'category.group.name' },
         { Category: 'category.name' },
         { Amount: 'amount' },
         { Cleared: 'cleared' },
@@ -110,6 +121,7 @@ export async function exportQueryToCSV(query) {
             ') ' +
             (trans.Notes || '')
           : trans.Notes,
+      Category_Group: trans.CategoryGroup,
       Category: trans.Category,
       Amount: trans.IsParent
         ? 0
@@ -126,5 +138,5 @@ export async function exportQueryToCSV(query) {
     };
   });
 
-  return csvStringify(transactionsForExport, { header: true });
+  return csvStringify(transactionsForExport, csvStringifyOptions);
 }

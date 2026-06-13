@@ -22,12 +22,22 @@ export type DbAccount = {
   subtype?: string | null;
   bank?: string | null;
   account_sync_source?: 'simpleFin' | 'goCardless' | null;
+  last_reconciled?: string | null;
+  last_sync?: string | null;
+  bank_sync_status?:
+    | 'ok'
+    | 'pending'
+    | 'sync-requested'
+    | 'failed'
+    | 'reauth-required'
+    | 'attention-required'
+    | null;
 };
 
 export type DbBank = {
   id: string;
   bank_id: string;
-  name: string;
+  name: string | null;
   tombstone: 1 | 0;
 };
 
@@ -39,6 +49,8 @@ export type DbCategory = {
   sort_order: number;
   hidden: 1 | 0;
   goal_def?: JsonString | null;
+  cleanup_def?: JsonString | null;
+  template_settings?: { source: 'notes' | 'ui' };
   tombstone: 1 | 0;
 };
 
@@ -48,6 +60,12 @@ export type DbCategoryGroup = {
   is_income: 1 | 0;
   sort_order: number;
   hidden: 1 | 0;
+  tombstone: 1 | 0;
+};
+
+export type DbCleanupGroup = {
+  id: string;
+  name: string;
   tombstone: 1 | 0;
 };
 
@@ -117,17 +135,17 @@ export type DbSchedule = {
   active: 1 | 0;
   completed: 1 | 0;
   posts_transaction: 1 | 0;
+  custom_upcoming_length: string | null;
   tombstone: 1 | 0;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type DbScheduleJsonPath = {
-  schedule_id: DbSchedule['id'];
-  payee: string;
-  account: string;
-  amount: string;
-  date: string;
-};
+// type DbScheduleJsonPath = {
+//   schedule_id: DbSchedule['id'];
+//   payee: string;
+//   account: string;
+//   amount: string;
+//   date: string;
+// };
 
 export type DbScheduleNextDate = {
   id: string;
@@ -139,14 +157,13 @@ export type DbScheduleNextDate = {
 };
 
 // This is unused in the codebase.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type DbPendingTransaction = {
-  id: string;
-  acct: number;
-  amount: number;
-  description: string;
-  date: string;
-};
+// type DbPendingTransaction = {
+//   id: string;
+//   acct: number;
+//   amount: number;
+//   description: string;
+//   date: string;
+// };
 
 export type DbTransaction = {
   id: string;
@@ -226,7 +243,7 @@ export type DbCustomReport = {
   show_empty: 1 | 0;
   show_offbudget: 1 | 0;
   show_hidden: 1 | 0;
-  show_uncateogorized: 1 | 0;
+  show_uncategorized: 1 | 0;
   selected_categories: string;
   graph_type: string;
   conditions: JsonString;
@@ -239,8 +256,15 @@ export type DbCustomReport = {
   tombstone: 1 | 0;
 };
 
+export type DbDashboardPage = {
+  id: string;
+  name: string;
+  tombstone: 1 | 0;
+};
+
 export type DbDashboard = {
   id: string;
+  dashboard_page_id: string;
   type: string;
   width: number;
   height: number;
@@ -284,6 +308,18 @@ export type DbViewCategory = {
   group: DbCategoryGroup['id'];
   sort_order: DbCategory['sort_order'];
   tombstone: DbCategory['tombstone'];
+  cleanup_def?: DbCategory['cleanup_def'];
+};
+
+export type DbViewCategoryWithGroupHidden = {
+  id: DbCategory['id'];
+  name: DbCategory['name'];
+  is_income: DbCategory['is_income'];
+  hidden: DbCategory['hidden'];
+  group: DbCategoryGroup['id'];
+  group_hidden: DbCategoryGroup['hidden'];
+  sort_order: DbCategory['sort_order'];
+  tombstone: DbCategory['tombstone'];
 };
 
 export type DbViewPayee = {
@@ -304,6 +340,7 @@ export type DbViewSchedule = {
   active: DbSchedule['active'];
   completed: DbSchedule['completed'];
   posts_transaction: DbSchedule['posts_transaction'];
+  custom_upcoming_length: DbSchedule['custom_upcoming_length'];
   tombstone: DbSchedule['tombstone'];
   _payee: DbPayeeMapping['targetId'];
   _account: DbAccount['id'];
@@ -312,4 +349,13 @@ export type DbViewSchedule = {
   _date: JsonString;
   _conditions: JsonString;
   _actions: JsonString;
+};
+
+export type DbTag = {
+  id: string;
+  tag: string;
+  color?: string | null;
+  description?: string | null;
+  tombstone: 1 | 0;
+  hidden?: 1 | 0;
 };

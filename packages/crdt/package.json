@@ -1,28 +1,53 @@
 {
   "name": "@actual-app/crdt",
-  "version": "2.1.0",
-  "license": "MIT",
+  "version": "3.0.0",
   "description": "CRDT layer of Actual",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/actualbudget/actual.git",
+    "directory": "packages/crdt"
+  },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/*.spec.d.ts",
+    "!dist/**/*.spec.d.ts.map"
   ],
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts"
+  },
   "scripts": {
-    "build:node": "tsc --p tsconfig.dist.json",
+    "build:node": "vite build",
     "proto:generate": "./bin/generate-proto",
-    "build": "rm -rf dist && yarn run build:node && cp src/proto/sync_pb.d.ts dist/src/proto/",
-    "test": "vitest --globals"
+    "build": "yarn run build:node && tsgo -b",
+    "test": "vitest --run",
+    "typecheck": "tsgo -b"
   },
   "dependencies": {
-    "google-protobuf": "^3.12.4",
+    "@bufbuild/protobuf": "^2.11.0",
     "murmurhash": "^2.0.1",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
-    "@types/uuid": "^9.0.8",
-    "ts-protoc-gen": "^0.15.0",
-    "typescript": "^5.8.2",
-    "vitest": "^3.0.2"
+    "@bufbuild/protoc-gen-es": "^2.11.0",
+    "@typescript/native-preview": "beta",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "vite": "^8.0.5",
+    "vitest": "^4.1.2"
   }
 }

@@ -1,48 +1,51 @@
 import fs from 'fs';
-import { createServer, Server } from 'http';
+import { createServer } from 'http';
+import type { Server } from 'http';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'path';
 
+import type { GlobalPrefsJson } from '@actual-app/core/types/prefs';
 import {
-  net,
   app,
-  ipcMain,
   BrowserWindow,
-  Menu,
   dialog,
-  shell,
+  ipcMain,
+  Menu,
+  net,
   powerMonitor,
   protocol,
+  shell,
   utilityProcess,
-  UtilityProcess,
-  OpenDialogSyncOptions,
-  SaveDialogOptions,
+} from 'electron';
+import type {
   Env,
   ForkOptions,
+  OpenDialogSyncOptions,
+  SaveDialogOptions,
+  UtilityProcess,
 } from 'electron';
-import { copy, exists, mkdir, remove } from 'fs-extra';
 import promiseRetry from 'promise-retry';
-
-import type { GlobalPrefsJson } from '../loot-core/src/types/prefs';
 
 import { getMenu } from './menu';
 import {
   get as getWindowState,
   listen as listenToWindowState,
 } from './window-state';
-
 import './security';
+
+const BUILD_ROOT = `${__dirname}/..`;
 
 const isPlaywrightTest = process.env.EXECUTION_CONTEXT === 'playwright';
 const isDev = !isPlaywrightTest && !app.isPackaged; // dev mode if not packaged and not playwright
 
 process.env.lootCoreScript = isDev
-  ? 'loot-core/lib-dist/electron/bundle.desktop.js' // serve from local output in development (provides hot-reloading)
-  : path.resolve(__dirname, 'loot-core/lib-dist/electron/bundle.desktop.js'); // serve from build in production
+  ? '@actual-app/core/lib-dist/electron/bundle.desktop.js' // serve from local output in development (provides hot-reloading)
+  : path.resolve(BUILD_ROOT, 'loot-core/lib-dist/electron/bundle.desktop.js'); // serve from build in production
 
 // This allows relative URLs to be resolved to app:// which makes
 // local assets load correctly
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { standard: true } },
+  { scheme: 'app', privileges: { standard: true, secure: true } },
 ]);
 
 if (isPlaywrightTest) {
@@ -81,7 +84,7 @@ const logMessage = (loglevel: 'info' | 'error', message: string) => {
     queuedClientWinLogs.push(`console.${loglevel}(${trimmedMessage})`);
   } else {
     // Send the queued up logs to the devtools console
-    clientWin.webContents.executeJavaScript(
+    void clientWin.webContents.executeJavaScript(
       `console.${loglevel}(${trimmedMessage})`,
     );
   }
@@ -103,9 +106,11 @@ const createOAuthServer = async () => {
       const code = query.get('token');
       if (code && clientWin) {
         if (isDev) {
-          clientWin.loadURL(`http://localhost:3001/openid-cb?token=${code}`);
+          void clientWin.loadURL(
+            `http://localhost:3001/openid-cb?token=${code}`,
+          );
         } else {
-          clientWin.loadURL(`app://actual/openid-cb?token=${code}`);
+          void clientWin.loadURL(`app://actual/openid-cb?token=${code}`);
         }
 
         // Respond to the browser
@@ -139,7 +144,7 @@ async function loadGlobalPrefs() {
         'utf8',
       ),
     );
-  } catch (e) {
+  } catch {
     logMessage('info', 'Could not load global state - using defaults');
     state = {};
   }
@@ -205,10 +210,19 @@ async function createBackgroundProcess() {
 
 async function startSyncServer() {
   try {
+    if (syncServerProcess) {
+      logMessage(
+        'info',
+        'Sync-Server: Already started! Ignoring request to start.',
+      );
+      return;
+    }
+
     const globalPrefs = await loadGlobalPrefs();
 
     const syncServerConfig = {
       port: globalPrefs.syncServerConfig?.port || 5007,
+      hostname: '127.0.0.1',
       ACTUAL_SERVER_DATA_DIR: path.resolve(
         process.env.ACTUAL_DATA_DIR!,
         'actual-server',
@@ -225,11 +239,11 @@ async function startSyncServer() {
       ),
     };
 
-    const serverPath = path.join(
-      // require.resolve will recursively search up the workspace for the module
-      path.dirname(require.resolve('@actual-app/sync-server/package.json')),
-      'app.js',
+    // require.resolve will recursively search up the workspace for the module
+    const syncServerRoot = path.dirname(
+      require.resolve('@actual-app/sync-server/package.json'),
     );
+    const serverPath = path.join(syncServerRoot, 'build/app.js');
 
     const webRoot = path.join(
       // require.resolve will recursively search up the workspace for the module
@@ -241,6 +255,7 @@ async function startSyncServer() {
     const envVariables: Env = {
       ...process.env, // required
       ACTUAL_PORT: `${syncServerConfig.port}`,
+      ACTUAL_HOSTNAME: `${syncServerConfig.hostname}`,
       ACTUAL_SERVER_FILES: `${syncServerConfig.ACTUAL_SERVER_FILES}`,
       ACTUAL_USER_FILES: `${syncServerConfig.ACTUAL_USER_FILES}`,
       ACTUAL_DATA_DIR: `${syncServerConfig.ACTUAL_SERVER_DATA_DIR}`,
@@ -249,7 +264,7 @@ async function startSyncServer() {
 
     // ACTUAL_SERVER_DATA_DIR is the root directory for the sync-server
     if (!fs.existsSync(syncServerConfig.ACTUAL_SERVER_DATA_DIR)) {
-      mkdir(syncServerConfig.ACTUAL_SERVER_DATA_DIR, { recursive: true });
+      void mkdir(syncServerConfig.ACTUAL_SERVER_DATA_DIR, { recursive: true });
     }
 
     let forkOptions: ForkOptions = {
@@ -306,7 +321,10 @@ async function startSyncServer() {
 
     return await Promise.race([syncServerPromise, syncServerTimeout]); // Either the server has started or the timeout is reached
   } catch (error) {
-    logMessage('error', `Sync-Server: Error starting sync server: ${error}`);
+    logMessage(
+      'error',
+      `Sync-Server: Error starting sync server: ${String(error)}`,
+    );
   }
 }
 
@@ -333,9 +351,21 @@ async function createWindow() {
       contextIsolation: true,
       preload: __dirname + '/preload.js',
     },
+    autoHideMenuBar: true, // Alt key shows the menu
   });
 
   win.setBackgroundColor('#E8ECF0');
+
+  if (isPlaywrightTest) {
+    // Append a 'playwright' marker to the default Electron userAgent so
+    // navigator.userAgent-based checks in the renderer (Platform.isPlaywright,
+    // environment.isElectron) both light up. Replacing the UA with bare
+    // 'playwright' (as playwright.config.ts does for chromium launches) would
+    // strip the 'Electron' substring that isElectron() relies on.
+    win.webContents.setUserAgent(
+      `${win.webContents.getUserAgent()} playwright`,
+    );
+  }
 
   if (isDev) {
     win.webContents.openDevTools();
@@ -344,18 +374,19 @@ async function createWindow() {
   const unlistenToState = listenToWindowState(win, windowState);
 
   if (isDev) {
-    win.loadURL(`file://${__dirname}/loading.html`);
+    void win.loadURL(`file://${__dirname}/loading.html`);
     // Wait for the development server to start
     setTimeout(() => {
-      promiseRetry(retry => win.loadURL('http://localhost:3001/').catch(retry));
+      void promiseRetry(retry =>
+        win.loadURL('http://localhost:3001/').catch(retry),
+      );
     }, 3000);
   } else {
-    win.loadURL(`app://actual/`);
+    void win.loadURL(`app://actual/`);
   }
 
   win.on('closed', () => {
     clientWin = null;
-    updateMenu();
     unlistenToState();
   });
 
@@ -370,7 +401,7 @@ async function createWindow() {
     if (clientWin) {
       const url = clientWin.webContents.getURL();
       if (url.includes('app://') || url.includes('localhost:')) {
-        clientWin.webContents.executeJavaScript(
+        void clientWin.webContents.executeJavaScript(
           'window.__actionsForMenu.appFocused()',
         );
       }
@@ -381,7 +412,7 @@ async function createWindow() {
   // always deny, optionally redirect to browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternalUrl(url)) {
-      shell.openExternal(url);
+      void shell.openExternal(url);
     }
 
     return { action: 'deny' };
@@ -391,23 +422,20 @@ async function createWindow() {
   // optionally redirect to browser
   win.webContents.on('will-navigate', (event, url) => {
     if (isExternalUrl(url)) {
-      shell.openExternal(url);
+      void shell.openExternal(url);
       event.preventDefault();
     }
   });
 
-  if (process.platform === 'win32') {
-    Menu.setApplicationMenu(null);
-    win.setMenu(getMenu(isDev, createWindow));
-  } else {
-    Menu.setApplicationMenu(getMenu(isDev, createWindow));
-  }
+  Menu.setApplicationMenu(getMenu());
 
   clientWin = win;
 
   // Execute queued logs - displaying them in the client window
-  queuedClientWinLogs.map((log: string) =>
-    win.webContents.executeJavaScript(log),
+  void Promise.all(
+    queuedClientWinLogs.map((log: string) =>
+      win.webContents.executeJavaScript(log),
+    ),
   );
 
   queuedClientWinLogs = [];
@@ -415,37 +443,6 @@ async function createWindow() {
 
 function isExternalUrl(url: string) {
   return !url.includes('localhost:') && !url.includes('app://');
-}
-
-function updateMenu(budgetId?: string) {
-  const isBudgetOpen = !!budgetId;
-  const menu = getMenu(isDev, createWindow, budgetId);
-  const file = menu.items.filter(item => item.label === 'File')[0];
-  const fileItems = file.submenu?.items || [];
-  fileItems
-    .filter(item => item.label === 'Load Backup...')
-    .forEach(item => {
-      item.enabled = isBudgetOpen;
-    });
-
-  const tools = menu.items.filter(item => item.label === 'Tools')[0];
-  tools.submenu?.items.forEach(item => {
-    item.enabled = isBudgetOpen;
-  });
-
-  const edit = menu.items.filter(item => item.label === 'Edit')[0];
-  const editItems = edit.submenu?.items || [];
-  editItems
-    .filter(item => item.label === 'Undo' || item.label === 'Redo')
-    .map(item => (item.enabled = isBudgetOpen));
-
-  if (process.platform === 'win32') {
-    if (clientWin) {
-      clientWin.setMenu(menu);
-    }
-  } else {
-    Menu.setApplicationMenu(menu);
-  }
 }
 
 app.setAppUserModelId('com.actualbudget.actual');
@@ -487,13 +484,13 @@ app.on('ready', async () => {
 
     const pathname = parsedUrl.pathname;
 
-    let filePath = path.normalize(`${__dirname}/client-build/index.html`); // default web path
+    let filePath = path.normalize(`${BUILD_ROOT}/client-build/index.html`); // default web path
 
     if (pathname.startsWith('/static')) {
       // static assets
-      filePath = path.normalize(`${__dirname}/client-build${pathname}`);
+      filePath = path.normalize(`${BUILD_ROOT}/client-build${pathname}`);
       const resolvedPath = path.resolve(filePath);
-      const clientBuildPath = path.resolve(__dirname, 'client-build');
+      const clientBuildPath = path.resolve(BUILD_ROOT, 'client-build');
 
       // Ensure filePath is within client-build directory - prevents directory traversal vulnerability
       if (!resolvedPath.startsWith(clientBuildPath)) {
@@ -536,7 +533,7 @@ app.on('before-quit', () => {
 
 app.on('activate', () => {
   if (clientWin === null) {
-    createWindow();
+    void createWindow();
   }
 });
 
@@ -547,7 +544,7 @@ export type GetBootstrapDataPayload = {
 
 ipcMain.on('get-bootstrap-data', event => {
   const payload: GetBootstrapDataPayload = {
-    version: app.getVersion(),
+    version: isPlaywrightTest ? '99.9.9' : app.getVersion(),
     isDev,
   };
 
@@ -574,7 +571,7 @@ ipcMain.handle('restart-server', () => {
     serverProcess = null;
   }
 
-  createBackgroundProcess();
+  void createBackgroundProcess();
 });
 
 ipcMain.handle('relaunch', () => {
@@ -583,7 +580,7 @@ ipcMain.handle('relaunch', () => {
 });
 
 export type OpenFileDialogPayload = {
-  properties: OpenDialogSyncOptions['properties'];
+  properties?: OpenDialogSyncOptions['properties'];
   filters?: OpenDialogSyncOptions['filters'];
 };
 
@@ -627,7 +624,11 @@ ipcMain.handle(
 );
 
 ipcMain.handle('open-external-url', (event, url) => {
-  shell.openExternal(url);
+  void shell.openExternal(url);
+});
+
+ipcMain.handle('open-in-file-manager', (event, filepath) => {
+  shell.showItemInFolder(filepath);
 });
 
 ipcMain.on('message', (_event, msg) => {
@@ -638,25 +639,10 @@ ipcMain.on('message', (_event, msg) => {
   serverProcess.postMessage(msg.args);
 });
 
-ipcMain.on('screenshot', () => {
-  if (isDev) {
-    const width = 1100;
-
-    // This is for the main screenshot inside the frame
-    if (clientWin) {
-      clientWin.setSize(width, Math.floor(width * (427 / 623)));
-    }
-  }
-});
-
-ipcMain.on('update-menu', (_event, budgetId?: string) => {
-  updateMenu(budgetId);
-});
-
 ipcMain.on('set-theme', (_event, theme: string) => {
   const obj = { theme };
   if (clientWin) {
-    clientWin.webContents.executeJavaScript(
+    void clientWin.webContents.executeJavaScript(
       `window.__actionsForMenu && window.__actionsForMenu.saveGlobalPrefs({ prefs: ${JSON.stringify(obj)} })`,
     );
   }
@@ -676,18 +662,19 @@ ipcMain.handle(
         );
       }
 
-      if (!(await exists(newDirectory))) {
+      if (!fs.existsSync(newDirectory)) {
         throw new Error('The destination directory does not exist');
       }
 
-      await copy(currentBudgetDirectory, newDirectory, {
-        overwrite: true,
+      await cp(currentBudgetDirectory, newDirectory, {
+        force: true,
         preserveTimestamps: true,
+        recursive: true,
       });
     } catch (error) {
       logMessage(
         'error',
-        `There was an error moving your directory:  ${error}`,
+        `There was an error moving your directory:  ${String(error)}`,
       );
       throw error;
     }
@@ -696,7 +683,10 @@ ipcMain.handle(
       await promiseRetry(
         async retry => {
           try {
-            return await remove(currentBudgetDirectory);
+            return await rm(currentBudgetDirectory, {
+              recursive: true,
+              force: true,
+            });
           } catch (error) {
             logMessage(
               'info',
@@ -713,7 +703,7 @@ ipcMain.handle(
       // This call needs to succeed to allow the user to continue using the app with the files in the new location.
       logMessage(
         'error',
-        `There was an error removing the old directory: ${error}`,
+        `There was an error removing the old directory: ${String(error)}`,
       );
     }
   },

@@ -1,8 +1,8 @@
-import {
+import type {
   CategoryEntity,
   CategoryGroupEntity,
   PayeeEntity,
-} from '../types/models';
+} from '#types/models';
 
 import {
   convertForInsert,
@@ -11,7 +11,7 @@ import {
   schema,
   schemaConfig,
 } from './aql';
-import { DbAccount, DbCategory, DbCategoryGroup, DbPayee } from './db';
+import type { DbAccount, DbCategory, DbCategoryGroup, DbPayee } from './db';
 import { ValidationError } from './errors';
 
 export function requiredFields<T extends object, K extends keyof T>(
@@ -81,7 +81,7 @@ export const categoryModel = {
       update,
     );
 
-    const { sort_order, ...rest } = category;
+    const { sort_order: _sort_order, ...rest } = category;
     return { ...rest } as DbCategory;
   },
   toDb(
@@ -116,7 +116,7 @@ export const categoryGroupModel = {
       update,
     );
 
-    const { sort_order, ...rest } = categoryGroup;
+    const { sort_order: _sort_order, ...rest } = categoryGroup;
     return { ...rest } as DbCategoryGroup;
   },
   toDb(
@@ -156,7 +156,7 @@ export const categoryGroupModel = {
       ...categoryGroupEntity,
       categories: categories
         .filter(category => category.cat_group === categoryGroup.id)
-        .map(categoryModel.fromDb),
+        .map(c => categoryModel.fromDb(c)),
     };
   },
 };

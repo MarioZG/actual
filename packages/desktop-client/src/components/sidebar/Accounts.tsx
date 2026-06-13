@@ -3,19 +3,18 @@ import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { AccountEntity } from '@actual-app/core/types/models';
 
-import * as queries from 'loot-core/client/queries';
-import { type AccountEntity } from 'loot-core/types/models';
-
-import { moveAccount } from '../../accounts/accountsSlice';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useClosedAccounts } from '../../hooks/useClosedAccounts';
-import { useFailedAccounts } from '../../hooks/useFailedAccounts';
-import { useLocalPref } from '../../hooks/useLocalPref';
-import { useOffBudgetAccounts } from '../../hooks/useOffBudgetAccounts';
-import { useOnBudgetAccounts } from '../../hooks/useOnBudgetAccounts';
-import { useUpdatedAccounts } from '../../hooks/useUpdatedAccounts';
-import { useSelector, useDispatch } from '../../redux';
+import { useMoveAccountMutation } from '#accounts';
+import { isAccountFailedSync } from '#accounts/syncStatus';
+import { useAccounts } from '#hooks/useAccounts';
+import { useClosedAccounts } from '#hooks/useClosedAccounts';
+import { useLocalPref } from '#hooks/useLocalPref';
+import { useOffBudgetAccounts } from '#hooks/useOffBudgetAccounts';
+import { useOnBudgetAccounts } from '#hooks/useOnBudgetAccounts';
+import { useUpdatedAccounts } from '#hooks/useUpdatedAccounts';
+import { useSelector } from '#redux';
+import * as bindings from '#spreadsheet/bindings';
 
 import { Account } from './Account';
 import { SecondaryItem } from './SecondaryItem';
@@ -24,14 +23,12 @@ const fontWeight = 600;
 
 export function Accounts() {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
   const [isDragging, setIsDragging] = useState(false);
-  const accounts = useAccounts();
-  const failedAccounts = useFailedAccounts();
+  const { data: accounts = [] } = useAccounts();
   const updatedAccounts = useUpdatedAccounts();
-  const offbudgetAccounts = useOffBudgetAccounts();
-  const onBudgetAccounts = useOnBudgetAccounts();
-  const closedAccounts = useClosedAccounts();
+  const { data: offbudgetAccounts = [] } = useOffBudgetAccounts();
+  const { data: onBudgetAccounts = [] } = useOnBudgetAccounts();
+  const { data: closedAccounts = [] } = useClosedAccounts();
   const syncingAccountIds = useSelector(state => state.account.accountsSyncing);
 
   const getAccountPath = (account: AccountEntity) => `/accounts/${account.id}`;
@@ -43,6 +40,8 @@ export function Accounts() {
   function onDragChange(drag: { state: string }) {
     setIsDragging(drag.state === 'start');
   }
+
+  const moveAccount = useMoveAccountMutation();
 
   const makeDropPadding = (i: number) => {
     if (i === 0) {
@@ -56,16 +55,16 @@ export function Accounts() {
 
   async function onReorder(
     id: string,
-    dropPos: 'top' | 'bottom',
-    targetId: unknown,
+    dropPos: 'top' | 'bottom' | null,
+    targetId: string,
   ) {
-    let targetIdToMove = targetId;
+    let targetIdToMove: string | null = targetId;
     if (dropPos === 'bottom') {
       const idx = accounts.findIndex(a => a.id === targetId) + 1;
       targetIdToMove = idx < accounts.length ? accounts[idx].id : null;
     }
 
-    dispatch(moveAccount({ id, targetId: targetIdToMove as string }));
+    moveAccount.mutate({ id, targetId: targetIdToMove });
   }
 
   const onToggleClosedAccounts = () => {
@@ -94,21 +93,24 @@ export function Accounts() {
         <Account
           name={t('All accounts')}
           to="/accounts"
-          query={queries.allAccountBalance()}
+          query={bindings.allAccountBalance()}
           style={{ fontWeight, marginTop: 15 }}
+          isExactPathMatch
+          balanceTestId="sidebar-all-accounts-balance"
         />
 
         {onBudgetAccounts.length > 0 && (
           <Account
             name={t('On budget')}
             to="/accounts/onbudget"
-            query={queries.onBudgetAccountBalance()}
+            query={bindings.onBudgetAccountBalance()}
             style={{
               fontWeight,
               marginTop: 13,
               marginBottom: 5,
             }}
-            titleAccount={true}
+            titleAccount
+            balanceTestId="sidebar-on-budget-balance"
           />
         )}
 
@@ -119,10 +121,10 @@ export function Accounts() {
             account={account}
             connected={!!account.bank}
             pending={syncingAccountIds.includes(account.id)}
-            failed={failedAccounts.has(account.id)}
+            failed={isAccountFailedSync(account)}
             updated={updatedAccounts.includes(account.id)}
             to={getAccountPath(account)}
-            query={queries.accountBalance(account)}
+            query={bindings.accountBalance(account.id)}
             onDragChange={onDragChange}
             onDrop={onReorder}
             outerStyle={makeDropPadding(i)}
@@ -133,13 +135,14 @@ export function Accounts() {
           <Account
             name={t('Off budget')}
             to="/accounts/offbudget"
-            query={queries.offBudgetAccountBalance()}
+            query={bindings.offBudgetAccountBalance()}
             style={{
               fontWeight,
               marginTop: 13,
               marginBottom: 5,
             }}
-            titleAccount={true}
+            titleAccount
+            balanceTestId="sidebar-off-budget-balance"
           />
         )}
 
@@ -150,10 +153,10 @@ export function Accounts() {
             account={account}
             connected={!!account.bank}
             pending={syncingAccountIds.includes(account.id)}
-            failed={failedAccounts.has(account.id)}
+            failed={isAccountFailedSync(account)}
             updated={updatedAccounts.includes(account.id)}
             to={getAccountPath(account)}
-            query={queries.accountBalance(account)}
+            query={bindings.accountBalance(account.id)}
             onDragChange={onDragChange}
             onDrop={onReorder}
             outerStyle={makeDropPadding(i)}
@@ -180,7 +183,7 @@ export function Accounts() {
               name={account.name}
               account={account}
               to={getAccountPath(account)}
-              query={queries.accountBalance(account)}
+              query={bindings.accountBalance(account.id)}
               onDragChange={onDragChange}
               onDrop={onReorder}
             />

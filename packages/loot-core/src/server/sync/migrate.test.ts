@@ -2,14 +2,15 @@
 import { Timestamp } from '@actual-app/crdt';
 import fc from 'fast-check';
 
-import * as arbs from '../../mocks/arbitrary-schema';
-import { execTracer } from '../../shared/test-helpers';
-import { convertInputType, schema, schemaConfig } from '../aql';
-import * as db from '../db';
+import * as arbs from '#mocks/arbitrary-schema';
+import { convertInputType, schema, schemaConfig } from '#server/aql';
+import * as db from '#server/db';
+import { execTracer } from '#shared/test-helpers';
 
 import { listen, unlisten } from './migrate';
 
-import { Message, addSyncListener, sendMessages } from './index';
+import { addSyncListener, sendMessages } from './index';
+import type { Message } from './index';
 
 beforeEach(() => {
   listen();
@@ -35,14 +36,16 @@ const messageArb: fc.Arbitrary<Message> = fc
       .map(v => convertInputType(v, tableSchema[field].type));
 
     const timestamp = fc
-      .date({
-        min: new Date('2020-01-01T00:00:00.000Z'),
-        max: new Date('2020-05-01T00:00:00.000Z'),
-      })
-      .noBias()
-      .noShrink()
+      .noShrink(
+        fc.noBias(
+          fc.date({
+            min: new Date('2020-01-01T00:00:00.000Z'),
+            max: new Date('2020-05-01T00:00:00.000Z'),
+          }),
+        ),
+      )
       .map(date => date.toISOString() + '-0000-0123456789ABCDEF')
-      .map(Timestamp.parse);
+      .map(ts => Timestamp.parse(ts));
 
     return fc.record<Message>({
       timestamp,
@@ -77,7 +80,7 @@ describe('sync migrations', () => {
       amount: 4500,
     });
     tracer.expectNow('applied', ['trans1/child1']);
-    await tracer.expectWait('applied', ['trans1/child1']);
+    tracer.expectNow('applied', ['trans1/child1']);
 
     const transactions = db.runQuery<db.DbTransaction>(
       'SELECT * FROM transactions',
@@ -103,13 +106,12 @@ describe('sync migrations', () => {
               { isChild: number; parent_id: string | null; id: string }
             >;
             if (
-              ts &&
-              [...ts.values()].find(
+              !ts ||
+              ![...ts.values()].find(
                 t =>
                   t.isChild === 1 && t.parent_id == null && t.id.includes('/'),
               )
             ) {
-            } else {
               tracer.event('applied');
             }
           });

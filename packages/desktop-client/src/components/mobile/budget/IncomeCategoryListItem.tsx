@@ -1,4 +1,5 @@
-import { type ComponentPropsWithoutRef } from 'react';
+import { useCallback } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { GridListItem } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 
@@ -8,17 +9,16 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { AutoTextSize } from 'auto-text-size';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type { CategoryEntity } from '@actual-app/core/types/models';
 
-import { envelopeBudget, trackingBudget } from 'loot-core/client/queries';
-import * as monthUtils from 'loot-core/shared/months';
-import { type CategoryEntity } from 'loot-core/types/models';
+import { useNavigate } from '#hooks/useNavigate';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { collapseModals, pushModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
+import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
-import { useSyncedPref } from '../../../hooks/useSyncedPref';
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { CellValue } from '../../spreadsheet/CellValue';
-import { useFormat } from '../../spreadsheet/useFormat';
-
+import { BalanceCell } from './BalanceCell';
 import { BudgetCell } from './BudgetCell';
 import { getColumnWidth, ROW_HEIGHT } from './BudgetTable';
 
@@ -92,23 +92,26 @@ type IncomeCategoryCellsProps = {
   category: CategoryEntity;
   month: string;
   onBudgetAction: (month: string, action: string, args: unknown) => void;
+  onPress: () => void;
 };
 
 function IncomeCategoryCells({
   category,
   month,
   onBudgetAction,
+  onPress,
 }: IncomeCategoryCellsProps) {
   const { t } = useTranslation();
-  const format = useFormat();
   const columnWidth = getColumnWidth();
-  const [budgetType = 'rollover'] = useSyncedPref('budgetType');
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
 
   const budgeted =
-    budgetType === 'report' ? trackingBudget.catBudgeted(category.id) : null;
+    budgetType === 'tracking'
+      ? trackingBudget.catBudgeted(category.id)
+      : envelopeBudget.catBudgeted(category.id);
 
   const balance =
-    budgetType === 'report'
+    budgetType === 'tracking'
       ? trackingBudget.catSumAmount(category.id)
       : envelopeBudget.catSumAmount(category.id);
 
@@ -120,7 +123,7 @@ function IncomeCategoryCells({
         alignItems: 'center',
       }}
     >
-      {budgeted && (
+      {budgetType === 'tracking' && (
         <View
           style={{
             width: columnWidth,
@@ -137,37 +140,29 @@ function IncomeCategoryCells({
           />
         </View>
       )}
-      <CellValue<'envelope-budget' | 'tracking-budget', 'sum-amount'>
-        binding={balance}
-        type="financial"
-        aria-label={t('Balance for {{categoryName}} category', {
-          categoryName: category.name,
-        })} // Translated aria-label
+
+      <View
+        style={{
+          width: columnWidth,
+          justifyContent: 'center',
+          alignItems: 'flex-end',
+        }}
       >
-        {({ type, value }) => (
-          <View>
-            <PrivacyFilter>
-              <AutoTextSize
-                key={value}
-                as={Text}
-                minFontSizePx={6}
-                maxFontSizePx={12}
-                mode="oneline"
-                style={{
-                  width: columnWidth,
-                  justifyContent: 'center',
-                  alignItems: 'flex-end',
-                  textAlign: 'right',
-                  fontSize: 12,
-                  paddingRight: 5,
-                }}
-              >
-                {format(value, type)}
-              </AutoTextSize>
-            </PrivacyFilter>
-          </View>
-        )}
-      </CellValue>
+        <BalanceCell
+          binding={balance}
+          category={category}
+          onPress={onPress}
+          aria-label={
+            budgetType === 'envelope'
+              ? t('Open balance menu for {{categoryName}} category', {
+                  categoryName: category.name,
+                })
+              : t('Show transactions for {{categoryName}} category', {
+                  categoryName: category.name,
+                })
+          }
+        />
+      </View>
     </View>
   );
 }
@@ -187,6 +182,58 @@ export function IncomeCategoryListItem({
   ...props
 }: IncomeCategoryListItemProps) {
   const { value: category } = props;
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
+  const balanceMenuModalName = `envelope-income-balance-menu`;
+
+  const onShowActivity = useCallback(() => {
+    if (!category) {
+      return null;
+    }
+
+    void navigate(`/categories/${category.id}?month=${month}`);
+  }, [category, month, navigate]);
+
+  const onCarryover = useCallback(
+    (carryover: boolean) => {
+      if (!category) {
+        return;
+      }
+      onBudgetAction(month, 'carryover', {
+        category: category.id,
+        flag: carryover,
+      });
+      dispatch(collapseModals({ rootModalName: balanceMenuModalName }));
+    },
+    [category, onBudgetAction, month, dispatch, balanceMenuModalName],
+  );
+
+  const onOpenBalanceMenu = useCallback(() => {
+    if (!category) {
+      return;
+    }
+    dispatch(
+      pushModal({
+        modal: {
+          name: balanceMenuModalName,
+          options: {
+            month,
+            categoryId: category.id,
+            onCarryover,
+            onShowActivity,
+          },
+        },
+      }),
+    );
+  }, [
+    category,
+    balanceMenuModalName,
+    dispatch,
+    month,
+    onShowActivity,
+    onCarryover,
+  ]);
 
   if (!category) {
     return null;
@@ -208,7 +255,7 @@ export function IncomeCategoryListItem({
           paddingLeft: 5,
           paddingRight: 5,
           borderBottomWidth: 1,
-          opacity: !!category.hidden ? 0.5 : undefined,
+          opacity: category.hidden ? 0.5 : undefined,
           backgroundColor: monthUtils.isCurrentMonth(month)
             ? theme.budgetCurrentMonth
             : theme.budgetOtherMonth,
@@ -216,9 +263,13 @@ export function IncomeCategoryListItem({
       >
         <IncomeCategoryName category={category} onEdit={onEdit} />
         <IncomeCategoryCells
+          key={`${category.id}`}
           category={category}
           month={month}
           onBudgetAction={onBudgetAction}
+          onPress={
+            budgetType === 'envelope' ? onOpenBalanceMenu : onShowActivity
+          }
         />
       </View>
     </GridListItem>

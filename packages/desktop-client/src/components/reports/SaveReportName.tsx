@@ -1,17 +1,17 @@
-import React, { type RefObject, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import type { RefObject } from 'react';
 import { Form } from 'react-aria-components';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { Input } from '@actual-app/components/input';
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { CustomReportEntity } from '@actual-app/core/types/models';
 
-import { type CustomReportEntity } from 'loot-core/types/models';
-
-import { FormField, FormLabel } from '../forms';
+import { FormField, FormLabel } from '#components/forms';
 
 type SaveReportNameProps = {
   menuItem: string;
@@ -44,7 +44,7 @@ export function SaveReportName({
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, []);
+  }, [inputRef]);
 
   return (
     <>
@@ -58,11 +58,12 @@ export function SaveReportName({
             });
           }}
         >
-          <Stack
-            direction="row"
-            justify="flex-end"
-            align="center"
-            style={{ padding: 15 }}
+          <SpaceBetween
+            style={{
+              padding: 15,
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+            }}
           >
             <FormField style={{ flex: 1 }}>
               <FormLabel
@@ -73,21 +74,21 @@ export function SaveReportName({
               <Input
                 value={name}
                 id="name-field"
-                inputRef={inputRef}
+                ref={inputRef}
                 onChangeValue={setName}
                 style={{ marginTop: 10 }}
               />
             </FormField>
             <Button variant="primary" type="submit" style={{ marginTop: 30 }}>
-              {menuItem === 'save-report' ? 'Add' : 'Update'}
+              {menuItem === 'save-report' ? t('Add') : t('Update')}
             </Button>
-          </Stack>
+          </SpaceBetween>
         </Form>
       )}
       {err !== '' ? (
-        <Stack direction="row" align="center" style={{ padding: 10 }}>
+        <View style={{ padding: 10, alignItems: 'center' }}>
           <Text style={{ color: theme.errorText }}>{err}</Text>
-        </Stack>
+        </View>
       ) : (
         <View />
       )}

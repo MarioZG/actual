@@ -1,16 +1,14 @@
 // @ts-strict-ignore
-import React, {
-  type ComponentProps,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import {
-  SvgDotsHorizontalTriple,
   SvgAdd,
+  SvgCheveronDown,
+  SvgCheveronUp,
+  SvgDotsHorizontalTriple,
   SvgTrash,
 } from '@actual-app/components/icons/v1';
 import {
@@ -21,20 +19,24 @@ import {
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
 import { styles } from '@actual-app/components/styles';
+import type { CSSProperties } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { css } from '@emotion/css';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { useCategories } from '../../hooks/useCategories';
-import { useNotes } from '../../hooks/useNotes';
 import {
   Modal,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
-} from '../common/Modal';
-import { Notes } from '../Notes';
+} from '#components/common/Modal';
+import { CategoryGroupActionMenu } from '#components/mobile/budget/CategoryGroupActionMenu';
+import { Notes } from '#components/Notes';
+import { useCategories } from '#hooks/useCategories';
+import { useFeatureFlag } from '#hooks/useFeatureFlag';
+import { useNotes } from '#hooks/useNotes';
+import { useUndo } from '#hooks/useUndo';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type CategoryGroupMenuModalProps = Extract<
   ModalType,
@@ -49,11 +51,17 @@ export function CategoryGroupMenuModal({
   onDelete,
   onToggleVisibility,
   onClose,
+  onApplyBudgetTemplatesInGroup,
+  onSortCategories,
 }: CategoryGroupMenuModalProps) {
-  const { t } = useTranslation();
-  const { grouped: categoryGroups } = useCategories();
+  const [showMore, setShowMore] = useState(false);
+  const { data: { grouped: categoryGroups } = { grouped: [] } } =
+    useCategories();
   const group = categoryGroups.find(g => g.id === groupId);
   const notes = useNotes(group.id);
+  const { showUndoNotification } = useUndo();
+  const isGoalTemplatesEnabled = useFeatureFlag('goalTemplatesEnabled');
+  const { t } = useTranslation();
 
   const onRename = newName => {
     if (newName && newName !== group.name) {
@@ -62,6 +70,10 @@ export function CategoryGroupMenuModal({
         name: newName,
       });
     }
+  };
+
+  const onShowMore = () => {
+    setShowMore(!showMore);
   };
 
   const _onAddCategory = () => {
@@ -80,6 +92,17 @@ export function CategoryGroupMenuModal({
     onToggleVisibility?.(group.id);
   };
 
+  const _onApplyBudgetTemplatesInGroup = () => {
+    onApplyBudgetTemplatesInGroup?.(
+      group.categories.filter(c => !c.hidden).map(c => c.id),
+    );
+  };
+
+  const hasMultipleCategories = (group.categories?.length ?? 0) > 1;
+
+  const _onSortAsc = () => onSortCategories?.(group.id, 'asc');
+  const _onSortDesc = () => onSortCategories?.(group.id, 'desc');
+
   const buttonStyle: CSSProperties = {
     ...styles.mediumText,
     height: styles.mobileMinHeight,
@@ -88,6 +111,22 @@ export function CategoryGroupMenuModal({
     flexBasis: '48%',
     marginLeft: '1%',
     marginRight: '1%',
+  };
+
+  const actionButtonStyle: CSSProperties = {
+    ...styles.mediumText,
+    height: styles.mobileMinHeight,
+    color: theme.formLabelText,
+    // Adjust based on desired number of buttons per row.
+    flexBasis: '100%',
+  };
+
+  const defaultMenuItemStyle: CSSProperties = {
+    ...styles.mobileMenuItem,
+    height: styles.mobileMinHeight,
+    color: theme.menuItemText,
+    borderRadius: 0,
+    borderTop: `1px solid ${theme.pillBorder}`,
   };
 
   return (
@@ -100,7 +139,7 @@ export function CategoryGroupMenuModal({
         },
       }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             leftContent={
@@ -108,6 +147,9 @@ export function CategoryGroupMenuModal({
                 group={group}
                 onDelete={_onDelete}
                 onToggleVisibility={_onToggleVisibility}
+                onSortAsc={hasMultipleCategories ? _onSortAsc : undefined}
+                onSortDesc={hasMultipleCategories ? _onSortDesc : undefined}
+                onClose={() => state.close()}
               />
             }
             title={
@@ -117,7 +159,7 @@ export function CategoryGroupMenuModal({
                 onTitleUpdate={onRename}
               />
             }
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -132,7 +174,7 @@ export function CategoryGroupMenuModal({
               }}
             >
               <Notes
-                notes={notes?.length > 0 ? notes : 'No notes'}
+                notes={notes?.length > 0 ? notes : t('No notes')}
                 editable={false}
                 focused={false}
                 getStyle={() => ({
@@ -157,7 +199,7 @@ export function CategoryGroupMenuModal({
             >
               <Button style={buttonStyle} onPress={_onAddCategory}>
                 <SvgAdd width={17} height={17} style={{ paddingRight: 5 }} />
-                {t('Add category')}
+                <Trans>Add category</Trans>
               </Button>
               <Button style={buttonStyle} onPress={_onEditNotes}>
                 <SvgNotesPaper
@@ -165,9 +207,52 @@ export function CategoryGroupMenuModal({
                   height={20}
                   style={{ paddingRight: 5 }}
                 />
-                {t('Edit notes')}
+                <Trans>Edit notes</Trans>
               </Button>
+              {isGoalTemplatesEnabled && (
+                <Button
+                  variant="bare"
+                  className={css([
+                    actionButtonStyle,
+                    {
+                      '&[data-pressed], &[data-hovered]': {
+                        backgroundColor: 'transparent',
+                        color: buttonStyle.color,
+                      },
+                    },
+                  ])}
+                  onPress={onShowMore}
+                >
+                  {!showMore ? (
+                    <SvgCheveronUp
+                      width={30}
+                      height={30}
+                      style={{ paddingRight: 5 }}
+                    />
+                  ) : (
+                    <SvgCheveronDown
+                      width={30}
+                      height={30}
+                      style={{ paddingRight: 5 }}
+                    />
+                  )}
+                  <Trans>Actions</Trans>
+                </Button>
+              )}
             </View>
+            {showMore && (
+              <CategoryGroupActionMenu
+                style={{ overflowY: 'auto', paddingTop: 10 }}
+                getItemStyle={() => defaultMenuItemStyle}
+                onApplyBudgetTemplatesInGroup={() => {
+                  _onApplyBudgetTemplatesInGroup();
+                  state.close();
+                  showUndoNotification({
+                    message: t('budget templates have been applied.'),
+                  });
+                }}
+              />
+            )}
           </View>
         </>
       )}
@@ -175,7 +260,14 @@ export function CategoryGroupMenuModal({
   );
 }
 
-function AdditionalCategoryGroupMenu({ group, onDelete, onToggleVisibility }) {
+function AdditionalCategoryGroupMenu({
+  group,
+  onDelete,
+  onToggleVisibility,
+  onSortAsc,
+  onSortDesc,
+  onClose,
+}) {
   const { t } = useTranslation();
   const triggerRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -221,7 +313,7 @@ function AdditionalCategoryGroupMenu({ group, onDelete, onToggleVisibility }) {
                 [
                   {
                     name: 'toggleVisibility',
-                    text: group.hidden ? 'Show' : 'Hide',
+                    text: group.hidden ? t('Show') : t('Hide'),
                     icon: group.hidden ? SvgViewShow : SvgViewHide,
                     iconSize: 16,
                   },
@@ -229,11 +321,18 @@ function AdditionalCategoryGroupMenu({ group, onDelete, onToggleVisibility }) {
                     Menu.line,
                     {
                       name: 'delete',
-                      text: 'Delete',
+                      text: t('Delete'),
                       icon: SvgTrash,
                       iconSize: 15,
                     },
                   ]),
+                  ...(onSortAsc && onSortDesc
+                    ? [
+                        Menu.line,
+                        { name: 'sort-asc', text: t('Sort A to Z') },
+                        { name: 'sort-desc', text: t('Sort Z to A') },
+                      ]
+                    : []),
                 ].filter(i => i != null) as ComponentProps<typeof Menu>['items']
               }
               onMenuSelect={itemName => {
@@ -242,6 +341,12 @@ function AdditionalCategoryGroupMenu({ group, onDelete, onToggleVisibility }) {
                   onDelete();
                 } else if (itemName === 'toggleVisibility') {
                   onToggleVisibility();
+                } else if (itemName === 'sort-asc') {
+                  onSortAsc?.();
+                  onClose?.();
+                } else if (itemName === 'sort-desc') {
+                  onSortDesc?.();
+                  onClose?.();
                 }
               }}
             />

@@ -1,9 +1,10 @@
-import React, { type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 
 import { theme } from '@actual-app/components/theme';
 
-import { type CellValue } from '../../../spreadsheet/CellValue';
-import { useSheetValue } from '../../../spreadsheet/useSheetValue';
+import type { CellValue } from '#components/spreadsheet/CellValue';
+import { useSheetValue } from '#hooks/useSheetValue';
 
 import { fraction } from './fraction';
 import { PieProgress } from './PieProgress';
@@ -28,8 +29,8 @@ export function IncomeProgress({ current, target }: IncomeProgressProps) {
   return (
     <PieProgress
       progress={frac}
-      color={over ? theme.errorText : theme.noticeTextLight}
-      backgroundColor={over ? theme.errorBackground : theme.tableBackground}
+      color={over ? theme.numberNegative : theme.numberPositive}
+      backgroundColor={over ? theme.errorBackground : theme.budgetCurrentMonth}
       style={{ width: 20, height: 20 }}
     />
   );

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Form } from 'react-aria-components';
 import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -9,15 +11,18 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { Query } from '@actual-app/core/shared/query';
+import { tsToRelativeTime } from '@actual-app/core/shared/util';
+import type { AccountEntity } from '@actual-app/core/types/models';
+import type { TransObjectLiteral } from '@actual-app/core/types/util';
+import { format as formatDate } from 'date-fns';
+import { t } from 'i18next';
 
-import * as queries from 'loot-core/client/queries';
-import { type Query } from 'loot-core/shared/query';
-import { currencyToInteger } from 'loot-core/shared/util';
-import { type AccountEntity } from 'loot-core/types/models';
-import { type TransObjectLiteral } from 'loot-core/types/util';
-
-import { useFormat } from '../spreadsheet/useFormat';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
+import { useDateFormat } from '#hooks/useDateFormat';
+import { useFormat } from '#hooks/useFormat';
+import { useLocale } from '#hooks/useLocale';
+import { useSheetValue } from '#hooks/useSheetValue';
+import * as bindings from '#spreadsheet/bindings';
 
 type ReconcilingMessageProps = {
   balanceQuery: { name: `balance-query-${string}`; query: Query };
@@ -99,7 +104,9 @@ export function ReconcilingMessage({
         )}
         <View style={{ marginLeft: 15 }}>
           <Button variant="primary" onPress={onDone}>
-            <Trans>Done reconciling</Trans>
+            {targetDiff === 0
+              ? t('Lock transactions')
+              : t('Exit reconciliation')}
           </Button>
         </View>
         {targetDiff !== 0 && (
@@ -125,48 +132,101 @@ export function ReconcileMenu({
   onReconcile,
   onClose,
 }: ReconcileMenuProps) {
-  const balanceQuery = queries.accountBalance(account);
+  const balanceQuery = bindings.accountBalance(account.id);
   const clearedBalance = useSheetValue<'account', `balance-${string}-cleared`>({
     name: (balanceQuery.name + '-cleared') as `balance-${string}-cleared`,
     value: null,
     query: balanceQuery.query.filter({ cleared: true }),
   });
+  const lastSyncedBalance = account.balance_current;
   const format = useFormat();
-  const [inputValue, setInputValue] = useState<string | null>(null);
+  const dateFormat = useDateFormat() || 'MM/dd/yyyy';
+  const locale = useLocale();
 
-  function onSubmit() {
+  const [inputValue, setInputValue] = useState<string | null>();
+  // useEffect is needed here. clearedBalance does not work as a default value for inputValue and
+  // to use a button to update inputValue we can't use defaultValue in the input form below
+  useEffect(() => {
+    if (clearedBalance != null) {
+      setInputValue(format(clearedBalance, 'financial'));
+    }
+  }, [clearedBalance, format]);
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
     if (inputValue === '') {
       return;
     }
 
     const amount =
-      inputValue != null ? currencyToInteger(inputValue) : clearedBalance;
+      inputValue != null
+        ? format.fromEdit(inputValue, clearedBalance)
+        : clearedBalance;
 
     onReconcile(amount);
     onClose();
   }
 
   return (
-    <View style={{ padding: '5px 8px' }}>
-      <Text>
-        <Trans>
-          Enter the current balance of your bank account that you want to
-          reconcile with:
-        </Trans>
-      </Text>
-      {clearedBalance != null && (
-        <InitialFocus>
-          <Input
-            defaultValue={format(clearedBalance, 'financial')}
-            onChangeValue={setInputValue}
-            style={{ margin: '7px 0' }}
-            onEnter={onSubmit}
-          />
-        </InitialFocus>
-      )}
-      <Button variant="primary" onPress={onSubmit}>
-        <Trans>Reconcile</Trans>
-      </Button>
-    </View>
+    <Form onSubmit={onSubmit}>
+      <View style={{ padding: '5px 8px' }}>
+        <Text>
+          <Trans>
+            Enter the current balance of your bank account that you want to
+            reconcile with:
+          </Trans>
+        </Text>
+        {inputValue != null && (
+          <InitialFocus>
+            <Input
+              value={inputValue}
+              onChangeValue={setInputValue}
+              style={{ margin: '7px 0', textAlign: 'right' }}
+            />
+          </InitialFocus>
+        )}
+        {lastSyncedBalance != null && (
+          <View>
+            <Text style={{ margin: '0 6px 8px 0', textAlign: 'right' }}>
+              <Trans>Last Balance from Bank: </Trans>
+              {format(lastSyncedBalance, 'financial')}
+            </Text>
+            <Button
+              onPress={() =>
+                setInputValue(format(lastSyncedBalance, 'financial'))
+              }
+              style={{ marginBottom: 7 }}
+            >
+              <Trans>Use last synced total</Trans>
+            </Button>
+          </View>
+        )}
+        <Button type="submit" variant="primary">
+          <Trans>Reconcile</Trans>
+        </Button>
+        <Text
+          style={{
+            color: theme.pageTextLight,
+            marginTop: '8px',
+            textAlign: 'center',
+          }}
+        >
+          {account?.last_reconciled
+            ? t('Reconciled {{ relativeTimeAgo }} ({{ absoluteDate }})', {
+                relativeTimeAgo: tsToRelativeTime(
+                  account.last_reconciled,
+                  locale,
+                ),
+                absoluteDate: formatDate(
+                  new Date(parseInt(account.last_reconciled ?? '0', 10)),
+                  dateFormat,
+                  { locale },
+                ),
+              })
+            : t('Not yet reconciled')}
+        </Text>
+      </View>
+    </Form>
   );
 }

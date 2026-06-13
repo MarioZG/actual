@@ -1,29 +1,50 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { envelopeBudget, trackingBudget } from 'loot-core/client/queries';
-import { useSpreadsheet } from 'loot-core/client/SpreadsheetProvider';
-import * as monthUtils from 'loot-core/shared/months';
+import * as monthUtils from '@actual-app/core/shared/months';
+import { groupById } from '@actual-app/core/shared/util';
+import type { IntegerAmount } from '@actual-app/core/shared/util';
+import type { CategoryEntity } from '@actual-app/core/types/models';
+
+import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
 import { useCategories } from './useCategories';
+import { useSpreadsheet } from './useSpreadsheet';
 import { useSyncedPref } from './useSyncedPref';
 
 type UseOverspentCategoriesProps = {
   month: string;
 };
 
-export function useOverspentCategories({ month }: UseOverspentCategoriesProps) {
-  const spreadsheet = useSpreadsheet();
-  const [budgetType = 'rollover'] = useSyncedPref('budgetType');
+type UseOverspentCategoriesResult = {
+  categories: CategoryEntity[];
+  amountsByCategory: Map<CategoryEntity['id'], IntegerAmount>;
+  totalAmount: IntegerAmount;
+};
 
-  const { list: categories } = useCategories();
+export function useOverspentCategories({
+  month,
+}: UseOverspentCategoriesProps): UseOverspentCategoriesResult {
+  const spreadsheet = useSpreadsheet();
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
+
+  const {
+    data: { list: categories, grouped: categoryGroups } = {
+      list: [],
+      grouped: [],
+    },
+  } = useCategories();
+  const categoryGroupsById = useMemo(
+    () => groupById(categoryGroups),
+    [categoryGroups],
+  );
 
   const categoryBalanceBindings = useMemo(
     () =>
       categories.map(category => [
         category.id,
-        budgetType === 'rollover'
-          ? envelopeBudget.catBalance(category.id)
-          : trackingBudget.catBalance(category.id),
+        budgetType === 'tracking'
+          ? trackingBudget.catBalance(category.id)
+          : envelopeBudget.catBalance(category.id),
       ]),
     [budgetType, categories],
   );
@@ -32,22 +53,22 @@ export function useOverspentCategories({ month }: UseOverspentCategoriesProps) {
     () =>
       categories.map(category => [
         category.id,
-        budgetType === 'rollover'
-          ? envelopeBudget.catCarryover(category.id)
-          : trackingBudget.catCarryover(category.id),
+        budgetType === 'tracking'
+          ? trackingBudget.catCarryover(category.id)
+          : envelopeBudget.catCarryover(category.id),
       ]),
     [budgetType, categories],
   );
 
-  const [overspentByCategory, setOverspentByCategory] = useState<
-    Record<string, number>
+  const [overspendingByCategory, setOverspendingByCategory] = useState<
+    Record<string, IntegerAmount>
   >({});
   const [carryoverFlagByCategory, setCarryoverFlagByCategory] = useState<
     Record<string, boolean>
   >({});
 
   useEffect(() => {
-    setOverspentByCategory({});
+    setOverspendingByCategory({});
     setCarryoverFlagByCategory({});
   }, [month]);
 
@@ -85,13 +106,13 @@ export function useOverspentCategories({ month }: UseOverspentCategoriesProps) {
       const unbind = spreadsheet.bind(sheetName, balanceBinding, result => {
         const balance = result.value as number;
         if (balance < 0) {
-          setOverspentByCategory(prev => ({
+          setOverspendingByCategory(prev => ({
             ...prev,
             [categoryId]: balance,
           }));
         } else if (balance >= 0) {
           // Update to remove covered category.
-          setOverspentByCategory(prev => {
+          setOverspendingByCategory(prev => {
             const { [categoryId]: _, ...rest } = prev;
             return rest;
           });
@@ -105,14 +126,45 @@ export function useOverspentCategories({ month }: UseOverspentCategoriesProps) {
     };
   }, [categoryBalanceBindings, sheetName, spreadsheet]);
 
-  // Ignore those that has rollover enabled.
-  const overspentCategoryIds = Object.keys(overspentByCategory).filter(
-    id => !carryoverFlagByCategory[id],
-  );
+  return useMemo(() => {
+    // Ignore those that has rollover enabled.
+    const categoryIdsToReturn = Object.keys(overspendingByCategory).filter(
+      id => !carryoverFlagByCategory[id],
+    );
 
-  return useMemo(
-    () =>
-      categories.filter(category => overspentCategoryIds.includes(category.id)),
-    [categories, overspentCategoryIds],
-  );
+    const categoriesToReturn = categories
+      .filter(
+        category =>
+          categoryIdsToReturn.includes(category.id) && !category.is_income,
+      )
+      .filter(category =>
+        budgetType === 'tracking'
+          ? !category.hidden && !categoryGroupsById[category.group]?.hidden
+          : true,
+      );
+
+    const amountsByCategory = new Map(
+      categoriesToReturn.map(category => [
+        category.id,
+        overspendingByCategory[category.id],
+      ]),
+    );
+
+    const totalAmount = Array.from(amountsByCategory.values()).reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+
+    return {
+      categories: categoriesToReturn,
+      amountsByCategory,
+      totalAmount,
+    };
+  }, [
+    budgetType,
+    carryoverFlagByCategory,
+    categories,
+    categoryGroupsById,
+    overspendingByCategory,
+  ]);
 }

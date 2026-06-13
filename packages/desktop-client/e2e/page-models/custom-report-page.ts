@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export class CustomReportPage {
   readonly page: Page;
@@ -29,13 +29,17 @@ export class CustomReportPage {
   async selectMode(mode: 'total' | 'time') {
     switch (mode) {
       case 'total':
-        await this.pageContent.getByRole('button', { name: 'Total' }).click();
+        await this.pageContent
+          .getByRole('button', { name: 'Total', exact: true })
+          .click();
         break;
       case 'time':
-        await this.pageContent.getByRole('button', { name: 'Time' }).click();
+        await this.pageContent
+          .getByRole('button', { name: 'Time', exact: true })
+          .click();
         break;
       default:
-        throw new Error(`Unrecognized mode: ${mode}`);
+        throw new Error(`Unrecognized mode: ${String(mode)}`);
     }
   }
 }

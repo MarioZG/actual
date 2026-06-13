@@ -10,7 +10,9 @@ const require = createRequire(import.meta.url);
 const debug = createDebug('actual:config');
 const debugSensitive = createDebug('actual-sensitive:config');
 
-const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const projectRoot = path.dirname(__dirname).replace(/[\\/]build$/, '');
 const defaultDataDir = process.env.ACTUAL_DATA_DIR
   ? process.env.ACTUAL_DATA_DIR
   : fs.existsSync('/data')
@@ -18,8 +20,6 @@ const defaultDataDir = process.env.ACTUAL_DATA_DIR
     : projectRoot;
 
 debug(`Project root: '${projectRoot}'`);
-
-export const sqlDir = path.join(projectRoot, 'src', 'sql');
 
 const actualAppWebBuildPath = path.join(
   path.dirname(require.resolve('@actual-app/web/package.json')),
@@ -33,7 +33,28 @@ convict.addFormat({
   validate(val) {
     if (val === 'never' || val === 'openid-provider') return;
     if (typeof val === 'number' && Number.isFinite(val) && val >= 0) return;
-    throw new Error(`Invalid token_expiration value: ${val}`);
+
+    // Handle string values that can be converted to numbers (from env vars)
+    if (typeof val === 'string') {
+      const numVal = Number(val);
+      if (Number.isFinite(numVal) && numVal >= 0) return;
+    }
+
+    throw new Error(
+      `Invalid token_expiration value: ${val}: value was "${val}"`,
+    );
+  },
+  coerce(val) {
+    if (val === 'never' || val === 'openid-provider') return val;
+    if (typeof val === 'number') return val;
+
+    // Convert string values to numbers for environment variables
+    if (typeof val === 'string') {
+      const numVal = Number(val);
+      if (Number.isFinite(numVal) && numVal >= 0) return numVal;
+    }
+
+    return val; // Let validate() handle invalid values
   },
 });
 
@@ -182,8 +203,7 @@ const configSchema = convict({
     },
     issuer: {
       doc: 'OpenID issuer',
-      format: Object,
-      default: {},
+
       name: {
         doc: 'Name of the provider',
         default: '',
@@ -255,6 +275,27 @@ const configSchema = convict({
     default: 'manual',
     env: 'ACTUAL_USER_CREATION_MODE',
   },
+
+  github: {
+    doc: 'GitHub API configuration.',
+
+    token: {
+      doc: 'GitHub Personal Access Token for API authentication.',
+      format: String,
+      default: '',
+      env: 'ACTUAL_GITHUB_TOKEN',
+    },
+  },
+  corsProxy: {
+    doc: 'CORS proxy configuration for frontend plugins.',
+
+    enabled: {
+      doc: 'Enable the CORS proxy endpoint.',
+      format: Boolean,
+      default: false,
+      env: 'ACTUAL_CORS_PROXY_ENABLED',
+    },
+  },
 });
 
 let configPath = null;
@@ -291,6 +332,8 @@ debug(`User files: ${configSchema.get('userFiles')}`);
 debug(`Web root: ${configSchema.get('webRoot')}`);
 debug(`Login method: ${configSchema.get('loginMethod')}`);
 debug(`Allowed methods: ${configSchema.get('allowedLoginMethods').join(', ')}`);
+const corsProxyEnabled = configSchema.get('corsProxy.enabled');
+debug(`CORS Proxy enabled: ${corsProxyEnabled}`);
 
 const httpsKey = configSchema.get('https.key');
 if (httpsKey) {
@@ -302,6 +345,12 @@ const httpsCert = configSchema.get('https.cert');
 if (httpsCert) {
   debug(`HTTPS Cert: ${'*'.repeat(httpsCert.length)}`);
   debugSensitive(`HTTPS Cert: ${httpsCert}`);
+}
+
+const githubToken = configSchema.get('github.token');
+if (githubToken) {
+  debug(`GitHub Token: ${'*'.repeat(Math.min(githubToken.length, 20))}`);
+  debugSensitive(`GitHub Token: ${githubToken}`);
 }
 
 export { configSchema as config };

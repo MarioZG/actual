@@ -1,4 +1,5 @@
-import React, { useRef, type RefObject } from 'react';
+import React, { useRef } from 'react';
+import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -6,20 +7,21 @@ import { SvgArrowButtonRight1 } from '@actual-app/components/icons/v2';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { q } from '@actual-app/core/shared/query';
+import type { Query } from '@actual-app/core/shared/query';
+import { getScheduledAmount } from '@actual-app/core/shared/schedules';
+import { isPreviewId } from '@actual-app/core/shared/transactions';
+import type { AccountEntity } from '@actual-app/core/types/models';
 import { useHover } from 'usehooks-ts';
 
-import { useCachedSchedules } from 'loot-core/client/data-hooks/schedules';
-import { q, type Query } from 'loot-core/shared/query';
-import { getScheduledAmount } from 'loot-core/shared/schedules';
-import { isPreviewId } from 'loot-core/shared/transactions';
-import { type AccountEntity } from 'loot-core/types/models';
-
-import { useSelectedItems } from '../../hooks/useSelected';
-import { PrivacyFilter } from '../PrivacyFilter';
-import { type Binding } from '../spreadsheet';
-import { CellValue, CellValueText } from '../spreadsheet/CellValue';
-import { useFormat } from '../spreadsheet/useFormat';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { CellValue, CellValueText } from '#components/spreadsheet/CellValue';
+import { useCachedSchedules } from '#hooks/useCachedSchedules';
+import { useFormat } from '#hooks/useFormat';
+import { useSelectedItems } from '#hooks/useSelected';
+import { useSheetValue } from '#hooks/useSheetValue';
+import type { Binding } from '#spreadsheet';
 
 type DetailedBalanceProps = {
   name: string;
@@ -36,7 +38,6 @@ function DetailedBalance({
   return (
     <Text
       style={{
-        marginLeft: 15,
         borderRadius: 4,
         padding: '4px 6px',
         color: theme.pillText,
@@ -45,10 +46,10 @@ function DetailedBalance({
     >
       {name}{' '}
       <PrivacyFilter>
-        <Text style={{ fontWeight: 600 }}>
+        <FinancialText style={{ fontWeight: 600 }}>
           {!isExactBalance && '~ '}
           {format(balance, 'financial')}
-        </Text>
+        </FinancialText>
       </PrivacyFilter>
     </Text>
   );
@@ -59,7 +60,10 @@ type SelectedBalanceProps = {
   account?: AccountEntity;
 };
 
-function SelectedBalance({ selectedItems, account }: SelectedBalanceProps) {
+export function SelectedBalance({
+  selectedItems,
+  account,
+}: SelectedBalanceProps) {
   const { t } = useTranslation();
 
   const name = `selected-balance-${[...selectedItems].join('-')}`;
@@ -92,27 +96,27 @@ function SelectedBalance({ selectedItems, account }: SelectedBalanceProps) {
     return null;
   }
 
-  const previewIds = [...selectedItems]
-    .filter(id => isPreviewId(id))
-    .map(id => id.slice(8));
   let isExactBalance = true;
 
-  for (const s of schedules) {
-    if (previewIds.includes(s.id)) {
+  for (const id of [...selectedItems].filter(isPreviewId)) {
+    // Preview IDs are in the format `preview/<schedule_id>/<date>`
+    const scheduleId = id.slice(8).split('/')[0];
+    const schedule = schedules.find(s => s.id === scheduleId);
+    if (schedule) {
       // If a schedule is `between X and Y` then we calculate the average
-      if (s._amountOp === 'isbetween') {
+      if (schedule._amountOp === 'isbetween') {
         isExactBalance = false;
       }
 
-      if (!account || account.id === s._account) {
-        scheduleBalance += getScheduledAmount(s._amount);
+      if (!account || account.id === schedule._account) {
+        scheduleBalance += getScheduledAmount(schedule._amount);
       } else {
-        scheduleBalance -= getScheduledAmount(s._amount);
+        scheduleBalance -= getScheduledAmount(schedule._amount);
       }
     }
   }
 
-  if (!balance && !scheduleBalance) {
+  if (typeof balance !== 'number' && !scheduleBalance) {
     return null;
   } else {
     balance = (balance ?? 0) + scheduleBalance;
@@ -138,7 +142,7 @@ function FilteredBalance({ filteredAmount }: FilteredBalanceProps) {
     <DetailedBalance
       name={t('Filtered balance:')}
       balance={filteredAmount ?? 0}
-      isExactBalance={true}
+      isExactBalance
     />
   );
 }
@@ -164,10 +168,10 @@ function MoreBalances({ balanceQuery }: MoreBalancesProps) {
   });
 
   return (
-    <View style={{ flexDirection: 'row' }}>
+    <>
       <DetailedBalance name={t('Cleared total:')} balance={cleared ?? 0} />
       <DetailedBalance name={t('Uncleared total:')} balance={uncleared ?? 0} />
-    </View>
+    </>
   );
 }
 
@@ -196,9 +200,11 @@ export function Balances({
     <View
       style={{
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         marginTop: -5,
         marginLeft: -5,
+        gap: 10,
       }}
     >
       <Button
@@ -228,9 +234,9 @@ export function Balances({
                 fontWeight: 400,
                 color:
                   props.value < 0
-                    ? theme.errorText
+                    ? theme.numberNegative
                     : props.value > 0
-                      ? theme.noticeTextLight
+                      ? theme.numberPositive
                       : theme.pageTextSubdued,
               }}
             />

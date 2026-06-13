@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { ConfigurationPage } from './page-models/configuration-page';
@@ -23,7 +23,7 @@ test.describe('Mobile Transactions', () => {
   });
 
   test.afterEach(async () => {
-    await page.close();
+    await page?.close();
   });
 
   test('creates a transaction via footer button', async () => {
@@ -32,7 +32,7 @@ test.describe('Mobile Transactions', () => {
 
     await expect(transactionEntryPage.header).toHaveText('New Transaction');
 
-    await transactionEntryPage.amountField.fill('12.34');
+    await transactionEntryPage.fillAmount('12.34');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(
@@ -54,6 +54,31 @@ test.describe('Mobile Transactions', () => {
     await expect(page).toMatchThemeScreenshots();
   });
 
+  test('prefills a new transaction with URL search params', async () => {
+    const transactionEntryPage = await navigation.goToTransactionEntryPage();
+    await page.goto(
+      transactionEntryPage.page.url() +
+        '?category=Food&amount=23.42&account=HSBC&date=2025-10-31&cleared=true&payee=Kroger&notes=just+a+note',
+    );
+    // Note: no easy way to test cleared checkbox
+    await expect(page.getByTestId('transaction-form'))
+      .toMatchAriaSnapshot(`- text: Amount
+- textbox
+- text: 23.42 Payee
+- button "Kroger" [disabled]
+- text: Category
+- button "Food" [disabled]
+- button "Split" [disabled]:
+  - img
+  - text: Split
+- text: Account
+- button "HSBC" [disabled]
+- text: Date
+- textbox [disabled]: 2025-10-31
+- text: Cleared Notes
+- textbox [disabled]: just a note`);
+  });
+
   test('creates a transaction from `/accounts/:id` page', async () => {
     const accountsPage = await navigation.goToAccountsPage();
     const accountPage = await accountsPage.openNthAccount(2);
@@ -62,7 +87,7 @@ test.describe('Mobile Transactions', () => {
     await expect(transactionEntryPage.header).toHaveText('New Transaction');
     await expect(page).toMatchThemeScreenshots();
 
-    await transactionEntryPage.amountField.fill('12.34');
+    await transactionEntryPage.fillAmount('12.34');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(
@@ -81,10 +106,10 @@ test.describe('Mobile Transactions', () => {
     );
   });
 
-  test('creates an uncategorized transaction from `/accounts/uncategorized` page', async () => {
+  test('creates an uncategorized transaction from `/categories/uncategorized` page', async () => {
     // Create uncategorized transaction
     let transactionEntryPage = await navigation.goToTransactionEntryPage();
-    await transactionEntryPage.amountField.fill('12.35');
+    await transactionEntryPage.fillAmount('12.35');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(
@@ -98,7 +123,7 @@ test.describe('Mobile Transactions', () => {
 
     await expect(transactionEntryPage.header).toHaveText('New Transaction');
 
-    await transactionEntryPage.amountField.fill('12.34');
+    await transactionEntryPage.fillAmount('12.34');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(
@@ -114,10 +139,10 @@ test.describe('Mobile Transactions', () => {
     await expect(page).toMatchThemeScreenshots();
   });
 
-  test('creates a categorized transaction from `/accounts/uncategorized` page', async () => {
+  test('creates a categorized transaction from `/categories/uncategorized` page', async () => {
     // Create uncategorized transaction
     let transactionEntryPage = await navigation.goToTransactionEntryPage();
-    await transactionEntryPage.amountField.fill('12.35');
+    await transactionEntryPage.fillAmount('12.35');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(
@@ -131,7 +156,7 @@ test.describe('Mobile Transactions', () => {
 
     await expect(transactionEntryPage.header).toHaveText('New Transaction');
 
-    await transactionEntryPage.amountField.fill('12.34');
+    await transactionEntryPage.fillAmount('12.34');
     // Click anywhere to cancel active edit.
     await transactionEntryPage.header.click();
     await transactionEntryPage.fillField(

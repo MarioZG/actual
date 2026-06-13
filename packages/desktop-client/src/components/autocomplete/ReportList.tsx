@@ -1,4 +1,5 @@
-import React, { Fragment, type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { theme } from '@actual-app/components/theme';
@@ -27,12 +28,12 @@ export function ReportList<T extends { id: string; name: string }>({
           ...(!embedded && { maxHeight: 175 }),
         }}
       >
-        <Fragment>{ItemHeader({ title: t('Saved Reports') })}</Fragment>
+        <ItemHeader title={t('Saved Reports')} />
         {items.map((item, idx) => {
           return [
             <div
-              {...(getItemProps ? getItemProps({ item }) : null)}
               key={item.id}
+              {...(getItemProps ? getItemProps({ item }) : null)}
               style={{
                 backgroundColor:
                   highlightedIndex === idx

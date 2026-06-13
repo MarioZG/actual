@@ -1,9 +1,13 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { MobileAccountPage } from './mobile-account-page';
 import { MobileAccountsPage } from './mobile-accounts-page';
+import { MobileBankSyncPage } from './mobile-bank-sync-page';
 import { MobileBudgetPage } from './mobile-budget-page';
+import { MobilePayeesPage } from './mobile-payees-page';
 import { MobileReportsPage } from './mobile-reports-page';
+import { MobileRulesPage } from './mobile-rules-page';
+import { MobileSchedulesPage } from './mobile-schedules-page';
 import { MobileTransactionEntryPage } from './mobile-transaction-entry-page';
 import { SettingsPage } from './settings-page';
 
@@ -13,6 +17,7 @@ const NAV_LINKS_HIDDEN_BY_DEFAULT = [
   'Schedules',
   'Payees',
   'Rules',
+  'Bank Sync',
   'Settings',
 ];
 const ROUTES_BY_PAGE = {
@@ -20,6 +25,10 @@ const ROUTES_BY_PAGE = {
   Accounts: '/accounts',
   Transaction: '/transactions/new',
   Reports: '/reports',
+  Schedules: '/schedules',
+  Payees: '/payees',
+  Rules: '/rules',
+  'Bank Sync': '/bank-sync',
   Settings: '/settings',
 };
 
@@ -81,6 +90,10 @@ export class MobileNavigation {
         y: boundingBox.height / NAVBAR_ROWS,
       },
     });
+
+    // Wait for the react-spring animation to complete before taking screenshots.
+    // The animation typically takes a few hundred milliseconds to finish.
+    await this.page.waitForTimeout(500);
   }
 
   async hasNavbarState(...states: string[]) {
@@ -118,7 +131,9 @@ export class MobileNavigation {
     }
 
     const link = this.navbar.getByRole('link', { name: pageName });
-    await link.click();
+    // Click via evaluate: the navbar uses react-spring transforms, so
+    // Playwright's viewport-stability check rejects mid-animation clicks.
+    await link.evaluate(el => (el as HTMLElement).click());
 
     await pageInstance.waitFor();
 
@@ -161,6 +176,34 @@ export class MobileNavigation {
     return await this.navigateToPage(
       'Reports',
       () => new MobileReportsPage(this.page),
+    );
+  }
+
+  async goToPayeesPage() {
+    return await this.navigateToPage(
+      'Payees',
+      () => new MobilePayeesPage(this.page),
+    );
+  }
+
+  async goToSchedulesPage() {
+    return this.navigateToPage(
+      'Schedules',
+      () => new MobileSchedulesPage(this.page),
+    );
+  }
+
+  async goToRulesPage() {
+    return await this.navigateToPage(
+      'Rules',
+      () => new MobileRulesPage(this.page),
+    );
+  }
+
+  async goToBankSyncPage() {
+    return await this.navigateToPage(
+      'Bank Sync',
+      () => new MobileBankSyncPage(this.page),
     );
   }
 

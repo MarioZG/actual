@@ -1,9 +1,9 @@
-import React, {
-  type ComponentPropsWithoutRef,
-  type ComponentPropsWithRef,
-  forwardRef,
-  type ReactNode,
-  type CSSProperties,
+import React from 'react';
+import type {
+  ComponentPropsWithoutRef,
+  ComponentPropsWithRef,
+  CSSProperties,
+  ReactNode,
 } from 'react';
 
 import { Button } from '@actual-app/components/button';
@@ -12,7 +12,8 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Toggle } from '@actual-app/components/toggle';
-import { css } from '@emotion/css';
+import { View } from '@actual-app/components/view';
+import { css, cx } from '@emotion/css';
 
 type FieldLabelProps = {
   title: string;
@@ -46,92 +47,201 @@ const valueStyle = {
   height: styles.mobileMinHeight,
 };
 
-type InputFieldProps = ComponentPropsWithRef<typeof Input>;
+export const hideNativeDateIconClassName = css({
+  '&::-webkit-calendar-picker-indicator': {
+    display: 'none',
+  },
+  '&::-webkit-date-and-time-value': {
+    textAlign: 'left',
+  },
+});
 
-export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(
-  ({ disabled, style, onUpdate, ...props }, ref) => {
+const iconFieldWrapperClassName = css({
+  ...valueStyle,
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingLeft: 8,
+  gap: 8,
+  '&:focus-within': {
+    borderColor: theme.formInputBorderSelected,
+  },
+});
+
+type InputFieldProps = ComponentPropsWithRef<typeof Input> & {
+  icon?: ReactNode;
+};
+
+export function InputField({
+  disabled,
+  style,
+  onUpdate,
+  icon,
+  className,
+  ref,
+  ...props
+}: InputFieldProps) {
+  if (icon) {
     return (
-      <Input
-        inputRef={ref}
-        autoCorrect="false"
-        autoCapitalize="none"
-        disabled={disabled}
-        onUpdate={onUpdate}
-        style={{
-          ...valueStyle,
-          ...style,
-          color: disabled ? theme.tableTextInactive : theme.tableText,
+      <View
+        className={iconFieldWrapperClassName}
+        nativeStyle={{
           backgroundColor: disabled
             ? theme.formInputTextReadOnlySelection
             : theme.tableBackground,
         }}
-        {...props}
-      />
+      >
+        <View
+          style={{
+            color: theme.pageTextSubdued,
+            flexShrink: 0,
+            alignSelf: 'stretch',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 0,
+          }}
+        >
+          {icon}
+        </View>
+        <Input
+          ref={ref}
+          autoCorrect="false"
+          autoCapitalize="none"
+          disabled={disabled}
+          onUpdate={onUpdate}
+          style={{
+            flex: 1,
+            border: 'none',
+            backgroundColor: 'transparent',
+            height: '100%',
+            padding: 0,
+            textAlign: 'left',
+            color: disabled ? theme.tableTextInactive : theme.tableText,
+            ...style,
+            borderRadius: 0,
+            boxShadow: 'none',
+          }}
+          {...props}
+          className={renderProps =>
+            cx(
+              hideNativeDateIconClassName,
+              typeof className === 'function'
+                ? className(renderProps)
+                : className,
+            )
+          }
+        />
+      </View>
     );
-  },
-);
+  }
+
+  return (
+    <Input
+      ref={ref}
+      autoCorrect="false"
+      autoCapitalize="none"
+      disabled={disabled}
+      onUpdate={onUpdate}
+      className={className}
+      style={{
+        ...valueStyle,
+        ...style,
+        color: disabled ? theme.tableTextInactive : theme.tableText,
+        backgroundColor: disabled
+          ? theme.formInputTextReadOnlySelection
+          : theme.tableBackground,
+      }}
+      {...props}
+    />
+  );
+}
 
 InputField.displayName = 'InputField';
 
 type TapFieldProps = ComponentPropsWithRef<typeof Button> & {
+  icon?: ReactNode;
+  placeholder?: string;
   rightContent?: ReactNode;
+  alwaysShowRightContent?: boolean;
   textStyle?: CSSProperties;
 };
 
-const defaultTapFieldStyle: ComponentPropsWithoutRef<
-  typeof Button
->['style'] = ({ isDisabled, isPressed, isHovered }) => ({
-  ...valueStyle,
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: theme.tableBackground,
-  ...(isDisabled && {
-    backgroundColor: theme.formInputTextReadOnlySelection,
-  }),
-  ...(isPressed
-    ? {
-        opacity: 0.5,
-        boxShadow: 'none',
-      }
-    : {}),
-  ...(isHovered
-    ? {
-        boxShadow: 'none',
-      }
-    : {}),
-});
+const defaultTapFieldClassName = () =>
+  css({
+    ...valueStyle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.tableBackground,
+    '&[data-disabled]': {
+      backgroundColor: theme.formInputTextReadOnlySelection,
+    },
+    '&[data-pressed]': {
+      opacity: 0.5,
+      boxShadow: 'none',
+    },
+    '&[data-hovered]': {
+      boxShadow: 'none',
+    },
+  });
 
-export const TapField = forwardRef<HTMLButtonElement, TapFieldProps>(
-  ({ value, children, rightContent, style, textStyle, ...props }, ref) => {
-    return (
-      <Button
-        ref={ref}
-        bounce={false}
-        style={renderProps => ({
-          ...defaultTapFieldStyle(renderProps),
-          ...(typeof style === 'function' ? style(renderProps) : style),
-        })}
-        {...props}
-      >
-        {children ? (
-          children
-        ) : (
+export function TapField({
+  value,
+  children,
+  className,
+  icon,
+  placeholder,
+  rightContent,
+  alwaysShowRightContent,
+  textStyle,
+  ref,
+  ...props
+}: TapFieldProps) {
+  const showPlaceholder = !value && !!placeholder;
+  return (
+    <Button
+      ref={ref}
+      bounce={false}
+      className={renderProps =>
+        cx(
+          defaultTapFieldClassName(),
+          typeof className === 'function' ? className(renderProps) : className,
+        )
+      }
+      {...props}
+    >
+      {children ? (
+        children
+      ) : (
+        <>
+          {icon && (
+            <View
+              style={{
+                color: theme.pageTextSubdued,
+                marginRight: 8,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </View>
+          )}
           <Text
             style={{
               flex: 1,
               userSelect: 'none',
               textAlign: 'left',
+              color: showPlaceholder
+                ? theme.formInputTextPlaceholder
+                : undefined,
               ...textStyle,
             }}
           >
-            {value}
+            {showPlaceholder ? placeholder : value}
           </Text>
-        )}
-        {!props.isDisabled && rightContent}
-      </Button>
-    );
-  },
-);
+        </>
+      )}
+      {(!props.isDisabled || alwaysShowRightContent) && rightContent}
+    </Button>
+  );
+}
 
 TapField.displayName = 'TapField';
 

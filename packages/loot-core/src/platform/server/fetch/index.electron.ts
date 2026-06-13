@@ -1,7 +1,8 @@
-export const fetch = async (
-  input: RequestInfo | URL,
-  options?: RequestInit,
-) => {
+import { logger } from '#platform/server/log';
+
+import type * as T from './index';
+
+export const fetch: typeof T.fetch = async (input, options) => {
   try {
     return await globalThis.fetch(input, {
       ...options,
@@ -11,7 +12,7 @@ export const fetch = async (
       },
     });
   } catch (error) {
-    console.error(error); // log error
+    logger.error(error); // log error
     throw error;
   }
 };

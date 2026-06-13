@@ -1,11 +1,5 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Tooltip as AriaTooltip, TooltipTrigger } from 'react-aria-components';
 
 import { styles } from './styles';
@@ -15,20 +9,27 @@ type TooltipProps = Partial<ComponentProps<typeof AriaTooltip>> & {
   children: ReactNode;
   content: ReactNode;
   triggerProps?: Partial<ComponentProps<typeof TooltipTrigger>>;
+  disablePointerEvents?: boolean;
 };
 
 export const Tooltip = ({
   children,
   content,
   triggerProps = {},
+  disablePointerEvents = false,
   ...props
 }: TooltipProps) => {
   const triggerRef = useRef(null);
   const [isHovered, setIsHover] = useState(false);
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const handlePointerEnter = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+
     const timeout = setTimeout(() => {
       setIsHover(true);
     }, triggerProps.delay ?? 300);
@@ -41,8 +42,10 @@ export const Tooltip = ({
       clearTimeout(hoverTimeoutRef.current);
     }
 
-    setIsHover(false);
-  }, []);
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsHover(false);
+    }, triggerProps.closeDelay ?? 0);
+  }, [triggerProps.closeDelay]);
 
   // Force closing the tooltip whenever the disablement state changes
   useEffect(() => {
@@ -62,7 +65,14 @@ export const Tooltip = ({
       >
         {children}
 
-        <AriaTooltip triggerRef={triggerRef} style={styles.tooltip} {...props}>
+        <AriaTooltip
+          triggerRef={triggerRef}
+          style={{
+            ...styles.tooltip,
+            ...(disablePointerEvents && { pointerEvents: 'none' }),
+          }}
+          {...props}
+        >
           {content}
         </AriaTooltip>
       </TooltipTrigger>

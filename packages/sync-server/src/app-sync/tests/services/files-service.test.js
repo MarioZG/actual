@@ -1,12 +1,12 @@
 import crypto from 'node:crypto';
 
-import { getAccountDb } from '../../../account-db.js';
-import { FileNotFound } from '../../errors.js';
+import { getAccountDb } from '#account-db';
+import { FileNotFound } from '#app-sync/errors';
 import {
-  FilesService,
   File,
+  FilesService,
   FileUpdate,
-} from '../../services/files-service.js'; // Adjust the path as necessary
+} from '#app-sync/services/files-service'; // Adjust the path as necessary
 describe('FilesService', () => {
   let filesService;
   let accountDb;

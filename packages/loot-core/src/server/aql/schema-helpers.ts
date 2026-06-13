@@ -1,6 +1,6 @@
+import { fromDateRepr, toDateRepr } from '#server/models';
 // @ts-strict-ignore
-import { dayFromDate } from '../../shared/months';
-import { toDateRepr, fromDateRepr } from '../models';
+import { dayFromDate } from '#shared/months';
 
 function isRequired(name, fieldDesc) {
   return fieldDesc.required || name === 'id';
@@ -25,7 +25,7 @@ export function convertInputType(value, type) {
         return toDateRepr(dayFromDate(value));
       } else if (
         value.match(/^\d{4}-\d{2}-\d{2}$/) == null ||
-        value.date < '2000-01-01'
+        value < '1995-01-01'
       ) {
         throw new Error('Invalid date: ' + value);
       }
@@ -46,7 +46,7 @@ export function convertInputType(value, type) {
       if (typeof value === 'number' && Number.isInteger(value)) {
         return value;
       } else {
-        throw new Error('Can’t convert to integer: ' + JSON.stringify(value));
+        throw new Error("Can't convert to integer: " + JSON.stringify(value));
       }
     case 'json':
       return JSON.stringify(value);
@@ -76,7 +76,7 @@ export function convertOutputType(value, type) {
     case 'json/fallback':
       try {
         return JSON.parse(value);
-      } catch (e) {
+      } catch {
         return type === 'json/fallback' ? value : null;
       }
     default:
@@ -94,7 +94,7 @@ export function conform(
 ) {
   const tableSchema = schema[table];
   if (tableSchema == null) {
-    throw new Error(`Table “${table}” does not exist`);
+    throw new Error(`Table "${table}" does not exist`);
   }
 
   const views = schemaConfig.views || {};
@@ -118,7 +118,7 @@ export function conform(
         const fieldDesc = tableSchema[field];
         if (fieldDesc == null) {
           throw new Error(
-            `Field “${field}” does not exist on table ${table}: ${JSON.stringify(
+            `Field "${field}" does not exist on table ${table}: ${JSON.stringify(
               obj,
             )}`,
           );
@@ -126,10 +126,15 @@ export function conform(
 
         if (isRequired(field, fieldDesc) && obj[field] == null) {
           throw new Error(
-            `“${field}” is required for table “${table}”: ${JSON.stringify(
+            `"${field}" is required for table "${table}": ${JSON.stringify(
               obj,
             )}`,
           );
+        }
+
+        // treat undefined as missing
+        if (obj[field] === undefined) {
+          return null;
         }
 
         // This option removes null values (see `convertForInsert`)
@@ -148,7 +153,7 @@ export function convertForInsert(schema, schemaConfig, table, rawObj) {
 
   const tableSchema = schema[table];
   if (tableSchema == null) {
-    throw new Error(`Error inserting: table “${table}” does not exist`);
+    throw new Error(`Error inserting: table "${table}" does not exist`);
   }
 
   // Inserting checks all the fields in the table and adds any default
@@ -167,7 +172,7 @@ export function convertForInsert(schema, schemaConfig, table, rawObj) {
         // checks the fields in `obj`. For insert, we need to do it
         // here to check that all required fields in the table exist
         throw new Error(
-          `“${field}” is required for table “${table}”: ${JSON.stringify(obj)}`,
+          `"${field}" is required for table "${table}": ${JSON.stringify(obj)}`,
         );
       }
     }
@@ -184,7 +189,7 @@ export function convertForUpdate(schema, schemaConfig, table, rawObj) {
 
   const tableSchema = schema[table];
   if (tableSchema == null) {
-    throw new Error(`Error updating: table “${table}” does not exist`);
+    throw new Error(`Error updating: table "${table}" does not exist`);
   }
 
   return conform(schema, schemaConfig, table, obj);
@@ -193,7 +198,7 @@ export function convertForUpdate(schema, schemaConfig, table, rawObj) {
 export function convertFromSelect(schema, schemaConfig, table, obj) {
   const tableSchema = schema[table];
   if (tableSchema == null) {
-    throw new Error(`Table “${table}” does not exist`);
+    throw new Error(`Table "${table}" does not exist`);
   }
 
   const fields = Object.keys(tableSchema);

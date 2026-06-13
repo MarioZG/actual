@@ -1,10 +1,15 @@
-import * as db from '../db';
-import { DbSchedule } from '../db';
+import * as db from '#server/db';
+import type { DbSchedule } from '#server/db';
 
 import { GOAL_PREFIX, TEMPLATE_PREFIX } from './template-notes';
 
-/* eslint-disable rulesdir/typography */
-export async function resetCategoryGoalDefsWithNoTemplates(): Promise<void> {
+export async function resetCategoryGoalDefsWithNoTemplates(
+  categoryIds?: string[],
+): Promise<void> {
+  if (categoryIds?.length === 0) return;
+  const scopeClause = categoryIds
+    ? `AND id IN (${categoryIds.map(() => '?').join(',')})`
+    : '';
   await db.run(
     `
       UPDATE categories
@@ -13,11 +18,12 @@ export async function resetCategoryGoalDefsWithNoTemplates(): Promise<void> {
                        FROM notes n
                        WHERE lower(note) LIKE '%${TEMPLATE_PREFIX}%'
                           OR lower(note) LIKE '%${GOAL_PREFIX}%')
+        AND COALESCE(JSON_EXTRACT(template_settings, '$.source'), 'notes') <> 'ui'
+        ${scopeClause}
     `,
+    categoryIds ?? [],
   );
 }
-
-/* eslint-enable rulesdir/typography */
 
 export type CategoryWithTemplateNote = {
   id: string;
@@ -25,9 +31,13 @@ export type CategoryWithTemplateNote = {
   note: string;
 };
 
-export async function getCategoriesWithTemplateNotes(): Promise<
-  CategoryWithTemplateNote[]
-> {
+export async function getCategoriesWithTemplateNotes(
+  categoryIds?: string[],
+): Promise<CategoryWithTemplateNote[]> {
+  if (categoryIds?.length === 0) return [];
+  const scopeClause = categoryIds
+    ? `AND c.id IN (${categoryIds.map(() => '?').join(',')})`
+    : '';
   return await db.all<
     Pick<db.DbCategory, 'id' | 'name'> & Pick<db.DbNote, 'note'>
   >(
@@ -37,9 +47,12 @@ export async function getCategoriesWithTemplateNotes(): Promise<
              JOIN categories c ON n.id = c.id
       WHERE c.id = n.id
         AND c.tombstone = 0
+        AND COALESCE(JSON_EXTRACT(c.template_settings, '$.source'), 'notes') <> 'ui'
         AND (lower(note) LIKE '%${TEMPLATE_PREFIX}%'
         OR lower(note) LIKE '%${GOAL_PREFIX}%')
+        ${scopeClause}
     `,
+    categoryIds ?? [],
   );
 }
 

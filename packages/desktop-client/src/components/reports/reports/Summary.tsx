@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, type CSSProperties } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
@@ -13,48 +14,48 @@ import {
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type {
+  SummaryContent,
+  SummaryWidget,
+  TimeFrame,
+} from '@actual-app/core/types/models';
 import { parseISO } from 'date-fns';
 
-import { useWidget } from 'loot-core/client/data-hooks/widget';
-import { addNotification } from 'loot-core/client/notifications/notificationsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
-import { amountToCurrency } from 'loot-core/shared/util';
-import {
-  type SummaryContent,
-  type SummaryWidget,
-  type TimeFrame,
-} from 'loot-core/types/models';
-
-import { useFilters } from '../../../hooks/useFilters';
-import { useLocale } from '../../../hooks/useLocale';
-import { useNavigate } from '../../../hooks/useNavigate';
-import { useSyncedPref } from '../../../hooks/useSyncedPref';
-import { useDispatch } from '../../../redux';
-import { EditablePageHeaderTitle } from '../../EditablePageHeaderTitle';
-import { AppliedFilters } from '../../filters/AppliedFilters';
-import { FilterButton } from '../../filters/FiltersMenu';
-import { Checkbox } from '../../forms';
-import { MobileBackButton } from '../../mobile/MobileBackButton';
-import { FieldSelect } from '../../modals/EditRuleModal';
-import { MobilePageHeader, Page, PageHeader } from '../../Page';
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { chartTheme } from '../chart-theme';
-import { Header } from '../Header';
-import { LoadingIndicator } from '../LoadingIndicator';
-import { calculateTimeRange } from '../reportRanges';
-import { summarySpreadsheet } from '../spreadsheets/summary-spreadsheet';
-import { useReport } from '../useReport';
-import { fromDateRepr } from '../util';
+import { EditablePageHeaderTitle } from '#components/EditablePageHeaderTitle';
+import { AppliedFilters } from '#components/filters/AppliedFilters';
+import { FilterButton } from '#components/filters/FiltersMenu';
+import { FinancialText } from '#components/FinancialText';
+import { Checkbox } from '#components/forms';
+import { MobileBackButton } from '#components/mobile/MobileBackButton';
+import { MobilePageHeader, Page, PageHeader } from '#components/Page';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { Header } from '#components/reports/Header';
+import { LoadingIndicator } from '#components/reports/LoadingIndicator';
+import { calculateTimeRange } from '#components/reports/reportRanges';
+import { summarySpreadsheet } from '#components/reports/spreadsheets/summary-spreadsheet';
+import { useReport } from '#components/reports/useReport';
+import { fromDateRepr } from '#components/reports/util';
+import { FieldSelect } from '#components/rules/RuleEditor';
+import { useDashboardWidget } from '#hooks/useDashboardWidget';
+import { useFormat } from '#hooks/useFormat';
+import { useLocale } from '#hooks/useLocale';
+import { useNavigate } from '#hooks/useNavigate';
+import { useRuleConditionFilters } from '#hooks/useRuleConditionFilters';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { addNotification } from '#notifications/notificationsSlice';
+import { useDispatch } from '#redux';
+import { useUpdateDashboardWidgetMutation } from '#reports/mutations';
 
 export function Summary() {
   const params = useParams();
-  const { data: widget, isLoading } = useWidget<SummaryWidget>(
-    params.id ?? '',
-    'summary-card',
-  );
+  const { data: widget, isPending } = useDashboardWidget<SummaryWidget>({
+    id: params.id,
+    type: 'summary-card',
+  });
 
-  if (isLoading) {
+  if (isPending) {
     return <LoadingIndicator />;
   }
 
@@ -65,24 +66,20 @@ type SummaryInnerProps = {
   widget?: SummaryWidget;
 };
 
-type FilterObject = ReturnType<typeof useFilters>;
+type FilterObject = ReturnType<typeof useRuleConditionFilters>;
 
 function SummaryInner({ widget }: SummaryInnerProps) {
   const locale = useLocale();
   const { t } = useTranslation();
-  const [initialStart, initialEnd, initialMode] = calculateTimeRange(
-    widget?.meta?.timeFrame,
-    {
-      start: monthUtils.dayFromDate(monthUtils.currentMonth()),
-      end: monthUtils.currentDay(),
-      mode: 'full',
-    },
-  );
-  const [start, setStart] = useState(initialStart);
-  const [end, setEnd] = useState(initialEnd);
-  const [mode, setMode] = useState(initialMode);
+  const format = useFormat();
 
-  const dividendFilters: FilterObject = useFilters(
+  const [start, setStart] = useState(
+    monthUtils.dayFromDate(monthUtils.currentMonth()),
+  );
+  const [end, setEnd] = useState(monthUtils.currentDay());
+  const [mode, setMode] = useState<TimeFrame['mode']>('full');
+
+  const dividendFilters: FilterObject = useRuleConditionFilters(
     widget?.meta?.conditions ?? [],
     widget?.meta?.conditionsOp ?? 'and',
   );
@@ -110,7 +107,7 @@ function SummaryInner({ widget }: SummaryInnerProps) {
         },
   );
 
-  const divisorFilters = useFilters(
+  const divisorFilters = useRuleConditionFilters(
     content.type === 'percentage' ? (content?.divisorConditions ?? []) : [],
     content.type === 'percentage'
       ? (content?.divisorConditionsOp ?? 'and')
@@ -154,43 +151,86 @@ function SummaryInner({ widget }: SummaryInnerProps) {
     }>
   >([]);
 
-  const [earliestTransaction, _] = useState('');
+  const [earliestTransaction, setEarliestTransaction] = useState('');
+  const [latestTransaction, setLatestTransaction] = useState('');
   const [_firstDayOfWeekIdx] = useSyncedPref('firstDayOfWeekIdx');
   const firstDayOfWeekIdx = _firstDayOfWeekIdx || '0';
 
   useEffect(() => {
     async function run() {
-      const trans = await send('get-earliest-transaction');
+      const earliestTransaction = await send('get-earliest-transaction');
+      setEarliestTransaction(
+        earliestTransaction
+          ? earliestTransaction.date
+          : monthUtils.currentDay(),
+      );
+
+      const latestTransaction = await send('get-latest-transaction');
+      setLatestTransaction(
+        latestTransaction ? latestTransaction.date : monthUtils.currentDay(),
+      );
+
       const currentMonth = monthUtils.currentMonth();
-      let earliestMonth = trans
-        ? monthUtils.monthFromDate(parseISO(fromDateRepr(trans.date)))
+      let earliestMonth = earliestTransaction
+        ? monthUtils.monthFromDate(
+            parseISO(fromDateRepr(earliestTransaction.date)),
+          )
         : currentMonth;
+      const latestTransactionMonth = latestTransaction
+        ? monthUtils.monthFromDate(
+            parseISO(fromDateRepr(latestTransaction.date)),
+          )
+        : currentMonth;
+
+      const latestMonth =
+        latestTransactionMonth > currentMonth
+          ? latestTransactionMonth
+          : currentMonth;
 
       // Make sure the month selects are at least populates with a
       // year's worth of months. We can undo this when we have fancier
       // date selects.
-      const yearAgo = monthUtils.subMonths(monthUtils.currentMonth(), 12);
+      const yearAgo = monthUtils.subMonths(latestMonth, 12);
       if (earliestMonth > yearAgo) {
         earliestMonth = yearAgo;
       }
 
       const allMonths = monthUtils
-        .rangeInclusive(earliestMonth, monthUtils.currentMonth())
+        .rangeInclusive(earliestMonth, latestMonth)
         .map(month => ({
           name: month,
-          pretty: monthUtils.format(month, 'MMMM, yyyy', locale),
+          pretty: monthUtils.format(month, 'MMMM yyyy', locale),
         }))
         .reverse();
 
       setAllMonths(allMonths);
     }
-    run();
+    void run();
   }, [locale]);
+
+  useEffect(() => {
+    if (latestTransaction) {
+      const [initialStart, initialEnd, initialMode] = calculateTimeRange(
+        widget?.meta?.timeFrame,
+        {
+          start: monthUtils.dayFromDate(monthUtils.currentMonth()),
+          end: monthUtils.currentDay(),
+          mode: 'full',
+        },
+        latestTransaction,
+      );
+      setStart(initialStart);
+      setEnd(initialEnd);
+      setMode(initialMode);
+    }
+  }, [latestTransaction, widget?.meta?.timeFrame]);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isNarrowWidth } = useResponsive();
   const title = widget?.meta?.name || t('Summary');
+
+  const updateDashboardWidgetMutation = useUpdateDashboardWidgetMutation();
 
   const onSaveWidgetName = async (newName: string) => {
     if (!widget) {
@@ -206,12 +246,14 @@ function SummaryInner({ widget }: SummaryInnerProps) {
     }
 
     const name = newName || t('Summary');
-    await send('dashboard-update-widget', {
-      id: widget.id,
-      meta: {
-        ...(widget.meta ?? {}),
-        name,
-        content: JSON.stringify(content),
+    updateDashboardWidgetMutation.mutate({
+      widget: {
+        id: widget.id,
+        meta: {
+          ...(widget.meta ?? {}),
+          name,
+          content: JSON.stringify(content),
+        },
       },
     });
   };
@@ -234,29 +276,49 @@ function SummaryInner({ widget }: SummaryInnerProps) {
       );
       return;
     }
-    await send('dashboard-update-widget', {
-      id: widget.id,
-      meta: {
-        ...(widget.meta ?? {}),
-        conditions: dividendFilters.conditions,
-        conditionsOp: dividendFilters.conditionsOp,
-        timeFrame: {
-          start,
-          end,
-          mode,
+
+    updateDashboardWidgetMutation.mutate(
+      {
+        widget: {
+          id: widget.id,
+          meta: {
+            ...(widget.meta ?? {}),
+            conditions: dividendFilters.conditions,
+            conditionsOp: dividendFilters.conditionsOp,
+            timeFrame: {
+              start,
+              end,
+              mode,
+            },
+            content: JSON.stringify(content),
+          },
         },
-        content: JSON.stringify(content),
       },
-    });
-    dispatch(
-      addNotification({
-        notification: {
-          type: 'message',
-          message: t('Dashboard widget successfully saved.'),
+      {
+        onSuccess: () => {
+          dispatch(
+            addNotification({
+              notification: {
+                type: 'message',
+                message: t('Dashboard widget successfully saved.'),
+              },
+            }),
+          );
         },
-      }),
+      },
     );
   }
+
+  const getDivisorFormatted = (contentType: string, value: number) => {
+    if (contentType === 'avgPerMonth') {
+      return format(value, 'number');
+    } else if (contentType === 'avgPerYear') {
+      return format(value, 'number');
+    } else if (contentType === 'avgPerTransact') {
+      return format(value, 'number');
+    }
+    return format(Math.round(value), 'financial');
+  };
 
   return (
     <Page
@@ -290,15 +352,11 @@ function SummaryInner({ widget }: SummaryInnerProps) {
         start={start}
         end={end}
         earliestTransaction={earliestTransaction}
+        latestTransaction={latestTransaction}
         firstDayOfWeekIdx={firstDayOfWeekIdx}
         mode={mode}
         onChangeDates={onChangeDates}
-        onApply={dividendFilters.onApply}
-        onUpdateFilter={dividendFilters.onUpdate}
-        onDeleteFilter={dividendFilters.onDelete}
-        conditionsOp={dividendFilters.conditionsOp}
-        onConditionsOpChange={dividendFilters.onConditionsOpChange}
-        show1Month={true}
+        show1Month
       >
         {widget && (
           <Button variant="primary" onPress={onSaveWidget}>
@@ -322,18 +380,26 @@ function SummaryInner({ widget }: SummaryInnerProps) {
             padding: 16,
           }}
         >
-          <span style={{ marginRight: 4 }}>{t('Show as')}</span>
+          <span style={{ marginRight: 4 }}>
+            <Trans>Show as</Trans>
+          </span>
           <FieldSelect
             style={{ marginRight: 16 }}
             fields={[
               ['sum', t('Sum')],
               ['avgPerMonth', t('Average per month')],
+              ['avgPerYear', t('Average per year')],
               ['avgPerTransact', t('Average per transaction')],
               ['percentage', t('Percentage')],
             ]}
             value={content.type ?? 'sum'}
             onChange={(
-              newValue: 'sum' | 'avgPerMonth' | 'avgPerTransact' | 'percentage',
+              newValue:
+                | 'sum'
+                | 'avgPerMonth'
+                | 'avgPerYear'
+                | 'avgPerTransact'
+                | 'percentage',
             ) =>
               setContent(
                 (prev: SummaryContent) =>
@@ -358,7 +424,7 @@ function SummaryInner({ widget }: SummaryInnerProps) {
                 }));
               }}
             />{' '}
-            {t('All time divisor')}
+            <Trans>All time divisor</Trans>
           </View>
         )}
       </View>
@@ -402,7 +468,9 @@ function SummaryInner({ widget }: SummaryInnerProps) {
                   }}
                 >
                   <PrivacyFilter>
-                    {amountToCurrency(data?.dividend ?? 0)}
+                    <FinancialText>
+                      {format(data?.dividend ?? 0, 'financial')}
+                    </FinancialText>
                   </PrivacyFilter>
                 </Text>
                 <div
@@ -422,7 +490,7 @@ function SummaryInner({ widget }: SummaryInnerProps) {
                   }}
                 >
                   <PrivacyFilter>
-                    {amountToCurrency(data?.divisor ?? 0)}
+                    {getDivisorFormatted(content.type, data?.divisor ?? 0)}
                   </PrivacyFilter>
                 </Text>
               </View>
@@ -441,13 +509,17 @@ function SummaryInner({ widget }: SummaryInnerProps) {
               fontSize: '50px',
               justifyContent: 'center',
               color:
-                (data?.total ?? 0) < 0
-                  ? chartTheme.colors.red
-                  : chartTheme.colors.blue,
+                (data?.total ?? 0) === 0
+                  ? theme.reportsNumberNeutral
+                  : (data?.total ?? 0) < 0
+                    ? theme.reportsNumberNegative
+                    : theme.reportsNumberPositive,
             }}
           >
             <PrivacyFilter>
-              {amountToCurrency(Math.abs(data?.total ?? 0))}
+              {content.type === 'percentage'
+                ? format(Math.abs(data?.total ?? 0), 'number')
+                : format(Math.abs(Math.round(data?.total ?? 0)), 'financial')}
               {content.type === 'percentage' ? '%' : ''}
             </PrivacyFilter>
           </View>
@@ -458,7 +530,7 @@ function SummaryInner({ widget }: SummaryInnerProps) {
 }
 
 type OperatorProps = {
-  type: 'sum' | 'avgPerMonth' | 'avgPerTransact' | 'percentage';
+  type: 'sum' | 'avgPerMonth' | 'avgPerYear' | 'avgPerTransact' | 'percentage';
   dividendFilterObject: FilterObject;
   divisorFilterObject: FilterObject;
   fromRange: string;
@@ -516,7 +588,9 @@ function Operator({
           >
             {type === 'avgPerMonth'
               ? t('number of months')
-              : t('number of transactions')}
+              : type === 'avgPerYear'
+                ? t('number of years')
+                : t('number of transactions')}
           </Text>
         </>
       )}
@@ -579,7 +653,6 @@ function SumWithRange({
           compact={false}
           onApply={filterObject.onApply}
           hover={false}
-          exclude={undefined}
         />
       </View>
     </View>

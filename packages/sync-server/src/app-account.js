@@ -1,27 +1,38 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 
 import {
   bootstrap,
-  needsBootstrap,
-  getLoginMethod,
-  listLoginMethods,
-  getUserInfo,
   getActiveLoginMethod,
-} from './account-db.js';
-import { isValidRedirectUrl, loginWithOpenIdSetup } from './accounts/openid.js';
-import { changePassword, loginWithPassword } from './accounts/password.js';
-import {
-  errorMiddleware,
-  requestLoggerMiddleware,
-} from './util/middlewares.js';
-import { validateAuthHeader, validateSession } from './util/validate-user.js';
+  getLoginMethod,
+  getServerPrefs,
+  getUserInfo,
+  isAdmin,
+  listLoginMethods,
+  needsBootstrap,
+  setServerPrefs,
+} from './account-db';
+import { isValidRedirectUrl, loginWithOpenIdSetup } from './accounts/openid';
+import { changePassword, loginWithPassword } from './accounts/password';
+import { errorMiddleware, requestLoggerMiddleware } from './util/middlewares';
+import { validateAuthHeader, validateSession } from './util/validate-user';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(errorMiddleware);
 app.use(requestLoggerMiddleware);
-export { app as handlers };
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
+  legacyHeaders: false,
+  standardHeaders: true,
+  skipSuccessfulRequests: true,
+  message: { status: 'error', reason: 'too-many-requests' },
+});
+
+export { app as handlers, authRateLimiter };
 
 // Non-authenticated endpoints:
 //
@@ -45,7 +56,7 @@ app.get('/needs-bootstrap', (req, res) => {
   });
 });
 
-app.post('/bootstrap', async (req, res) => {
+app.post('/bootstrap', authRateLimiter, async (req, res) => {
   const boot = await bootstrap(req.body);
 
   if (boot?.error) {
@@ -60,7 +71,7 @@ app.get('/login-methods', (req, res) => {
   res.send({ status: 'ok', methods });
 });
 
-app.post('/login', async (req, res) => {
+app.post('/login', authRateLimiter, async (req, res) => {
   const loginMethod = getLoginMethod(req);
   console.log('Logging in via ' + loginMethod);
   let tokenRes = null;
@@ -121,12 +132,55 @@ app.post('/change-password', (req, res) => {
   const session = validateSession(req, res);
   if (!session) return;
 
+  if (!isAdmin(session.user_id)) {
+    res.status(403).send({
+      status: 'error',
+      reason: 'forbidden',
+      details: 'permission-not-found',
+    });
+    return;
+  }
+
+  if (session.auth_method !== 'password') {
+    res.status(403).send({
+      status: 'error',
+      reason: 'forbidden',
+      details: 'password-auth-not-active',
+    });
+    return;
+  }
+
   const { error } = changePassword(req.body.password);
 
   if (error) {
     res.status(400).send({ status: 'error', reason: error });
     return;
   }
+
+  res.send({ status: 'ok', data: {} });
+});
+
+app.post('/server-prefs', (req, res) => {
+  const session = validateSession(req, res);
+  if (!session) return;
+
+  if (!isAdmin(session.user_id)) {
+    res.status(403).send({
+      status: 'error',
+      reason: 'forbidden',
+      details: 'permission-not-found',
+    });
+    return;
+  }
+
+  const { prefs } = req.body || {};
+
+  if (!prefs || typeof prefs !== 'object') {
+    res.status(400).send({ status: 'error', reason: 'invalid-prefs' });
+    return;
+  }
+
+  setServerPrefs(prefs);
 
   res.send({ status: 'ok', data: {} });
 });
@@ -149,6 +203,7 @@ app.get('/validate', (req, res) => {
         userId: session?.user_id,
         displayName: user?.display_name,
         loginMethod: session?.auth_method,
+        prefs: getServerPrefs(),
       },
     });
   }

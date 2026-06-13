@@ -1,29 +1,30 @@
 // @ts-strict-ignore
-import React, { type ComponentProps, type CSSProperties } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import React from 'react';
+import type { ComponentProps, CSSProperties } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
 import { theme } from '@actual-app/components/theme';
+import type { SpendingEntity } from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
 import {
-  AreaChart,
   Area,
+  AreaChart,
   CartesianGrid,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 
-import {
-  amountToCurrency,
-  amountToCurrencyNoDecimal,
-} from 'loot-core/shared/util';
-import { type SpendingEntity } from 'loot-core/types/models';
+import { FinancialText } from '#components/FinancialText';
+import { useRechartsAnimation } from '#components/reports/chart-theme';
+import { Container } from '#components/reports/Container';
+import { numberFormatterTooltip } from '#components/reports/numberFormatter';
+import { useFormat } from '#hooks/useFormat';
+import type { FormatType } from '#hooks/useFormat';
+import { usePrivacyMode } from '#hooks/usePrivacyMode';
 
-import { usePrivacyMode } from '../../../hooks/usePrivacyMode';
-import { Container } from '../Container';
-import { numberFormatterTooltip } from '../numberFormatter';
+import { computePadding } from './util/computePadding';
 
 type PayloadItem = {
   value: number;
@@ -48,6 +49,7 @@ type CustomTooltipProps = {
   balanceTypeOp: 'cumulative';
   selection: string | 'budget' | 'average';
   compare: string;
+  format: (value: unknown, type?: FormatType) => string;
 };
 
 const CustomTooltip = ({
@@ -56,13 +58,14 @@ const CustomTooltip = ({
   balanceTypeOp,
   selection,
   compare,
+  format,
 }: CustomTooltipProps) => {
   const { t } = useTranslation();
 
   if (active && payload && payload.length) {
     const comparison = ['average', 'budget'].includes(selection)
       ? payload[0].payload[selection] * -1
-      : payload[0].payload.months[selection]?.cumulative * -1;
+      : (payload[0].payload.months[selection]?.cumulative ?? 0) * -1;
     return (
       <div
         className={css({
@@ -93,9 +96,14 @@ const CustomTooltip = ({
             {payload[0].payload.months[compare]?.cumulative ? (
               <AlignedText
                 left={t('Compare:')}
-                right={amountToCurrency(
-                  payload[0].payload.months[compare]?.cumulative * -1,
-                )}
+                right={
+                  <FinancialText>
+                    {format(
+                      payload[0].payload.months[compare]?.cumulative * -1,
+                      'financial',
+                    )}
+                  </FinancialText>
+                }
               />
             ) : null}
             {['cumulative'].includes(balanceTypeOp) && (
@@ -107,16 +115,27 @@ const CustomTooltip = ({
                       ? t('Budgeted:')
                       : t('To:')
                 }
-                right={amountToCurrency(comparison)}
+                right={
+                  <FinancialText>
+                    {format(Math.round(comparison), 'financial')}
+                  </FinancialText>
+                }
               />
             )}
             {payload[0].payload.months[compare]?.cumulative ? (
               <AlignedText
                 left={t('Difference:')}
-                right={amountToCurrency(
-                  payload[0].payload.months[compare]?.cumulative * -1 -
-                    comparison,
-                )}
+                right={
+                  <FinancialText>
+                    {format(
+                      Math.round(
+                        payload[0].payload.months[compare]?.cumulative * -1 -
+                          comparison,
+                      ),
+                      'financial',
+                    )}
+                  </FinancialText>
+                }
               />
             ) : null}
           </div>
@@ -144,7 +163,9 @@ export function SpendingGraph({
   compareTo,
 }: SpendingGraphProps) {
   const privacyMode = usePrivacyMode();
+  const animationProps = useRechartsAnimation({ animationDuration: 1000 });
   const balanceTypeOp = 'cumulative';
+  const format = useFormat();
 
   const selection = mode === 'single-month' ? compareTo : mode;
 
@@ -170,7 +191,7 @@ export function SpendingGraph({
   );
 
   const tickFormatter: ComponentProps<typeof YAxis>['tickFormatter'] = tick => {
-    if (!privacyMode) return `${amountToCurrencyNoDecimal(tick)}`; // Formats the tick values as strings with commas
+    if (!privacyMode) return `${format(tick, 'financial-no-decimals')}`;
     return '...';
   };
 
@@ -209,110 +230,115 @@ export function SpendingGraph({
     >
       {(width, height) =>
         data.intervalData && (
-          <ResponsiveContainer>
-            <div>
-              {!compact && <div style={{ marginTop: '5px' }} />}
-              <AreaChart
-                width={width}
-                height={height}
-                data={data.intervalData}
-                margin={{
-                  top: 0,
-                  right: 0,
-                  left: 0,
-                  bottom: 0,
-                }}
-              >
-                {compact ? null : (
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                )}
-                {compact ? null : (
-                  <XAxis
-                    dataKey={val => getDate(val)}
-                    tick={{ fill: theme.pageText }}
-                    tickLine={{ stroke: theme.pageText }}
-                  />
-                )}
-                {compact ? null : (
-                  <YAxis
-                    dataKey={val => getVal(val, maxYAxis ? compare : selection)}
-                    domain={[0, 'auto']}
-                    tickFormatter={tickFormatter}
-                    tick={{ fill: theme.pageText }}
-                    tickLine={{ stroke: theme.pageText }}
-                    tickSize={0}
-                  />
-                )}
-                <Tooltip
-                  content={
-                    <CustomTooltip
-                      balanceTypeOp={balanceTypeOp}
-                      selection={selection}
-                      compare={compare}
-                    />
-                  }
-                  formatter={numberFormatterTooltip}
-                  isAnimationActive={false}
+          <div>
+            {!compact && <div style={{ marginTop: '5px' }} />}
+            <AreaChart
+              responsive
+              width={width}
+              height={height}
+              data={data.intervalData}
+              margin={{
+                top: 0,
+                right: 0,
+                left: computePadding(
+                  data.intervalData
+                    .map(item => getVal(item, maxYAxis ? compare : selection))
+                    .filter(value => value !== undefined),
+                  (value: number) => format(value, 'financial-no-decimals'),
+                ),
+                bottom: 0,
+              }}
+            >
+              {compact ? null : (
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              )}
+              {compact ? null : (
+                <XAxis
+                  dataKey={val => getDate(val)}
+                  tick={{ fill: theme.pageText }}
+                  tickLine={{ stroke: theme.pageText }}
                 />
-                <defs>
-                  <linearGradient
-                    id={`fill${balanceTypeOp}`}
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset={gradientOffset()}
-                      stopColor={theme.reportsGreen}
-                      stopOpacity={0.2}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id={`stroke${balanceTypeOp}`}
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset={gradientOffset()}
-                      stopColor={theme.reportsGreen}
-                      stopOpacity={1}
-                    />
-                  </linearGradient>
-                </defs>
+              )}
+              {compact ? null : (
+                <YAxis
+                  dataKey={val => getVal(val, maxYAxis ? compare : selection)}
+                  domain={[0, 'auto']}
+                  tickFormatter={tickFormatter}
+                  tick={{ fill: theme.pageText }}
+                  tickLine={{ stroke: theme.pageText }}
+                  tickSize={0}
+                />
+              )}
+              <Tooltip
+                content={
+                  <CustomTooltip
+                    balanceTypeOp={balanceTypeOp}
+                    selection={selection}
+                    compare={compare}
+                    format={format}
+                  />
+                }
+                formatter={numberFormatterTooltip}
+                isAnimationActive={false}
+              />
+              <defs>
+                <linearGradient
+                  id={`fill${balanceTypeOp}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset={gradientOffset()}
+                    stopColor={theme.reportsChartFill}
+                    stopOpacity={0.2}
+                  />
+                </linearGradient>
+                <linearGradient
+                  id={`stroke${balanceTypeOp}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset={gradientOffset()}
+                    stopColor={theme.reportsChartFill}
+                    stopOpacity={1}
+                  />
+                </linearGradient>
+              </defs>
 
-                <Area
-                  type="linear"
-                  dot={false}
-                  activeDot={{
-                    fill: theme.reportsGreen,
-                    fillOpacity: 1,
-                    r: 10,
-                  }}
-                  animationDuration={0}
-                  dataKey={val => getVal(val, compare)}
-                  stroke={`url(#stroke${balanceTypeOp})`}
-                  strokeWidth={3}
-                  fill={`url(#fill${balanceTypeOp})`}
-                  fillOpacity={1}
-                />
-                <Area
-                  type="linear"
-                  dot={false}
-                  activeDot={false}
-                  animationDuration={0}
-                  dataKey={val => getVal(val, selection)}
-                  stroke={theme.reportsGray}
-                  strokeDasharray="10 10"
-                  strokeWidth={3}
-                  fill={theme.reportsGray}
-                  fillOpacity={0.2}
-                />
-              </AreaChart>
-            </div>
-          </ResponsiveContainer>
+              <Area
+                type="linear"
+                dot={false}
+                activeDot={{
+                  fill: theme.reportsChartFill,
+                  fillOpacity: 1,
+                  r: 10,
+                }}
+                {...animationProps}
+                dataKey={val => getVal(val, compare)}
+                stroke={`url(#stroke${balanceTypeOp})`}
+                strokeWidth={3}
+                fill={`url(#fill${balanceTypeOp})`}
+                fillOpacity={1}
+              />
+              <Area
+                type="linear"
+                dot={false}
+                activeDot={false}
+                {...animationProps}
+                dataKey={val => getVal(val, selection)}
+                stroke={theme.reportsGray}
+                strokeDasharray="10 10"
+                strokeWidth={3}
+                fill={theme.reportsGray}
+                fillOpacity={0.2}
+              />
+            </AreaChart>
+          </div>
         )
       }
     </Container>

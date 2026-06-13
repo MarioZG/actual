@@ -1,41 +1,42 @@
 // @ts-strict-ignore
-import React, { type CSSProperties, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
+import { Button } from '@actual-app/components/button';
+import {
+  SvgArrowButtonDown1,
+  SvgArrowButtonUp1,
+} from '@actual-app/components/icons/v2';
 import { InitialFocus } from '@actual-app/components/initial-focus';
 import { Input } from '@actual-app/components/input';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import type { AccountEntity } from '@actual-app/core/types/models';
 import { css, cx } from '@emotion/css';
 
-import { openAccountCloseModal } from 'loot-core/client/modals/modalsSlice';
-import * as Platform from 'loot-core/client/platform';
-import {
-  reopenAccount,
-  updateAccount,
-} from 'loot-core/client/queries/queriesSlice';
-import { type AccountEntity } from 'loot-core/types/models';
-
-import { useContextMenu } from '../../hooks/useContextMenu';
-import { useDragRef } from '../../hooks/useDragRef';
-import { useNotes } from '../../hooks/useNotes';
-import { useDispatch } from '../../redux';
-import { Link } from '../common/Link';
-import { Notes } from '../Notes';
-import {
-  useDraggable,
-  useDroppable,
-  DropHighlight,
-  type OnDragChangeCallback,
-  type OnDropCallback,
-} from '../sort';
-import { type SheetFields, type Binding } from '../spreadsheet';
-import { CellValue } from '../spreadsheet/CellValue';
+import { useReopenAccountMutation, useUpdateAccountMutation } from '#accounts';
+import { BalanceHistoryGraph } from '#components/accounts/BalanceHistoryGraph';
+import { Link } from '#components/common/Link';
+import { Notes } from '#components/Notes';
+import { DropHighlight, useDraggable, useDroppable } from '#components/sort';
+import type { OnDragChangeCallback, OnDropCallback } from '#components/sort';
+import { CellValue } from '#components/spreadsheet/CellValue';
+import { useContextMenu } from '#hooks/useContextMenu';
+import { useDragRef } from '#hooks/useDragRef';
+import { useIsTestEnv } from '#hooks/useIsTestEnv';
+import { useNotes } from '#hooks/useNotes';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { openAccountCloseModal } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
+import type { Binding, SheetFields } from '#spreadsheet';
 
 export const accountNameStyle: CSSProperties = {
   marginTop: -2,
@@ -64,6 +65,8 @@ type AccountProps<FieldName extends SheetFields<'account'>> = {
   onDragChange?: OnDragChangeCallback<{ id: string }>;
   onDrop?: OnDropCallback;
   titleAccount?: boolean;
+  isExactPathMatch?: boolean;
+  balanceTestId?: string;
 };
 
 export function Account<FieldName extends SheetFields<'account'>>({
@@ -80,7 +83,11 @@ export function Account<FieldName extends SheetFields<'account'>>({
   onDragChange,
   onDrop,
   titleAccount,
+  isExactPathMatch,
+  balanceTestId,
 }: AccountProps<FieldName>) {
+  const isTestEnv = useIsTestEnv();
+  const { t } = useTranslation();
   const type = account
     ? account.closed
       ? 'account-closed'
@@ -107,12 +114,23 @@ export function Account<FieldName extends SheetFields<'account'>>({
     onDrop,
   });
 
+  const [showBalanceHistory, setShowBalanceHistory] = useSyncedPref(
+    `side-nav.show-balance-history-${account?.id}`,
+  );
+
   const dispatch = useDispatch();
 
   const [isEditing, setIsEditing] = useState(false);
 
   const accountNote = useNotes(`account-${account?.id}`);
-  const needsTooltip = !!account?.id;
+  const isTouchDevice =
+    window.matchMedia('(hover: none)').matches ||
+    window.matchMedia('(pointer: coarse)').matches;
+  const needsTooltip = !!account?.id && !isTouchDevice;
+  const reopenAccount = useReopenAccountMutation();
+  const updateAccount = useUpdateAccountMutation();
+
+  const balanceCell = <CellValue binding={query} type="financial" />;
 
   const accountRow = (
     <View
@@ -127,12 +145,16 @@ export function Account<FieldName extends SheetFields<'account'>>({
             variant="internal"
             to={to}
             isDisabled={isEditing}
+            isExactPathMatch={isExactPathMatch}
             style={{
               ...accountNameStyle,
               ...style,
               position: 'relative',
               borderLeft: '4px solid transparent',
-              ...(updated && { fontWeight: 700 }),
+              ...(updated && {
+                fontWeight: 700,
+                color: theme.sidebarItemTextUpdated,
+              }),
             }}
             activeStyle={{
               borderColor: theme.sidebarItemAccentSelected,
@@ -196,18 +218,14 @@ export function Account<FieldName extends SheetFields<'account'>>({
                         width: '100%',
                       }}
                       onBlur={() => setIsEditing(false)}
-                      onEnter={e => {
-                        const inputEl = e.target as HTMLInputElement;
-                        const newAccountName = inputEl.value;
+                      onEnter={newAccountName => {
                         if (newAccountName.trim() !== '') {
-                          dispatch(
-                            updateAccount({
-                              account: {
-                                ...account,
-                                name: newAccountName,
-                              },
-                            }),
-                          );
+                          updateAccount.mutate({
+                            account: {
+                              ...account,
+                              name: newAccountName,
+                            },
+                          });
                         }
                         setIsEditing(false);
                       }}
@@ -219,7 +237,13 @@ export function Account<FieldName extends SheetFields<'account'>>({
                   name
                 )
               }
-              right={<CellValue binding={query} type="financial" />}
+              right={
+                balanceTestId ? (
+                  <View data-testid={balanceTestId}>{balanceCell}</View>
+                ) : (
+                  balanceCell
+                )
+              }
             />
           </Link>
           {account && (
@@ -236,27 +260,32 @@ export function Account<FieldName extends SheetFields<'account'>>({
                 onMenuSelect={type => {
                   switch (type) {
                     case 'close': {
-                      dispatch(
+                      void dispatch(
                         openAccountCloseModal({ accountId: account.id }),
                       );
                       break;
                     }
                     case 'reopen': {
-                      dispatch(reopenAccount({ id: account.id }));
+                      reopenAccount.mutate({ id: account.id });
                       break;
                     }
                     case 'rename': {
                       setIsEditing(true);
                       break;
                     }
+                    default: {
+                      throw new Error(
+                        `Unrecognized menu option: ${String(type)}`,
+                      );
+                    }
                   }
                   setMenuOpen(false);
                 }}
                 items={[
-                  { name: 'rename', text: 'Rename' },
+                  { name: 'rename', text: t('Rename') },
                   account.closed
-                    ? { name: 'reopen', text: 'Reopen' }
-                    : { name: 'close', text: 'Close' },
+                    ? { name: 'reopen', text: t('Reopen') }
+                    : { name: 'close', text: t('Close') },
                 ]}
               />
             </Popover>
@@ -266,7 +295,7 @@ export function Account<FieldName extends SheetFields<'account'>>({
     </View>
   );
 
-  if (!needsTooltip || Platform.isPlaywright) {
+  if (!needsTooltip || isTestEnv) {
     return accountRow;
   }
 
@@ -278,19 +307,58 @@ export function Account<FieldName extends SheetFields<'account'>>({
             padding: 10,
           }}
         >
-          <Text
+          <SpaceBetween
+            gap={5}
             style={{
-              fontWeight: 'bold',
-              borderBottom: accountNote ? `1px solid ${theme.tableBorder}` : 0,
-              marginBottom: accountNote ? '0.5rem' : 0,
+              justifyContent: 'space-between',
+              '& .hover-visible': {
+                opacity: 0,
+                transition: 'opacity .25s',
+              },
+              '&:hover .hover-visible': {
+                opacity: 1,
+              },
             }}
           >
-            {name}
-          </Text>
+            <Text
+              style={{
+                fontWeight: 'bold',
+              }}
+            >
+              {name}
+            </Text>
+            <Button
+              aria-label={t('Toggle balance history')}
+              variant="bare"
+              onClick={() =>
+                setShowBalanceHistory(
+                  showBalanceHistory === 'true' ? 'false' : 'true',
+                )
+              }
+              className="hover-visible"
+            >
+              <SpaceBetween gap={3}>
+                {showBalanceHistory === 'true' ? (
+                  <SvgArrowButtonUp1 width={10} height={10} />
+                ) : (
+                  <SvgArrowButtonDown1 width={10} height={10} />
+                )}
+              </SpaceBetween>
+            </Button>
+          </SpaceBetween>
+          {showBalanceHistory === 'true' && account && (
+            <BalanceHistoryGraph
+              accountId={account.id}
+              style={{ minWidth: 350, minHeight: 70 }}
+            />
+          )}
           {accountNote && (
             <Notes
               getStyle={() => ({
+                borderTop: `1px solid ${theme.tableBorder}`,
                 padding: 0,
+                paddingTop: '0.5rem',
+                marginTop: '0.5rem',
               })}
               notes={accountNote}
             />
@@ -301,6 +369,7 @@ export function Account<FieldName extends SheetFields<'account'>>({
       placement="right top"
       triggerProps={{
         delay: 1000,
+        closeDelay: 250,
         isDisabled: menuOpen,
       }}
     >

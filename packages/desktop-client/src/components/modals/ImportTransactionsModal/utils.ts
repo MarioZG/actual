@@ -1,7 +1,14 @@
+import { format as formatDate_ } from '@actual-app/core/shared/months';
+import { looselyParseAmount } from '@actual-app/core/shared/util';
 import * as d from 'date-fns';
 
-import { format as formatDate_ } from 'loot-core/shared/months';
-import { looselyParseAmount } from 'loot-core/shared/util';
+export type DateFormat =
+  | 'yyyy mm dd'
+  | 'yy mm dd'
+  | 'mm dd yyyy'
+  | 'mm dd yy'
+  | 'dd mm yyyy'
+  | 'dd mm yy';
 
 export const dateFormats = [
   { format: 'yyyy mm dd', label: 'YYYY MM DD' },
@@ -10,18 +17,16 @@ export const dateFormats = [
   { format: 'mm dd yy', label: 'MM DD YY' },
   { format: 'dd mm yyyy', label: 'DD MM YYYY' },
   { format: 'dd mm yy', label: 'DD MM YY' },
-] as const;
+] as const satisfies Array<{ format: DateFormat; label: string }>;
+
+export function isDateFormat(format: string): format is DateFormat {
+  return dateFormats.some(f => f.format === format);
+}
 
 export function parseDate(
   str: string | number | null | Array<unknown> | object,
-  order:
-    | 'yyyy mm dd'
-    | 'yy mm dd'
-    | 'mm dd yyyy'
-    | 'mm dd yy'
-    | 'dd mm yyyy'
-    | 'dd mm yy',
-) {
+  order: DateFormat,
+): string | null {
   if (typeof str !== 'string') {
     return null;
   }
@@ -113,7 +118,7 @@ export function formatDate(
   }
   try {
     return formatDate_(date, format);
-  } catch (e) {}
+  } catch {}
   return null;
 }
 
@@ -127,7 +132,28 @@ export type ImportTransaction = {
   inflow: number;
   outflow: number;
   inOut: string;
-} & Record<string, string>;
+  imported_payee?: string;
+  payee_name?: string;
+  notes?: string;
+  category?: string;
+  date?: string;
+} & Record<string, string | number | boolean>;
+
+type ImportCategory = {
+  id: string;
+  name: string;
+};
+
+export function parseCategoryFields(
+  trans: Pick<ImportTransaction, 'category'>,
+  categories: ImportCategory[],
+) {
+  const match = categories.find(
+    category =>
+      category.id !== trans.category && category.name === trans.category,
+  );
+  return match?.id ?? null;
+}
 
 export type FieldMapping = {
   date: string | null;
@@ -155,6 +181,7 @@ export function applyFieldMappings(
   result.ignored = transaction.ignored;
   result.selected = transaction.selected;
   result.selected_merge = transaction.selected_merge;
+  result.tombstone = transaction.tombstone;
   return result as ImportTransaction;
 }
 
@@ -251,9 +278,38 @@ export function parseAmountFields(
   }
 }
 
+export function filterByStartDate(
+  transactions: ImportTransaction[],
+  startDate: string,
+  isPreParsedDate: boolean,
+  fieldMappings: FieldMapping | null,
+  parseDateFormat: DateFormat | null,
+): ImportTransaction[] {
+  if (!startDate) return transactions;
+  return transactions.filter(trans => {
+    const mapped = fieldMappings
+      ? applyFieldMappings(trans, fieldMappings)
+      : trans;
+    const date = isPreParsedDate
+      ? (mapped.date ?? null)
+      : parseDateFormat
+        ? parseDate(mapped.date ?? null, parseDateFormat)
+        : null;
+    // Keep transactions with unparseable dates (they'll error later in the normal flow)
+    return date == null || date >= startDate;
+  });
+}
+
 export function stripCsvImportTransaction(transaction: ImportTransaction) {
-  const { existing, ignored, selected, selected_merge, trx_id, ...trans } =
-    transaction;
+  const {
+    existing: _existing,
+    ignored: _ignored,
+    selected: _selected,
+    selected_merge: _selected_merge,
+    trx_id: _trx_id,
+    tombstone: _tombstone,
+    ...trans
+  } = transaction;
 
   return trans;
 }

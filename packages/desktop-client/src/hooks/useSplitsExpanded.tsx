@@ -1,13 +1,12 @@
 import React, {
   createContext,
-  useMemo,
-  useEffect,
   useContext,
+  useEffect,
+  useMemo,
   useReducer,
-  type Dispatch,
-  type ReactNode,
   useRef,
 } from 'react';
+import type { Dispatch, ReactNode } from 'react';
 
 type SplitMode = 'collapse' | 'expand';
 type SplitState = {
@@ -69,11 +68,15 @@ const SplitsExpandedContext = createContext<SplitsStateContext>({
   },
 });
 
+export type SplitsExpandedContextValue = {
+  isExpanded: (id: string) => boolean;
+} & SplitsStateContext;
+
 export function useSplitsExpanded() {
   const data = useContext(SplitsExpandedContext);
 
   return useMemo(
-    () => ({
+    (): SplitsExpandedContextValue => ({
       ...data,
       isExpanded: (id: string) => {
         return data.state.mode === 'collapse'
@@ -152,6 +155,8 @@ export function SplitsExpandedProvider({
           };
         case 'finish-switch-mode':
           return { ...state, transitionId: null };
+        default:
+          throw new Error('Unrecognized action');
       }
     },
     previousState.current || {

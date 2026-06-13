@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { EditNotesModal } from './mobile-edit-notes-modal';
 
@@ -8,6 +8,7 @@ export class CategoryMenuModal {
   readonly heading: Locator;
   readonly budgetAmountInput: Locator;
   readonly editNotesButton: Locator;
+  readonly budgetAutomationsButton: Locator;
 
   constructor(locator: Locator) {
     this.locator = locator;
@@ -16,6 +17,9 @@ export class CategoryMenuModal {
     this.heading = locator.getByRole('heading');
     this.budgetAmountInput = locator.getByTestId('amount-input');
     this.editNotesButton = locator.getByRole('button', { name: 'Edit notes' });
+    this.budgetAutomationsButton = locator.getByRole('button', {
+      name: 'Budget automations',
+    });
   }
 
   async close() {
@@ -30,5 +34,11 @@ export class CategoryMenuModal {
         name: 'Modal dialog',
       }),
     );
+  }
+
+  async editAutomations() {
+    await this.budgetAutomationsButton.click();
+
+    return this.page.getByRole('dialog', { name: 'Modal dialog' });
   }
 }

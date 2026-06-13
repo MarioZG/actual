@@ -1,10 +1,10 @@
 // @ts-strict-ignore
-import React, {
-  Fragment,
-  type ComponentProps,
-  type ComponentPropsWithoutRef,
-  type ReactElement,
-  type CSSProperties,
+import React, { Fragment, useMemo } from 'react';
+import type {
+  ComponentProps,
+  ComponentPropsWithoutRef,
+  CSSProperties,
+  ReactElement,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,11 +13,10 @@ import { styles } from '@actual-app/components/styles';
 import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { AccountEntity } from '@actual-app/core/types/models';
 import { css, cx } from '@emotion/css';
 
-import { type AccountEntity } from 'loot-core/types/models';
-
-import { useAccounts } from '../../hooks/useAccounts';
+import { useAccounts } from '#hooks/useAccounts';
 
 import { Autocomplete } from './Autocomplete';
 import { ItemHeader } from './ItemHeader';
@@ -48,7 +47,43 @@ function AccountList({
   renderAccountItem = defaultRenderAccountItem,
 }: AccountListProps) {
   const { t } = useTranslation();
-  let lastItem = null;
+  // Split by onbudget, offbudget, closed and add their indeces relative
+  // to the full list. This is needed to highlight the correct item.
+  const { onBudgetAccounts, offBudgetAccounts, closedAccounts } =
+    useMemo(() => {
+      return items.reduce(
+        (acc, item, index) => {
+          if (item.closed) {
+            acc.closedAccounts.push({
+              ...item,
+              highlightedIndex: index,
+            });
+          } else if (item.offbudget) {
+            acc.offBudgetAccounts.push({
+              ...item,
+              highlightedIndex: index,
+            });
+          } else {
+            acc.onBudgetAccounts.push({
+              ...item,
+              highlightedIndex: index,
+            });
+          }
+          return acc;
+        },
+        {
+          onBudgetAccounts: [] as (AccountAutocompleteItem & {
+            highlightedIndex: number;
+          })[],
+          offBudgetAccounts: [] as (AccountAutocompleteItem & {
+            highlightedIndex: number;
+          })[],
+          closedAccounts: [] as (AccountAutocompleteItem & {
+            highlightedIndex: number;
+          })[],
+        },
+      );
+    }, [items]);
 
   return (
     <View>
@@ -59,38 +94,53 @@ function AccountList({
           ...(!embedded && { maxHeight: 175 }),
         }}
       >
-        {items.map((item, idx) => {
-          const showGroup = lastItem
-            ? (item.offbudget !== lastItem.offbudget && !item.closed) ||
-              (item.closed !== lastItem.closed && !item.offbudget)
-            : true;
+        {onBudgetAccounts.length > 0 && (
+          <Fragment key="On budget">
+            {renderAccountItemGroupHeader({ title: t('On budget') })}
+          </Fragment>
+        )}
+        {onBudgetAccounts.map(item => (
+          <Fragment key={item.id}>
+            {renderAccountItem({
+              ...(getItemProps ? getItemProps({ item }) : {}),
+              item,
+              highlighted: highlightedIndex === item.highlightedIndex,
+              embedded,
+            })}
+          </Fragment>
+        ))}
 
-          const group = `${
-            item.closed
-              ? t('Closed Accounts')
-              : item.offbudget
-                ? t('Off budget')
-                : t('On budget')
-          }`;
+        {offBudgetAccounts.length > 0 && (
+          <Fragment key="Off budget">
+            {renderAccountItemGroupHeader({ title: t('Off budget') })}
+          </Fragment>
+        )}
+        {offBudgetAccounts.map(item => (
+          <Fragment key={item.id}>
+            {renderAccountItem({
+              ...(getItemProps ? getItemProps({ item }) : {}),
+              item,
+              highlighted: highlightedIndex === item.highlightedIndex,
+              embedded,
+            })}
+          </Fragment>
+        ))}
 
-          lastItem = item;
-
-          return [
-            showGroup ? (
-              <Fragment key={group}>
-                {renderAccountItemGroupHeader({ title: group })}
-              </Fragment>
-            ) : null,
-            <Fragment key={item.id}>
-              {renderAccountItem({
-                ...(getItemProps ? getItemProps({ item }) : null),
-                item,
-                highlighted: highlightedIndex === idx,
-                embedded,
-              })}
-            </Fragment>,
-          ];
-        })}
+        {closedAccounts.length > 0 && (
+          <Fragment key="Closed accounts">
+            {renderAccountItemGroupHeader({ title: t('Closed accounts') })}
+          </Fragment>
+        )}
+        {closedAccounts.map(item => (
+          <Fragment key={item.id}>
+            {renderAccountItem({
+              ...(getItemProps ? getItemProps({ item }) : {}),
+              item,
+              highlighted: highlightedIndex === item.highlightedIndex,
+              embedded,
+            })}
+          </Fragment>
+        ))}
       </View>
     </View>
   );
@@ -101,6 +151,7 @@ type AccountAutocompleteProps = ComponentProps<
 > & {
   embedded?: boolean;
   includeClosedAccounts?: boolean;
+  hiddenAccounts?: AccountEntity['id'][];
   renderAccountItemGroupHeader?: (
     props: ComponentPropsWithoutRef<typeof ItemHeader>,
   ) => ReactElement<typeof ItemHeader>;
@@ -116,15 +167,22 @@ export function AccountAutocomplete({
   renderAccountItemGroupHeader,
   renderAccountItem,
   closeOnBlur,
+  hiddenAccounts,
+  inputProps,
   ...props
 }: AccountAutocompleteProps) {
-  const accounts = useAccounts() || [];
+  const { t } = useTranslation();
+
+  const { data: accounts = [] } = useAccounts();
 
   //remove closed accounts if needed
   //then sort by closed, then offbudget
   const accountSuggestions: AccountAutocompleteItem[] = accounts
     .filter(item => {
-      return includeClosedAccounts ? item : !item.closed;
+      return (
+        (includeClosedAccounts ? item : !item.closed) &&
+        !hiddenAccounts?.includes(item.id)
+      );
     })
     .sort(
       (a, b) =>
@@ -135,11 +193,15 @@ export function AccountAutocomplete({
 
   return (
     <Autocomplete
-      strict={true}
-      highlightFirst={true}
+      strict
+      highlightFirst
       embedded={embedded}
       closeOnBlur={closeOnBlur}
       suggestions={accountSuggestions}
+      inputProps={{
+        ...inputProps,
+        'aria-label': t('Account'),
+      }}
       renderItems={(items, getItemProps, highlightedIndex) => (
         <AccountList
           items={items}
@@ -186,7 +248,8 @@ function AccountItem({
     : {};
 
   return (
-    <div
+    <button
+      type="button"
       // List each account up to a max
       // Downshift calls `setTimeout(..., 250)` in the `onMouseMove`
       // event handler they set on this element. When this code runs
@@ -203,13 +266,13 @@ function AccountItem({
       // there's some "fast path" logic that can be triggered in various
       // ways to force WebKit to bail on the content observation process.
       // One of those ways is setting `role="button"` (or a number of
-      // other aria roles) on the element, which is what we're doing here.
+      // other aria roles) on the element. Now we use a semantic button
+      // element instead which provides the same fast path behavior.
       //
       // ref:
       // * https://github.com/WebKit/WebKit/blob/447d90b0c52b2951a69df78f06bb5e6b10262f4b/LayoutTests/fast/events/touch/ios/content-observation/400ms-hover-intent.html
       // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebCore/page/ios/ContentChangeObserver.cpp
       // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebKit/WebProcess/WebPage/ios/WebPageIOS.mm#L783
-      role="button"
       className={cx(
         className,
         css({
@@ -222,6 +285,9 @@ function AccountItem({
           padding: 4,
           paddingLeft: 20,
           borderRadius: embedded ? 4 : 0,
+          border: 'none',
+          textAlign: 'left',
+          font: 'inherit',
           ...narrowStyle,
         }),
       )}
@@ -230,7 +296,7 @@ function AccountItem({
       {...props}
     >
       <TextOneLine>{item.name}</TextOneLine>
-    </div>
+    </button>
   );
 }
 

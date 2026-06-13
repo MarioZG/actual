@@ -1,24 +1,30 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Block } from '@actual-app/components/block';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type { SpendingWidget } from '@actual-app/core/types/models';
 
-import * as monthUtils from 'loot-core/shared/months';
-import { amountToCurrency } from 'loot-core/shared/util';
-import { type SpendingWidget } from 'loot-core/types/models';
-
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { DateRange } from '../DateRange';
-import { SpendingGraph } from '../graphs/SpendingGraph';
-import { LoadingIndicator } from '../LoadingIndicator';
-import { ReportCard } from '../ReportCard';
-import { ReportCardName } from '../ReportCardName';
-import { calculateSpendingReportTimeRange } from '../reportRanges';
-import { createSpendingSpreadsheet } from '../spreadsheets/spending-spreadsheet';
-import { useReport } from '../useReport';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { DateRange } from '#components/reports/DateRange';
+import { SpendingGraph } from '#components/reports/graphs/SpendingGraph';
+import { LoadingIndicator } from '#components/reports/LoadingIndicator';
+import { ReportCard } from '#components/reports/ReportCard';
+import { ReportCardName } from '#components/reports/ReportCardName';
+import { calculateSpendingReportTimeRange } from '#components/reports/reportRanges';
+import {
+  getSpendingAverageRangeLabel,
+  normalizeSpendingAverageRange,
+} from '#components/reports/spendingAverageRange';
+import { createSpendingSpreadsheet } from '#components/reports/spreadsheets/spending-spreadsheet';
+import { useDashboardWidgetCopyMenu } from '#components/reports/useDashboardWidgetCopyMenu';
+import { useReport } from '#components/reports/useReport';
+import { useFormat } from '#hooks/useFormat';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 
 type SpendingCardProps = {
   widgetId: string;
@@ -26,6 +32,7 @@ type SpendingCardProps = {
   meta?: SpendingWidget['meta'];
   onMetaChange: (newMeta: SpendingWidget['meta']) => void;
   onRemove: () => void;
+  onCopy: (targetDashboardId: string) => void;
 };
 
 export function SpendingCard({
@@ -34,15 +41,25 @@ export function SpendingCard({
   meta = {},
   onMetaChange,
   onRemove,
+  onCopy,
 }: SpendingCardProps) {
   const { t } = useTranslation();
-
-  const [compare, compareTo] = calculateSpendingReportTimeRange(meta ?? {});
+  const format = useFormat();
+  const [budgetTypePref] = useSyncedPref('budgetType');
+  const budgetType: 'envelope' | 'tracking' =
+    budgetTypePref === 'tracking' ? 'tracking' : 'envelope';
 
   const [isCardHovered, setIsCardHovered] = useState(false);
-  const spendingReportMode = meta?.mode ?? 'single-month';
-
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
+
+  const { menuItems: copyMenuItems, handleMenuSelect: handleCopyMenuSelect } =
+    useDashboardWidgetCopyMenu(onCopy);
+
+  const spendingReportMode = meta?.mode ?? 'single-month';
+  const averageRange = normalizeSpendingAverageRange(meta?.averageRange);
+  const averageRangeLabel = getSpendingAverageRangeLabel(averageRange, t);
+
+  const [compare, compareTo] = calculateSpendingReportTimeRange(meta ?? {});
 
   const selection =
     spendingReportMode === 'single-month' ? 'compareTo' : spendingReportMode;
@@ -52,8 +69,17 @@ export function SpendingCard({
       conditionsOp: meta?.conditionsOp,
       compare,
       compareTo,
+      averageRange,
+      budgetType,
     });
-  }, [meta?.conditions, meta?.conditionsOp, compare, compareTo]);
+  }, [
+    meta?.conditions,
+    meta?.conditionsOp,
+    compare,
+    compareTo,
+    averageRange,
+    budgetType,
+  ]);
 
   const data = useReport('default', getGraphData);
   const todayDay =
@@ -64,8 +90,10 @@ export function SpendingCard({
         : monthUtils.getDay(monthUtils.currentDay()) - 1;
   const difference =
     data &&
-    data.intervalData[todayDay][selection] -
-      data.intervalData[todayDay].compare;
+    Math.round(
+      data.intervalData[todayDay][selection] -
+        data.intervalData[todayDay].compare,
+    );
 
   return (
     <ReportCard
@@ -81,8 +109,10 @@ export function SpendingCard({
           name: 'remove',
           text: t('Remove'),
         },
+        ...copyMenuItems,
       ]}
       onMenuSelect={item => {
+        if (handleCopyMenuSelect(item)) return;
         switch (item) {
           case 'rename':
             setNameMenuOpen(true);
@@ -118,6 +148,9 @@ export function SpendingCard({
               start={compare}
               end={compareTo}
               type={spendingReportMode}
+              comparisonLabel={
+                spendingReportMode === 'average' ? averageRangeLabel : undefined
+              }
             />
           </View>
           {data && (
@@ -127,17 +160,20 @@ export function SpendingCard({
                   ...styles.mediumText,
                   fontWeight: 500,
                   marginBottom: 5,
-                  color: !difference
-                    ? 'inherit'
-                    : difference <= 0
-                      ? theme.noticeTextLight
-                      : theme.errorText,
+                  color:
+                    difference === 0 || difference == null
+                      ? theme.reportsNumberNeutral
+                      : difference > 0
+                        ? theme.reportsNumberNegative
+                        : theme.reportsNumberPositive,
                 }}
               >
                 <PrivacyFilter activationFilters={[!isCardHovered]}>
-                  {data &&
-                    (difference && difference > 0 ? '+' : '') +
-                      amountToCurrency(difference || 0)}
+                  <FinancialText>
+                    {data &&
+                      (difference && difference > 0 ? '+' : '') +
+                        format(difference || 0, 'financial')}
+                  </FinancialText>
                 </PrivacyFilter>
               </Block>
             </View>
@@ -146,7 +182,7 @@ export function SpendingCard({
         {data ? (
           <SpendingGraph
             style={{ flex: 1 }}
-            compact={true}
+            compact
             data={data}
             mode={spendingReportMode}
             compare={compare}

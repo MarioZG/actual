@@ -1,12 +1,12 @@
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import { q } from '@actual-app/core/shared/query';
+import type { RuleConditionEntity } from '@actual-app/core/types/models';
+import type { SyncedPrefs } from '@actual-app/core/types/prefs';
 import * as d from 'date-fns';
 
-import { runQuery } from 'loot-core/client/query-helpers';
-import { type useSpreadsheet } from 'loot-core/client/SpreadsheetProvider';
-import { send } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
-import { q } from 'loot-core/shared/query';
-import { type RuleConditionEntity } from 'loot-core/types/models';
-import { type SyncedPrefs } from 'loot-core/types/prefs';
+import type { useSpreadsheet } from '#hooks/useSpreadsheet';
+import { aqlQuery } from '#queries/aqlQuery';
 
 export type CalendarDataType = {
   date: Date;
@@ -90,7 +90,7 @@ export function calendarSpreadsheet(
 
     let expenseData;
     try {
-      expenseData = await runQuery(
+      expenseData = await aqlQuery(
         makeRootQuery().filter({
           $and: { amount: { $lt: 0 } },
         }),
@@ -102,7 +102,7 @@ export function calendarSpreadsheet(
 
     let incomeData;
     try {
-      incomeData = await runQuery(
+      incomeData = await aqlQuery(
         makeRootQuery().filter({
           $and: { amount: { $gt: 0 } },
         }),
@@ -241,17 +241,17 @@ function recalculate(
         daysArray.push({
           date: currentDate,
           incomeSize: getBarLength(currentIncome),
-          incomeValue: Math.abs(currentIncome) / 100,
+          incomeValue: Math.abs(currentIncome),
           expenseSize: getBarLength(currentExpense),
-          expenseValue: Math.abs(currentExpense) / 100,
+          expenseValue: Math.abs(currentExpense),
         });
       }
     }
 
     return {
       data: daysArray as CalendarDataType[],
-      totalExpense: (totalExpenseValue ?? 0) / 100,
-      totalIncome: (totalIncomeValue ?? 0) / 100,
+      totalExpense: totalExpenseValue ?? 0,
+      totalIncome: totalIncomeValue ?? 0,
     };
   };
 

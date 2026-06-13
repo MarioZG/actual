@@ -1,4 +1,5 @@
-import React, { type CSSProperties } from 'react';
+import React from 'react';
+import type { CSSProperties } from 'react';
 
 import { css } from '@emotion/css';
 
@@ -36,6 +37,7 @@ export const Toggle = ({
         })}
         type="checkbox"
       />
+      {/* oxlint-disable-next-line eslint-plugin-jsx-a11y(label-has-associated-control) */}
       <label
         data-toggle-container
         data-on={isOn}
@@ -62,7 +64,6 @@ export const Toggle = ({
           data-on={isOn}
           className={css(
             {
-              // eslint-disable-next-line rulesdir/typography
               content: '" "',
               position: 'absolute',
               top: '2px',

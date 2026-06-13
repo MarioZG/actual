@@ -1,26 +1,23 @@
 // @ts-strict-ignore
-import React, { type ComponentProps } from 'react';
+import React from 'react';
+import type { ComponentProps } from 'react';
 
-import { type CategoryEntity } from 'loot-core/types/models';
+import type { CategoryEntity } from '@actual-app/core/types/models';
 
-import { useDragRef } from '../../hooks/useDragRef';
-import {
-  useDraggable,
-  useDroppable,
-  DropHighlight,
-  type OnDragChangeCallback,
-  type OnDropCallback,
-} from '../sort';
-import { Row } from '../table';
+import { DropHighlight, useDraggable, useDroppable } from '#components/sort';
+import type { OnDragChangeCallback, OnDropCallback } from '#components/sort';
+import { Row } from '#components/table';
+import { useDragRef } from '#hooks/useDragRef';
 
 import { RenderMonths } from './RenderMonths';
 import { SidebarCategory } from './SidebarCategory';
+
+import { useBudgetComponents } from '.';
 
 type IncomeCategoryProps = {
   cat: CategoryEntity;
   isLast?: boolean;
   editingCell: { id: CategoryEntity['id']; cell: string } | null;
-  MonthComponent: ComponentProps<typeof RenderMonths>['component'];
   onEditName: ComponentProps<typeof SidebarCategory>['onEditName'];
   onEditMonth?: (id: CategoryEntity['id'], month: string) => void;
   onSave: ComponentProps<typeof SidebarCategory>['onSave'];
@@ -35,7 +32,6 @@ export function IncomeCategory({
   cat,
   isLast,
   editingCell,
-  MonthComponent,
   onEditName,
   onEditMonth,
   onSave,
@@ -59,10 +55,12 @@ export function IncomeCategory({
     onDrop: onReorder,
   });
 
+  const { IncomeCategoryComponent: MonthComponent } = useBudgetComponents();
+
   return (
     <Row
       innerRef={dropRef}
-      collapsed={true}
+      collapsed
       style={{
         opacity: cat.hidden ? 0.5 : undefined,
       }}
@@ -82,19 +80,23 @@ export function IncomeCategory({
         onSave={onSave}
         onDelete={onDelete}
       />
-      <RenderMonths
-        component={MonthComponent}
-        editingMonth={
-          editingCell && editingCell.id === cat.id && editingCell.cell
-        }
-        args={{
-          category: cat,
-          onEdit: onEditMonth,
-          isLast,
-          onShowActivity,
-          onBudgetAction,
-        }}
-      />
+      <RenderMonths>
+        {({ month }) => (
+          <MonthComponent
+            month={month}
+            editing={
+              editingCell &&
+              editingCell.id === cat.id &&
+              editingCell.cell === month
+            }
+            category={cat}
+            isLast={isLast}
+            onEdit={onEditMonth}
+            onBudgetAction={onBudgetAction}
+            onShowActivity={onShowActivity}
+          />
+        )}
+      </RenderMonths>
     </Row>
   );
 }

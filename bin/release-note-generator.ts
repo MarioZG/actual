@@ -6,7 +6,6 @@ import prompts from 'prompts';
 
 async function run() {
   const username = await execAsync(
-    // eslint-disable-next-line rulesdir/typography
     "gh api user --jq '.login'",
     'To avoid having to enter your username, consider installing the official GitHub CLI (https://github.com/cli/cli) and logging in with `gh auth login`.',
   );
@@ -16,7 +15,9 @@ async function run() {
       `Found potentially matching PR ${activePr.number}: ${activePr.title}`,
     );
   }
-  const prNumber = activePr?.number ?? (await getNextPrNumber());
+
+  const branchName = await execAsync('git rev-parse --abbrev-ref HEAD');
+  const initialSlug = slugify(activePr?.title ?? branchName ?? '');
 
   const result = await prompts([
     {
@@ -26,20 +27,24 @@ async function run() {
       initial: username,
     },
     {
-      name: 'pullRequestNumber',
-      message: 'PR Number',
-      type: 'number',
-      initial: prNumber,
+      name: 'filenameSlug',
+      message: 'Filename slug (used as upcoming-release-notes/<slug>.md)',
+      type: 'text',
+      initial: initialSlug,
+      validate: value =>
+        /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value)
+          ? true
+          : 'Use lowercase letters, digits, and single dashes between words',
     },
     {
       name: 'releaseNoteType',
       message: 'Release Note Type',
       type: 'select',
       choices: [
-        { title: 'Features', value: 'Features' },
-        { title: 'Enhancements', value: 'Enhancements' },
-        { title: 'Bugfix', value: 'Bugfix' },
-        { title: 'Maintenance', value: 'Maintenance' },
+        { title: '✨ Features', value: 'Features' },
+        { title: '👍 Enhancements', value: 'Enhancements' },
+        { title: '🐛 Bugfixes', value: 'Bugfixes' },
+        { title: '⚙️  Maintenance', value: 'Maintenance' },
       ],
     },
     {
@@ -53,7 +58,8 @@ async function run() {
   if (
     !result.githubUsername ||
     !result.oneLineSummary ||
-    !result.releaseNoteType
+    !result.releaseNoteType ||
+    !result.filenameSlug
   ) {
     console.log('All questions must be answered. Exiting');
     exit(1);
@@ -65,7 +71,7 @@ async function run() {
     result.oneLineSummary,
   );
 
-  const filepath = `./upcoming-release-notes/${prNumber}.md`;
+  const filepath = `./upcoming-release-notes/${result.filenameSlug}.md`;
   if (existsSync(filepath)) {
     const { confirm } = await prompts({
       name: 'confirm',
@@ -83,11 +89,18 @@ async function run() {
       console.error('Failed to write release note file:', err);
       exit(1);
     } else {
-      console.log(
-        `Release note generated successfully: ./upcoming-release-notes/${prNumber}.md`,
-      );
+      console.log(`Release note generated successfully: ${filepath}`);
     }
   });
+}
+
+function slugify(input: string): string {
+  const slug = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return slug || 'untitled';
 }
 
 // makes an attempt to find an existing open PR from <username>:<branch>
@@ -131,30 +144,6 @@ async function getPrNumberFromHead(
   }
 }
 
-async function getNextPrNumber(): Promise<number> {
-  try {
-    const resp = await fetch(
-      'https://api.github.com/repos/actualbudget/actual/issues?state=all&per_page=1',
-    );
-    if (!resp.ok) {
-      throw new Error(`API responded with status: ${resp.status}`);
-    }
-    const ghResponse = await resp.json();
-    const latestPrNumber = ghResponse?.[0]?.number;
-    if (!latestPrNumber) {
-      console.error(
-        'Could not find latest issue number in GitHub API response',
-        ghResponse,
-      );
-      exit(1);
-    }
-    return latestPrNumber + 1;
-  } catch (error) {
-    console.error('Failed to fetch next PR number:', error);
-    exit(1);
-  }
-}
-
 function getFileContents(type: string, username: string, summary: string) {
   return `---
 category: ${type}
@@ -179,4 +168,4 @@ async function execAsync(cmd: string, errorLog?: string): Promise<string> {
   });
 }
 
-run();
+void run();

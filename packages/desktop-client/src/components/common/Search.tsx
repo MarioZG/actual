@@ -1,33 +1,35 @@
-import { useState, type Ref } from 'react';
+import { useState } from 'react';
+import type { Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SvgRemove, SvgSearchAlternate } from '@actual-app/components/icons/v2';
-import { defaultInputStyle, Input } from '@actual-app/components/input';
-import { type CSSProperties } from '@actual-app/components/styles';
+import { baseInputStyle, Input } from '@actual-app/components/input';
+import type { CSSProperties } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { css } from '@emotion/css';
 
 type SearchProps = {
-  inputRef?: Ref<HTMLInputElement>;
+  ref?: Ref<HTMLInputElement>;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   isInModal?: boolean;
   width?: number | '100%';
   height?: number;
-  inputStyle?: CSSProperties;
+  style?: CSSProperties;
 };
 
 export function Search({
-  inputRef,
+  ref,
   value,
   onChange,
   placeholder,
   isInModal = false,
   width = 250,
   height,
-  inputStyle = {},
+  style,
 }: SearchProps) {
   const { t } = useTranslation();
 
@@ -38,7 +40,7 @@ export function Search({
   return (
     <View
       style={{
-        ...defaultInputStyle,
+        ...baseInputStyle,
         padding: 0,
         flexDirection: 'row',
         alignItems: 'center',
@@ -48,8 +50,7 @@ export function Search({
         flex: '',
         borderColor: isInModal ? undefined : 'transparent',
         backgroundColor: isInModal ? undefined : theme.formInputBackground,
-        ...inputStyle,
-
+        ...style,
         ...(focused && {
           boxShadow: '0 0 0 1px ' + theme.formInputShadowSelected,
           ...(isInModal
@@ -70,20 +71,18 @@ export function Search({
       />
 
       <Input
-        inputRef={inputRef}
+        ref={ref}
         value={value}
         placeholder={placeholder}
-        onKeyDown={e => {
-          if (e.key === 'Escape') onChange('');
-        }}
+        onEscape={() => onChange('')}
         onChangeValue={onChange}
-        style={{
+        className={css({
           width: '100%',
           '::placeholder': {
             color: theme.formInputTextPlaceholder,
             transition: 'color .25s',
           },
-          ':focus': isInModal
+          '&[data-focused]': isInModal
             ? {}
             : {
                 '::placeholder': {
@@ -91,13 +90,13 @@ export function Search({
                 },
               },
           flex: 1,
-          '&, &:focus, &:hover': {
+          '&, &[data-focused], &[data-hovered]': {
             border: 0,
             backgroundColor: 'transparent',
             boxShadow: 'none',
             color: 'inherit',
           },
-        }}
+        })}
         onFocus={() => {
           setFocused(true);
         }}

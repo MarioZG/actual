@@ -1,14 +1,12 @@
-import React, {
-  type ComponentProps,
-  Fragment,
-  useMemo,
-  type ReactNode,
-  type SVGProps,
-  type ComponentType,
-  type ComponentPropsWithoutRef,
-  type ReactElement,
-  type CSSProperties,
-  useCallback,
+import React, { Fragment, useMemo } from 'react';
+import type {
+  ComponentProps,
+  ComponentPropsWithoutRef,
+  ComponentType,
+  CSSProperties,
+  ReactElement,
+  ReactNode,
+  SVGProps,
 } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
@@ -19,23 +17,23 @@ import { Text } from '@actual-app/components/text';
 import { TextOneLine } from '@actual-app/components/text-one-line';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { integerToCurrency } from '@actual-app/core/shared/util';
+import type {
+  CategoryEntity,
+  CategoryGroupEntity,
+} from '@actual-app/core/types/models';
 import { css, cx } from '@emotion/css';
 
-import { trackingBudget, envelopeBudget } from 'loot-core/client/queries';
-import { getNormalisedString } from 'loot-core/shared/normalisation';
-import { integerToCurrency } from 'loot-core/shared/util';
-import {
-  type CategoryEntity,
-  type CategoryGroupEntity,
-} from 'loot-core/types/models';
+import { useEnvelopeSheetValue } from '#components/budget/envelope/EnvelopeBudgetComponents';
+import { makeAmountFullStyle } from '#components/budget/util';
+import { FinancialText } from '#components/FinancialText';
+import { useCategories } from '#hooks/useCategories';
+import { useSheetValue } from '#hooks/useSheetValue';
+import { useSyncedPref } from '#hooks/useSyncedPref';
+import { envelopeBudget, trackingBudget } from '#spreadsheet/bindings';
 
-import { useCategories } from '../../hooks/useCategories';
-import { useSyncedPref } from '../../hooks/useSyncedPref';
-import { useEnvelopeSheetValue } from '../budget/envelope/EnvelopeBudgetComponents';
-import { makeAmountFullStyle } from '../budget/util';
-import { useSheetValue } from '../spreadsheet/useSheetValue';
-
-import { Autocomplete, defaultFilterSuggestion } from './Autocomplete';
+import { Autocomplete } from './Autocomplete';
+import { filterCategorySuggestions } from './filterCategorySuggestions';
 import { ItemHeader } from './ItemHeader';
 
 type CategoryAutocompleteItem = Omit<CategoryEntity, 'group'> & {
@@ -75,15 +73,52 @@ function CategoryList({
   showBalances,
 }: CategoryListProps) {
   const { t } = useTranslation();
-  let lastGroup: string | undefined | null = null;
+  const { splitTransaction, groupedCategories } = useMemo(() => {
+    return items.reduce(
+      (acc, item, index) => {
+        if (item.id === 'split') {
+          acc.splitTransaction = { ...item, highlightedIndex: index };
+          return acc;
+        }
 
-  const filteredItems = useMemo(
-    () =>
-      showHiddenItems
-        ? items
-        : items.filter(item => !item.hidden && !item.group?.hidden),
-    [showHiddenItems, items],
-  );
+        const groupId = item.group?.id || '';
+        const existing = acc.groupedCategories.find(
+          x => x.group?.id === groupId,
+        );
+        const itemWithIndex = {
+          ...item,
+          highlightedIndex: index,
+        };
+
+        if (!existing) {
+          acc.groupedCategories.push({
+            group: item.group ?? null,
+            categories: [itemWithIndex],
+          });
+        } else {
+          existing.categories.push(itemWithIndex);
+        }
+
+        return acc;
+      },
+      {
+        splitTransaction: null,
+        groupedCategories: [],
+      } as {
+        splitTransaction:
+          | (CategoryAutocompleteItem & {
+              highlightedIndex: number;
+            })
+          | null;
+        groupedCategories: Array<{
+          group: CategoryGroupEntity | null;
+          categories: Array<
+            CategoryAutocompleteItem & { highlightedIndex: number }
+          >;
+        }>;
+      },
+    );
+  }, [items]);
 
   return (
     <View>
@@ -95,46 +130,52 @@ function CategoryList({
           ...(!embedded && { maxHeight: 175 }),
         }}
       >
-        {filteredItems.map((item, idx) => {
-          if (item.id === 'split') {
+        {splitTransaction &&
+          (() => {
+            const splitButtonProps = getItemProps
+              ? getItemProps({ item: splitTransaction })
+              : {};
+            const { onClick, ...restSplitButtonProps } = splitButtonProps;
             return renderSplitTransactionButton({
               key: 'split',
-              ...(getItemProps ? getItemProps({ item }) : null),
-              highlighted: highlightedIndex === idx,
+              ...restSplitButtonProps,
+              onClick,
+              highlighted:
+                splitTransaction.highlightedIndex === highlightedIndex,
               embedded,
             });
+          })()}
+        {groupedCategories.map(({ group, categories }) => {
+          if (!group) {
+            return null;
           }
 
-          const groupId = item.group?.id;
-          const showGroup = groupId !== lastGroup;
-          const groupName = `${item.group?.name}${item.group?.hidden ? ' ' + t('(hidden)') : ''}`;
-          lastGroup = groupId;
           return (
-            <Fragment key={item.id}>
-              {showGroup && item.group?.name && (
-                <Fragment key={item.group.name}>
-                  {renderCategoryItemGroupHeader({
-                    title: groupName,
+            <Fragment key={group.id}>
+              {renderCategoryItemGroupHeader({
+                title: `${group.name}${group.hidden ? ` ${t('(hidden)')}` : ''}`,
+                style: {
+                  ...(showHiddenItems &&
+                    group.hidden && { color: theme.pageTextSubdued }),
+                },
+              })}
+              {categories.map(item => (
+                <Fragment key={item.id}>
+                  {renderCategoryItem({
+                    ...(getItemProps ? getItemProps({ item }) : {}),
+                    item,
+                    highlighted: highlightedIndex === item.highlightedIndex,
+                    embedded,
                     style: {
                       ...(showHiddenItems &&
-                        item.group?.hidden && { color: theme.pageTextSubdued }),
+                        (item.hidden || group.hidden) && {
+                          color: theme.pageTextSubdued,
+                        }),
                     },
+                    showBalances,
                   })}
                 </Fragment>
-              )}
-              <Fragment key={item.id}>
-                {renderCategoryItem({
-                  ...(getItemProps ? getItemProps({ item }) : null),
-                  item,
-                  highlighted: highlightedIndex === idx,
-                  embedded,
-                  style: {
-                    ...(showHiddenItems &&
-                      item.hidden && { color: theme.pageTextSubdued }),
-                  },
-                  showBalances,
-                })}
-              </Fragment>
+              ))}
             </Fragment>
           );
         })}
@@ -142,21 +183,6 @@ function CategoryList({
       {footer}
     </View>
   );
-}
-
-function customSort(obj: CategoryAutocompleteItem, value: string): number {
-  const name = getNormalisedString(obj.name);
-  const groupName = obj.group ? getNormalisedString(obj.group.name) : '';
-  if (obj.id === 'split') {
-    return -2;
-  }
-  if (name.includes(value)) {
-    return -1;
-  }
-  if (groupName.includes(value)) {
-    return 0;
-  }
-  return 1;
 }
 
 type CategoryAutocompleteProps = ComponentProps<
@@ -189,74 +215,56 @@ export function CategoryAutocomplete({
   showHiddenCategories,
   ...props
 }: CategoryAutocompleteProps) {
-  const { grouped: defaultCategoryGroups = [] } = useCategories();
-  const categorySuggestions: CategoryAutocompleteItem[] = useMemo(
-    () =>
-      (categoryGroups || defaultCategoryGroups).reduce(
-        (list, group) =>
-          list.concat(
-            (group.categories || [])
-              .filter(category => category.group === group.id)
-              .map(category => ({
-                ...category,
-                group,
-              })),
-          ),
-        showSplitOption
-          ? [{ id: 'split', name: '' } as CategoryAutocompleteItem]
-          : [],
-      ),
-    [defaultCategoryGroups, categoryGroups, showSplitOption],
-  );
+  const { data: { grouped: defaultCategoryGroups } = { grouped: [] } } =
+    useCategories();
+  const categorySuggestions: CategoryAutocompleteItem[] = useMemo(() => {
+    const allSuggestions = (categoryGroups || defaultCategoryGroups).reduce(
+      (list, group) =>
+        list.concat(
+          (group.categories || [])
+            .filter(category => category.group === group.id)
+            .map(category => ({
+              ...category,
+              group,
+            })),
+        ),
+      showSplitOption
+        ? [{ id: 'split', name: '' } as CategoryAutocompleteItem]
+        : [],
+    );
 
-  const filterSuggestions = useCallback(
-    (
-      suggestions: CategoryAutocompleteItem[],
-      value: string,
-    ): CategoryAutocompleteItem[] => {
-      return suggestions
-        .filter(suggestion => {
-          if (suggestion.id === 'split') {
-            return true;
-          }
+    if (!showHiddenCategories) {
+      return allSuggestions.filter(
+        suggestion =>
+          suggestion.id === 'split' ||
+          (!suggestion.hidden && !suggestion.group?.hidden),
+      );
+    }
 
-          if (suggestion.group) {
-            return (
-              getNormalisedString(suggestion.group.name).includes(
-                getNormalisedString(value),
-              ) ||
-              getNormalisedString(
-                suggestion.group.name + ' ' + suggestion.name,
-              ).includes(getNormalisedString(value))
-            );
-          }
-
-          return defaultFilterSuggestion(suggestion, value);
-        })
-        .sort(
-          (a, b) =>
-            customSort(a, getNormalisedString(value)) -
-            customSort(b, getNormalisedString(value)),
-        );
-    },
-    [],
-  );
+    return allSuggestions;
+  }, [
+    categoryGroups,
+    defaultCategoryGroups,
+    showSplitOption,
+    showHiddenCategories,
+  ]);
 
   return (
     <Autocomplete
-      strict={true}
-      highlightFirst={true}
+      strict
+      highlightFirst
       embedded={embedded}
       closeOnBlur={closeOnBlur}
       getHighlightedIndex={suggestions => {
         if (suggestions.length === 0) {
           return null;
         } else if (suggestions[0].id === 'split') {
+          // Highlight the first category since the split option is at index 0.
           return suggestions.length > 1 ? 1 : null;
         }
         return 0;
       }}
-      filterSuggestions={filterSuggestions}
+      filterSuggestions={filterCategorySuggestions}
       suggestions={categorySuggestions}
       renderItems={(items, getItemProps, highlightedIndex) => (
         <CategoryList
@@ -282,7 +290,7 @@ function defaultRenderCategoryItemGroupHeader(
   return <ItemHeader {...props} type="category" />;
 }
 
-type SplitTransactionButtonProps = {
+type SplitTransactionButtonProps = ComponentPropsWithoutRef<typeof View> & {
   Icon?: ComponentType<SVGProps<SVGElement>>;
   highlighted?: boolean;
   embedded?: boolean;
@@ -319,6 +327,7 @@ function SplitTransactionButton({
       // * https://github.com/WebKit/WebKit/blob/447d90b0c52b2951a69df78f06bb5e6b10262f4b/LayoutTests/fast/events/touch/ios/content-observation/400ms-hover-intent.html
       // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebCore/page/ios/ContentChangeObserver.cpp
       // * https://github.com/WebKit/WebKit/blob/58956cf59ba01267644b5e8fe766efa7aa6f0c5c/Source/WebKit/WebProcess/WebPage/ios/WebPageIOS.mm#L783
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="button"
       style={{
         backgroundColor: highlighted
@@ -385,10 +394,10 @@ function CategoryItem({
         borderTop: `1px solid ${theme.pillBorder}`,
       }
     : {};
-  const [budgetType = 'rollover'] = useSyncedPref('budgetType');
+  const [budgetType = 'envelope'] = useSyncedPref('budgetType');
 
   const balanceBinding =
-    budgetType === 'rollover'
+    budgetType === 'envelope'
       ? envelopeBudget.catBalance(item.id)
       : trackingBudget.catBalance(item.id);
   const balance = useSheetValue<
@@ -400,10 +409,10 @@ function CategoryItem({
   const toBudget = useEnvelopeSheetValue(envelopeBudget.toBudget);
 
   return (
-    <div
+    <button
+      type="button"
       style={style}
       // See comment above.
-      role="button"
       className={cx(
         className,
         css({
@@ -416,6 +425,8 @@ function CategoryItem({
           padding: 4,
           paddingLeft: 20,
           borderRadius: embedded ? 4 : 0,
+          border: 'none',
+          font: 'inherit',
           ...narrowStyle,
         }),
       )}
@@ -426,7 +437,7 @@ function CategoryItem({
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <TextOneLine>
           {item.name}
-          {item.hidden ? ' ' + t('(hidden)') : null}
+          {item.hidden || item.group?.hidden ? ' ' + t('(hidden)') : ''}
         </TextOneLine>
         <TextOneLine
           style={{
@@ -440,15 +451,25 @@ function CategoryItem({
           }}
         >
           {isToBudgetItem
-            ? toBudget != null
-              ? ` ${integerToCurrency(toBudget || 0)}`
-              : null
-            : balance != null
-              ? ` ${integerToCurrency(balance || 0)}`
-              : null}
+            ? toBudget != null && (
+                <>
+                  {' '}
+                  <FinancialText>
+                    {integerToCurrency(toBudget || 0)}
+                  </FinancialText>
+                </>
+              )
+            : balance != null && (
+                <>
+                  {' '}
+                  <FinancialText>
+                    {integerToCurrency(balance || 0)}
+                  </FinancialText>
+                </>
+              )}
         </TextOneLine>
       </View>
-    </div>
+    </button>
   );
 }
 

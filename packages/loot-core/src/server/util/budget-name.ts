@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 
-import * as fs from '../../platform/server/fs';
-import { handlers } from '../main';
+import * as fs from '#platform/server/fs';
+import { handlers } from '#server/main';
 
 export async function uniqueBudgetName(
   initialName: string = 'My Finances',
@@ -32,7 +32,7 @@ export async function validateBudgetName(
     message = 'Budget name is too long (max length 100)';
   }
   if (uniqueName !== trimmedName) {
-    message = `“${name}” already exists, try “${uniqueName}” instead`;
+    message = `"${name}" already exists, try "${uniqueName}" instead`;
   }
 
   return message ? { valid: false, message } : { valid: true };

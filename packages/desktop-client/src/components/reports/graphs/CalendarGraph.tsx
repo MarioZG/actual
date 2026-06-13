@@ -1,4 +1,5 @@
-import { type Ref, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { Ref } from 'react';
 import { Trans } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -6,21 +7,20 @@ import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import type { SyncedPrefs } from '@actual-app/core/types/prefs';
 import {
   addDays,
-  format,
+  format as formatDate,
   getDate,
   isSameMonth,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
 
-import { amountToCurrency } from 'loot-core/shared/util';
-import { type SyncedPrefs } from 'loot-core/types/prefs';
-
-import { useResizeObserver } from '../../../hooks/useResizeObserver';
-import { PrivacyFilter } from '../../PrivacyFilter';
-import { chartTheme } from '../chart-theme';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useFormat } from '#hooks/useFormat';
+import { useResizeObserver } from '#hooks/useResizeObserver';
 
 type CalendarGraphProps = {
   data: {
@@ -42,6 +42,8 @@ export function CalendarGraph({
   isEditing,
   onDayClick,
 }: CalendarGraphProps) {
+  const format = useFormat();
+
   const startingDate = startOfWeek(new Date(), {
     weekStartsOn:
       firstDayOfWeekIdx !== undefined &&
@@ -88,7 +90,7 @@ export function CalendarGraph({
               marginBottom: 4,
             }}
           >
-            {format(addDays(startingDate, index), 'EEEEE')}
+            {formatDate(addDays(startingDate, index), 'EEEEE')}
           </View>
         ))}
       </View>
@@ -115,7 +117,7 @@ export function CalendarGraph({
               content={
                 <View>
                   <View style={{ marginBottom: 10 }}>
-                    <strong>{format(day.date, 'MMM dd')}</strong>
+                    <strong>{formatDate(day.date, 'MMM dd')}</strong>
                   </View>
                   <View style={{ lineHeight: 1.5 }}>
                     <View
@@ -135,13 +137,15 @@ export function CalendarGraph({
                       </View>
                       <View
                         style={{
-                          color: chartTheme.colors.blue,
+                          color: theme.reportsNumberPositive,
                           flexDirection: 'row',
                         }}
                       >
                         {day.incomeValue !== 0 ? (
                           <PrivacyFilter>
-                            {amountToCurrency(day.incomeValue)}
+                            <FinancialText>
+                              {format(day.incomeValue, 'financial')}
+                            </FinancialText>
                           </PrivacyFilter>
                         ) : (
                           ''
@@ -164,13 +168,15 @@ export function CalendarGraph({
                       </View>
                       <View
                         style={{
-                          color: chartTheme.colors.red,
+                          color: theme.reportsNumberNegative,
                           flexDirection: 'row',
                         }}
                       >
                         {day.expenseValue !== 0 ? (
                           <PrivacyFilter>
-                            {amountToCurrency(day.expenseValue)}
+                            <FinancialText>
+                              {format(day.expenseValue, 'financial')}
+                            </FinancialText>
                           </PrivacyFilter>
                         ) : (
                           ''
@@ -245,7 +251,7 @@ function DayButton({ day, onPress, fontSize, resizeRef }: DayButtonProps) {
   return (
     <Button
       ref={resizeRef}
-      aria-label={format(day.date, 'MMMM d, yyyy')}
+      aria-label={formatDate(day.date, 'MMMM d, yyyy')}
       style={{
         borderColor: 'transparent',
         backgroundColor: theme.calendarCellBackground,
@@ -264,7 +270,7 @@ function DayButton({ day, onPress, fontSize, resizeRef }: DayButtonProps) {
             position: 'absolute',
             width: '50%',
             height: '100%',
-            background: chartTheme.colors.red,
+            background: theme.reportsNumberNegative,
             opacity: 0.2,
             right: 0,
           }}
@@ -276,7 +282,7 @@ function DayButton({ day, onPress, fontSize, resizeRef }: DayButtonProps) {
             position: 'absolute',
             width: '50%',
             height: '100%',
-            background: chartTheme.colors.blue,
+            background: theme.reportsNumberPositive,
             opacity: 0.2,
             left: 0,
           }}
@@ -289,7 +295,7 @@ function DayButton({ day, onPress, fontSize, resizeRef }: DayButtonProps) {
           bottom: 0,
           opacity: 0.9,
           height: `${Math.ceil(day.incomeSize)}%`,
-          backgroundColor: chartTheme.colors.blue,
+          backgroundColor: theme.reportsNumberPositive,
           width: '50%',
           transition: 'height 0.5s ease-out',
         }}
@@ -302,7 +308,7 @@ function DayButton({ day, onPress, fontSize, resizeRef }: DayButtonProps) {
           bottom: 0,
           opacity: 0.9,
           height: `${Math.ceil(day.expenseSize)}%`,
-          backgroundColor: chartTheme.colors.red,
+          backgroundColor: theme.reportsNumberNegative,
           width: '50%',
           transition: 'height 0.5s ease-out',
         }}

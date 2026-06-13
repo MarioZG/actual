@@ -1,39 +1,49 @@
-import { type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { ConfigurationPage } from './page-models/configuration-page';
-import { type CustomReportPage } from './page-models/custom-report-page';
+import type { CustomReportPage } from './page-models/custom-report-page';
 import { Navigation } from './page-models/navigation';
-import { type ReportsPage } from './page-models/reports-page';
+import type { ReportsPage } from './page-models/reports-page';
 
-test.describe.parallel('Reports', () => {
+test.describe('Reports', () => {
+  test.describe.configure({ mode: 'serial' });
+
   let page: Page;
   let navigation: Navigation;
   let reportsPage: ReportsPage;
   let configurationPage: ConfigurationPage;
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeEach(async ({ browser }) => {
     page = await browser.newPage();
     navigation = new Navigation(page);
     configurationPage = new ConfigurationPage(page);
 
     await page.goto('/');
     await configurationPage.createTestFile();
-  });
 
-  test.afterAll(async () => {
-    await page.close();
-  });
-
-  test.beforeEach(async () => {
     reportsPage = await navigation.goToReportsPage();
     await reportsPage.waitToLoad();
+  });
+
+  test.afterEach(async () => {
+    await page?.close();
   });
 
   test('loads net worth and cash flow reports', async () => {
     const reports = await reportsPage.getAvailableReportList();
 
-    expect(reports).toEqual(['Net Worth', 'Cash Flow', 'Monthly Spending']);
+    expect(reports).toEqual([
+      'Total Income (YTD)',
+      'Total Expenses (YTD)',
+      'Avg Per Month',
+      'Avg Per Transaction',
+      'Net Worth',
+      'Cash Flow',
+      'This Month',
+      'Budget Overview',
+      '3-Month Average',
+    ]);
     await expect(page).toMatchThemeScreenshots();
   });
 
@@ -47,7 +57,49 @@ test.describe.parallel('Reports', () => {
     await expect(page).toMatchThemeScreenshots();
   });
 
-  test.describe.parallel('custom reports', () => {
+  test.describe('balance forecast', () => {
+    test.beforeEach(async () => {
+      const settingsPage = await navigation.goToSettingsPage();
+      await settingsPage.enableExperimentalFeature('Balance Forecast Report');
+
+      reportsPage = await navigation.goToReportsPage();
+      await reportsPage.waitToLoad();
+      await reportsPage.addWidget('Balance forecast');
+      await reportsPage.goToBalanceForecastPage();
+    });
+
+    test('loads balance forecast report with monthly granularity', async () => {
+      await expect(page).toMatchThemeScreenshots();
+    });
+
+    test('switches to daily granularity', async () => {
+      await reportsPage.selectForecastGranularity('Daily');
+
+      await expect(page).toMatchThemeScreenshots();
+    });
+
+    test('loads tracking budget forecast report', async () => {
+      const settingsPage = await navigation.goToSettingsPage();
+      await settingsPage.useBudgetType('Tracking');
+
+      const budgetPage = await navigation.goToBudgetPage();
+      await budgetPage.goToNextMonth();
+      await budgetPage.setBudgetedAmount('Food', '1200', 0);
+      await budgetPage.goToNextMonth();
+      await budgetPage.setBudgetedAmount('Food', '1200', 0);
+      await budgetPage.goToNextMonth();
+      await budgetPage.setBudgetedAmount('Food', '1200', 0);
+
+      reportsPage = await navigation.goToReportsPage();
+      await reportsPage.waitToLoad();
+      await reportsPage.goToBalanceForecastPage();
+      await reportsPage.selectForecastSource('Tracking budget');
+
+      await expect(page).toMatchThemeScreenshots();
+    });
+  });
+
+  test.describe('custom reports', () => {
     let customReportPage: CustomReportPage;
 
     test.beforeEach(async () => {

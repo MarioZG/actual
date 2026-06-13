@@ -1,4 +1,5 @@
-import React, { type CSSProperties } from 'react';
+import React from 'react';
+import type { CSSProperties } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
@@ -9,12 +10,12 @@ import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
 import { css } from '@emotion/css';
 
-import { trackingBudget } from 'loot-core/client/queries';
-
-import { PrivacyFilter } from '../../../PrivacyFilter';
-import { useFormat } from '../../../spreadsheet/useFormat';
-import { makeAmountFullStyle } from '../../util';
-import { useTrackingSheetValue } from '../TrackingBudgetComponents';
+import { useTrackingSheetValue } from '#components/budget/tracking/TrackingBudgetComponents';
+import { makeAmountFullStyle } from '#components/budget/util';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useFormat } from '#hooks/useFormat';
+import { trackingBudget } from '#spreadsheet/bindings';
 import { childrenToReact } from 'react-markdown/lib/ast-to-react';
 import { CellValue, CellValueText } from '../../../spreadsheet/CellValue';
 import { Row } from 'react-stately';
@@ -53,60 +54,49 @@ export function Saved({ projected, style }: SavedProps) {
           <PrivacyFilter>{format(saved, 'financial')}</PrivacyFilter>
         </View>
         </View>
-      ) : (
-        <View style={{ color: theme.pageTextLight, flexDirection: 'row' }}>
-          { t('Balance: ')} 
-          <View style={{ flexDirection: 'row', paddingLeft: 5}}
+      )}
+
+      <Tooltip
+        style={{ ...styles.tooltip, fontSize: 14, padding: 10 }}
+        content={
+          <>
+            <AlignedText
+              left={t('Projected savings:')}
+              right={
+                <FinancialText style={makeAmountFullStyle(budgetedSaved)}>
+                  {format(budgetedSaved, 'financial-with-sign')}
+                </FinancialText>
+              }
+            />
+            <AlignedText
+              left={t('Difference:')}
+              right={
+                <FinancialText style={makeAmountFullStyle(diff)}>
+                  {format(diff, 'financial-with-sign')}
+                </FinancialText>
+              }
+            />
+          </>
+        }
+        placement="bottom"
+        triggerProps={{
+          isDisabled: Boolean(projected),
+        }}
+      >
+        <View
           className={css({
-            fontSize: 15,
+            fontSize: 25,
             color: projected
-              ? theme.warningText
+              ? theme.templateNumberUnderFunded
               : isNegative
-                ? theme.errorTextDark
-                : theme.upcomingText,
+                ? theme.budgetNumberNegative
+                : theme.templateNumberFunded,
           })}
         >
           <PrivacyFilter>{format(saved, 'financial')}</PrivacyFilter>
         </View>
-        </View>
-      )} */}
-
-      {/* {projected ? (
-        <View style={{ color: theme.pageTextLight, flexDirection: 'row'  }}>
-          { t('EOM:')}
-                  <View style={{ flexDirection: 'row', paddingLeft: 5}}
-          className={css({
-            fontSize: 20,
-            color: projected
-              ? theme.warningText
-              : isNegative
-                ? theme.errorTextDark
-                : theme.upcomingText,
-          })}
-        >
-          <PrivacyFilter>{format(cashflow, 'financial')}</PrivacyFilter>
-        </View>
-        </View>
-      ) : (
-        <View style={{ color: theme.pageTextLight, flexDirection: 'row' }}>
-          { t('EOM: ')} 
-          <View style={{ flexDirection: 'row', paddingLeft: 5}}
-          className={css({
-            fontSize: 20,
-            color: projected
-              ? theme.warningText
-              : isNegative
-                ? theme.errorTextDark
-                : theme.upcomingText,
-          })}
-        >
-          <PrivacyFilter>{format(cashflow, 'financial')}</PrivacyFilter>
-        </View>
-        </View>
-      )} */}
-
-
-    </View>
+      </Tooltip>
+    */}</View>
 
     
   );

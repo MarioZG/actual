@@ -1,18 +1,18 @@
 // @ts-strict-ignore
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { Trans, useTranslation } from 'react-i18next'; // Import useTranslation
 
 import { Block } from '@actual-app/components/block';
 import { Button } from '@actual-app/components/button';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import type { TransObjectLiteral } from '@actual-app/core/types/util';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { useCategories } from '../../hooks/useCategories';
-import { CategoryAutocomplete } from '../autocomplete/CategoryAutocomplete';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
+import { CategoryAutocomplete } from '#components/autocomplete/CategoryAutocomplete';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { useCategories } from '#hooks/useCategories';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type ConfirmCategoryDeleteModalProps = Extract<
   ModalType,
@@ -27,7 +27,12 @@ export function ConfirmCategoryDeleteModal({
   const { t } = useTranslation(); // Initialize translation hook
   const [transferCategory, setTransferCategory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { grouped: categoryGroups, list: categories } = useCategories();
+  const {
+    data: { grouped: categoryGroups, list: categories } = {
+      grouped: [],
+      list: [],
+    },
+  } = useCategories();
   const group = categoryGroups.find(g => g.id === groupId);
   const category = categories.find(c => c.id === categoryId);
 
@@ -61,32 +66,62 @@ export function ConfirmCategoryDeleteModal({
       name="confirm-category-delete"
       containerProps={{ style: { width: '30vw' } }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Confirm Delete')} // Use translation for title
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View style={{ lineHeight: 1.5 }}>
             {group ? (
               <Block>
-                Categories in the group <strong>{group.name}</strong> are used
-                by existing transactions
-                {!isIncome &&
-                  ' or it has a positive leftover balance currently'}
-                . <strong>Are you sure you want to delete it?</strong> If so,
-                you must select another category to transfer existing
-                transactions and balance to.
+                {!isIncome ? (
+                  <Trans>
+                    Categories in the group{' '}
+                    <strong>
+                      {{ group: group.name } as TransObjectLiteral}
+                    </strong>{' '}
+                    are used by existing transactions.
+                  </Trans>
+                ) : (
+                  <Trans>
+                    Categories in the group{' '}
+                    <strong>
+                      {{ group: group.name } as TransObjectLiteral}
+                    </strong>{' '}
+                    are used by existing transactions or it has a positive
+                    leftover balance currently.
+                  </Trans>
+                )}
+                <Trans>
+                  <strong>Are you sure you want to delete it?</strong> If so,
+                  you must select another category to transfer existing
+                  transactions and balance to.
+                </Trans>
               </Block>
             ) : (
               <Block>
-                <strong>{category.name}</strong> is used by existing
-                transactions
-                {!isIncome &&
-                  ' or it has a positive leftover balance currently'}
-                . <strong>Are you sure you want to delete it?</strong> If so,
-                you must select another category to transfer existing
-                transactions and balance to.
+                {!isIncome ? (
+                  <Trans>
+                    <strong>
+                      {{ category: category.name } as TransObjectLiteral}
+                    </strong>{' '}
+                    is used by existing transactions.
+                  </Trans>
+                ) : (
+                  <Trans>
+                    <strong>
+                      {{ category: category.name } as TransObjectLiteral}
+                    </strong>{' '}
+                    is used by existing transactions or it has a positive
+                    leftover balance currently.
+                  </Trans>
+                )}
+                <Trans>
+                  <strong>Are you sure you want to delete it?</strong> If so,
+                  you must select another category to transfer existing
+                  transactions and balance to.
+                </Trans>
               </Block>
             )}
 
@@ -100,7 +135,9 @@ export function ConfirmCategoryDeleteModal({
                 alignItems: 'center',
               }}
             >
-              <Text>{t('Transfer to:')}</Text>
+              <Text>
+                <Trans>Transfer to:</Trans>
+              </Text>
 
               <View style={{ flex: 1, marginLeft: 10, marginRight: 30 }}>
                 <CategoryAutocomplete
@@ -119,12 +156,12 @@ export function ConfirmCategoryDeleteModal({
                           }))
                   }
                   value={transferCategory}
-                  focused={true}
+                  focused
                   inputProps={{
                     placeholder: t('Select category...'),
                   }}
                   onSelect={category => setTransferCategory(category)}
-                  showHiddenCategories={true}
+                  showHiddenCategories
                 />
               </View>
 
@@ -135,11 +172,11 @@ export function ConfirmCategoryDeleteModal({
                     setError('required-transfer');
                   } else {
                     onDelete(transferCategory);
-                    close();
+                    state.close();
                   }
                 }}
               >
-                {t('Delete')}
+                <Trans>Delete</Trans>
               </Button>
             </View>
           </View>

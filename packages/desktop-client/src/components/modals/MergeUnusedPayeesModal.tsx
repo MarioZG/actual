@@ -1,23 +1,21 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { Paragraph } from '@actual-app/components/paragraph';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
+import type { PayeeEntity } from '@actual-app/core/types/models';
+import type { TransObjectLiteral } from '@actual-app/core/types/util';
 
-import {
-  type Modal as ModalType,
-  replaceModal,
-} from 'loot-core/client/modals/modalsSlice';
-import { send } from 'loot-core/platform/client/fetch';
-import { type PayeeEntity } from 'loot-core/types/models';
-
-import { usePayees } from '../../hooks/usePayees';
-import { useSelector, useDispatch } from '../../redux';
-import { Information } from '../alerts';
-import { Modal, ModalButtons } from '../common/Modal';
+import { Information } from '#components/alerts';
+import { Modal, ModalButtons } from '#components/common/Modal';
+import { usePayees } from '#hooks/usePayees';
+import { replaceModal } from '#modals/modalsSlice';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { useDispatch, useSelector } from '#redux';
 
 const highlightStyle = { color: theme.pageTextPositive };
 
@@ -31,7 +29,7 @@ export function MergeUnusedPayeesModal({
   targetPayeeId,
 }: MergeUnusedPayeesModalProps) {
   const { t } = useTranslation();
-  const allPayees = usePayees();
+  const { data: allPayees = [] } = usePayees();
   const modalStack = useSelector(state => state.modals.modalStack);
   const isEditingRule = !!modalStack.find(m => m.name === 'edit-rule');
   const dispatch = useDispatch();
@@ -104,21 +102,33 @@ export function MergeUnusedPayeesModal({
 
   return (
     <Modal name="merge-unused-payees">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <View style={{ padding: 20, maxWidth: 500 }}>
           <View>
             <Paragraph style={{ marginBottom: 10, fontWeight: 500 }}>
               {payees.length === 1 ? (
-                <>
-                  The payee <Text style={highlightStyle}>{payees[0].name}</Text>{' '}
-                  is not used by transactions any more. Would like to merge it
-                  with <Text style={highlightStyle}>{targetPayee.name}</Text>?
-                </>
+                <Trans>
+                  The payee{' '}
+                  <Text style={highlightStyle}>
+                    {{ previousPayee: payees[0].name } as TransObjectLiteral}
+                  </Text>{' '}
+                  is not used by transactions any more. Would you like to merge
+                  it with{' '}
+                  <Text style={highlightStyle}>
+                    {{ payee: targetPayee.name } as TransObjectLiteral}
+                  </Text>
+                  ?
+                </Trans>
               ) : (
                 <>
-                  The following payees are not used by transactions any more.
-                  Would like to merge them with{' '}
-                  <Text style={highlightStyle}>{targetPayee.name}</Text>?
+                  <Trans>
+                    The following payees are not used by transactions any more.
+                    Would you like to merge them with{' '}
+                    <Text style={highlightStyle}>
+                      {{ payee: targetPayee.name } as TransObjectLiteral}
+                    </Text>
+                    ?
+                  </Trans>
                   <ul
                     ref={flashRef}
                     style={{
@@ -139,14 +149,17 @@ export function MergeUnusedPayeesModal({
             </Paragraph>
 
             <Information>
-              {t(
-                'Merging will remove the payee and transfer any existing rules to the new payee.',
-              )}
+              <Trans>
+                Merging will remove the payee and transfer any existing rules to
+                the new payee.
+              </Trans>
               {!isEditingRule && (
                 <>
                   {' '}
-                  If checked below, a rule will be created to do this rename
-                  while importing transactions.
+                  <Trans>
+                    If checked below, a rule will be created to do this rename
+                    while importing transactions.
+                  </Trans>
                 </>
               )}
             </Information>
@@ -162,6 +175,9 @@ export function MergeUnusedPayeesModal({
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
+                aria-label={t(
+                  'Automatically rename these payees in the future',
+                )}
               >
                 <input
                   type="checkbox"
@@ -169,9 +185,7 @@ export function MergeUnusedPayeesModal({
                   onChange={e => setShouldCreateRule(e.target.checked)}
                 />
                 <Text style={{ marginLeft: 3 }}>
-                  Automatically rename{' '}
-                  {payees.length === 1 ? 'this payee' : 'these payees'} in the
-                  future
+                  <Trans>Automatically rename these payees in the future</Trans>
                 </Text>
               </label>
             )}
@@ -182,25 +196,25 @@ export function MergeUnusedPayeesModal({
                 autoFocus
                 style={{ marginRight: 10 }}
                 onPress={() => {
-                  onMerge(targetPayee);
-                  close();
+                  void onMerge(targetPayee);
+                  state.close();
                 }}
               >
-                {t('Merge')}
+                <Trans>Merge</Trans>
               </Button>
-              {!isEditingRule && (
+              {!isEditingRule && shouldCreateRule && (
                 <Button
                   style={{ marginRight: 10 }}
                   onPress={() => {
-                    onMergeAndCreateRule(targetPayee);
-                    close();
+                    void onMergeAndCreateRule(targetPayee);
+                    state.close();
                   }}
                 >
-                  {t('Merge and edit rule')}
+                  <Trans>Merge and edit rule</Trans>
                 </Button>
               )}
-              <Button style={{ marginRight: 10 }} onPress={close}>
-                {t('Do nothing')}
+              <Button style={{ marginRight: 10 }} onPress={() => state.close()}>
+                <Trans>Do nothing</Trans>
               </Button>
             </ModalButtons>
           </View>

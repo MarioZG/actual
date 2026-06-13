@@ -5,13 +5,12 @@ import { Trans } from 'react-i18next';
 import { Button } from '@actual-app/components/button';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { PossibleRoles } from '@actual-app/core/shared/user';
+import type { UserEntity } from '@actual-app/core/types/models';
 
-import { PossibleRoles } from 'loot-core/shared/user';
-import { type UserEntity } from 'loot-core/types/models';
-
-import { useSelectedDispatch } from '../../../hooks/useSelected';
-import { Checkbox } from '../../forms';
-import { SelectCell, Row, Cell } from '../../table';
+import { Checkbox } from '#components/forms';
+import { Cell, Row, SelectCell } from '#components/table';
+import { useSelectedDispatch } from '#hooks/useSelected';
 
 type UserDirectoryProps = {
   user: UserEntity;
@@ -40,14 +39,14 @@ export const UserDirectoryRow = memo(
               ? theme.tableRowBackgroundHover
               : theme.tableBackground,
         }}
-        collapsed={true}
+        collapsed
         onMouseEnter={() => onHover && onHover(user.id)}
         onMouseLeave={() => onHover && onHover(null)}
       >
         {!user.owner && (
           <SelectCell
             exposed={hovered || selected}
-            focused={true}
+            focused
             onSelect={e => {
               dispatchSelected({
                 type: 'select',
@@ -112,7 +111,7 @@ export const UserDirectoryRow = memo(
           plain
           style={{ padding: '0 15px', paddingLeft: 5 }}
         >
-          <Checkbox checked={user.enabled} disabled={true} />
+          <Checkbox checked={user.enabled} disabled />
         </Cell>
 
         <Cell
@@ -121,7 +120,7 @@ export const UserDirectoryRow = memo(
           plain
           style={{ padding: '0 15px', paddingLeft: 5 }}
         >
-          <Checkbox checked={user.owner} disabled={true} />
+          <Checkbox checked={user.owner} disabled />
         </Cell>
 
         <Cell

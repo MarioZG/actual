@@ -1,14 +1,20 @@
-import * as db from '../db';
+import * as db from '#server/db';
+import type { Template } from '#types/models/templates';
 
+import { parse } from './goal-template.pegjs';
 import {
-  CategoryWithTemplateNote,
   getActiveSchedules,
   getCategoriesWithTemplateNotes,
   resetCategoryGoalDefsWithNoTemplates,
 } from './statements';
-import { checkTemplates, storeTemplates } from './template-notes';
+import type { CategoryWithTemplateNote } from './statements';
+import {
+  checkTemplateNotes,
+  storeNoteTemplates,
+  unparse,
+} from './template-notes';
 
-vi.mock('../db');
+vi.mock('#server/db');
 vi.mock('./statements');
 
 function mockGetTemplateNotesForCategories(
@@ -22,12 +28,13 @@ function mockGetActiveSchedules(schedules: db.DbSchedule[]) {
 }
 
 function mockDbUpdate() {
-  vi.mocked(db.update).mockResolvedValue(undefined);
+  vi.mocked(db.updateWithSchema).mockResolvedValue(undefined);
 }
 
-describe('storeTemplates', () => {
+describe('storeNoteTemplates', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(db.all).mockResolvedValue([]);
   });
 
   const testCases = [
@@ -102,7 +109,7 @@ describe('storeTemplates', () => {
       ],
       expectedTemplates: [
         {
-          type: 'simple',
+          type: 'goal',
           amount: 10,
           priority: null,
           directive: 'goal',
@@ -121,6 +128,92 @@ describe('storeTemplates', () => {
       ],
       expectedTemplates: [],
     },
+    {
+      description: 'Captures a description above a template',
+      mockTemplateNotes: [
+        {
+          id: 'cat1',
+          name: 'Category 1',
+          note: 'Car insurance\n#template 10',
+        },
+      ],
+      expectedTemplates: [
+        {
+          type: 'simple',
+          monthly: 10,
+          limit: null,
+          priority: 0,
+          directive: 'template',
+          description: 'Car insurance',
+        },
+      ],
+    },
+    {
+      description: 'Captures a multi-line description above a template',
+      mockTemplateNotes: [
+        {
+          id: 'cat1',
+          name: 'Category 1',
+          note: 'Line one\nLine two\n#template 10',
+        },
+      ],
+      expectedTemplates: [
+        {
+          type: 'simple',
+          monthly: 10,
+          limit: null,
+          priority: 0,
+          directive: 'template',
+          description: 'Line one\nLine two',
+        },
+      ],
+    },
+    {
+      description: 'Ignores prose separated from the template by a blank line',
+      mockTemplateNotes: [
+        {
+          id: 'cat1',
+          name: 'Category 1',
+          note: 'Just a note\n\n#template 10',
+        },
+      ],
+      expectedTemplates: [
+        {
+          type: 'simple',
+          monthly: 10,
+          limit: null,
+          priority: 0,
+          directive: 'template',
+        },
+      ],
+    },
+    {
+      description: 'Only attaches a description to the template directly below',
+      mockTemplateNotes: [
+        {
+          id: 'cat1',
+          name: 'Category 1',
+          note: 'Groceries\n#template 10\n#template-2 20',
+        },
+      ],
+      expectedTemplates: [
+        {
+          type: 'simple',
+          monthly: 10,
+          limit: null,
+          priority: 0,
+          directive: 'template',
+          description: 'Groceries',
+        },
+        {
+          type: 'simple',
+          monthly: 20,
+          limit: null,
+          priority: 2,
+          directive: 'template',
+        },
+      ],
+    },
   ];
 
   it.each(testCases)(
@@ -131,19 +224,20 @@ describe('storeTemplates', () => {
       mockDbUpdate();
 
       // When
-      await storeTemplates();
+      await storeNoteTemplates();
 
       // Then
       if (expectedTemplates.length === 0) {
-        expect(db.update).not.toHaveBeenCalled();
+        expect(db.updateWithSchema).not.toHaveBeenCalled();
         expect(resetCategoryGoalDefsWithNoTemplates).toHaveBeenCalled();
         return;
       }
 
       mockTemplateNotes.forEach(({ id }) => {
-        expect(db.update).toHaveBeenCalledWith('categories', {
+        expect(db.updateWithSchema).toHaveBeenCalledWith('categories', {
           id,
           goal_def: JSON.stringify(expectedTemplates),
+          template_settings: { source: 'notes' },
         });
       });
       expect(resetCategoryGoalDefsWithNoTemplates).toHaveBeenCalled();
@@ -221,7 +315,7 @@ describe('checkTemplates', () => {
       expected: {
         sticky: true,
         message: 'There were errors interpreting some templates:',
-        pre: 'Category 1: Schedule “Non-existent Schedule” does not exist',
+        pre: 'Category 1: Schedule "Non-existent Schedule" does not exist',
       },
     },
     {
@@ -266,7 +360,7 @@ describe('checkTemplates', () => {
       mockGetActiveSchedules(mockSchedules);
 
       // When
-      const result = await checkTemplates();
+      const result = await checkTemplateNotes();
 
       // Then
       expect(result).toEqual(expected);
@@ -284,6 +378,7 @@ function mockSchedules(): db.DbSchedule[] {
       posts_transaction: 0,
       tombstone: 0,
       name: 'Mock Schedule 1',
+      custom_upcoming_length: null,
     },
     {
       id: 'mock-schedule-2',
@@ -293,6 +388,139 @@ function mockSchedules(): db.DbSchedule[] {
       posts_transaction: 0,
       tombstone: 0,
       name: 'Mock Schedule 2',
+      custom_upcoming_length: null,
     },
   ];
 }
+
+describe('unparse/parse round-trip', () => {
+  const cases: string[] = [
+    // simple
+    '#template 10',
+    '#template up to 50',
+    '#template up to 25 per day hold',
+    '#template up to 100 per week starting 2025-01-01',
+    '#template-2 123.45',
+    // schedule
+    '#template schedule Rent',
+    '#template schedule full Mortgage',
+    '#template schedule Netflix [increase 10%]',
+    '#template schedule full Groceries [decrease 5%]',
+    // percentage
+    '#template 50% of Utilities',
+    '#template 75% of previous Dining Out',
+    // periodic
+    '#template 200 repeat every 2 months starting 2025-06-01',
+    '#template 300 repeat every week starting 2025-01-07',
+    '#template 400 repeat every year starting 2025-01-01 up to 50',
+    '#template 100 repeat every 1 months starting 2026-04-01',
+    // by / spend
+    '#template 500 by 2025-12',
+    '#template 600 by 2025-11 repeat every month',
+    '#template 700 by 2025-10 repeat every 2 months',
+    '#template 800 by 2025-09 repeat every year',
+    '#template 900 by 2025-08 repeat every 3 years',
+    '#template 1000 by 2025-07 spend from 2025-01 repeat every month',
+    '#template 1100 by 2025-06 spend from 2025-02 repeat every 2 months',
+    // remainder
+    '#template remainder',
+    '#template remainder 2',
+    '#template remainder 3 up to 10',
+    // average
+    '#template average 6 months',
+    '#template-5 average 12 months',
+    // copy
+    '#template copy from 3 months ago',
+    '#template copy from 6 months ago',
+    // goal
+    '#goal 1234',
+  ];
+
+  it.each(cases)('round-trips: %s', async original => {
+    const parsed: Template = parse(original);
+    const serialized = await unparse([parsed]);
+    const reparsed: Template = parse(serialized);
+
+    expect(parsed).toEqual(reparsed);
+  });
+});
+
+describe('unparse limit templates', () => {
+  it('serializes refill limits to notes syntax', async () => {
+    const serialized = await unparse([
+      {
+        type: 'limit',
+        amount: 150,
+        hold: false,
+        period: 'monthly',
+        directive: 'template',
+        priority: null,
+      },
+      {
+        type: 'refill',
+        directive: 'template',
+        priority: 2,
+      },
+    ]);
+
+    expect(serialized).toBe('#template-2 up to 150');
+  });
+
+  it('serializes non-refill limits with a zero base amount', async () => {
+    const serialized = await unparse([
+      {
+        type: 'limit',
+        amount: 200,
+        hold: false,
+        period: 'monthly',
+        directive: 'template',
+        priority: null,
+      },
+    ]);
+
+    expect(serialized).toBe('#template 0 up to 200');
+  });
+});
+
+describe('unparse descriptions', () => {
+  it('writes a description above the template line', async () => {
+    const serialized = await unparse([
+      {
+        type: 'simple',
+        monthly: 10,
+        priority: 0,
+        directive: 'template',
+        description: 'Car insurance',
+      },
+    ]);
+
+    expect(serialized).toBe('Car insurance\n#template 10');
+  });
+
+  it('writes a multi-line description', async () => {
+    const serialized = await unparse([
+      {
+        type: 'goal',
+        amount: 100,
+        directive: 'goal',
+        description: 'Rainy day fund\nfor emergencies',
+      },
+    ]);
+
+    expect(serialized).toBe('Rainy day fund\nfor emergencies\n#goal 100');
+  });
+
+  it('drops blank lines so the note stays re-parseable', async () => {
+    const serialized = await unparse([
+      {
+        type: 'simple',
+        monthly: 10,
+        priority: 0,
+        directive: 'template',
+        description: 'first\n\nsecond',
+      },
+    ]);
+
+    expect(serialized).toBe('first\nsecond\n#template 10');
+  });
+});

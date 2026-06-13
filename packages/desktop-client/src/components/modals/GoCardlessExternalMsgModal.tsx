@@ -1,5 +1,5 @@
 // @ts-strict-ignore
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -7,25 +7,24 @@ import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
 import { Paragraph } from '@actual-app/components/paragraph';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { sendCatch } from '@actual-app/core/platform/client/connection';
+import type {
+  GoCardlessInstitution,
+  GoCardlessToken,
+} from '@actual-app/core/types/models';
 
-import {
-  type Modal as ModalType,
-  pushModal,
-} from 'loot-core/client/modals/modalsSlice';
-import { sendCatch } from 'loot-core/platform/client/fetch';
-import {
-  type GoCardlessInstitution,
-  type GoCardlessToken,
-} from 'loot-core/types/models';
-
-import { useGoCardlessStatus } from '../../hooks/useGoCardlessStatus';
-import { useDispatch } from '../../redux';
-import { Error, Warning } from '../alerts';
-import { Autocomplete } from '../autocomplete/Autocomplete';
-import { Link } from '../common/Link';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { FormField, FormLabel } from '../forms';
-import { COUNTRY_OPTIONS } from '../util/countries';
+import { Error, Warning } from '#components/alerts';
+import { Autocomplete } from '#components/autocomplete/Autocomplete';
+import { Link } from '#components/common/Link';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { FormField, FormLabel } from '#components/forms';
+import { COUNTRY_OPTIONS } from '#components/util/countries';
+import { getCountryFromBrowser } from '#components/util/localeToCountry';
+import { useGlobalPref } from '#hooks/useGlobalPref';
+import { useGoCardlessStatus } from '#hooks/useGoCardlessStatus';
+import { pushModal } from '#modals/modalsSlice';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 function useAvailableBanks(country: string) {
   const [banks, setBanks] = useState<GoCardlessInstitution[]>([]);
@@ -56,7 +55,7 @@ function useAvailableBanks(country: string) {
       setIsLoading(false);
     }
 
-    fetch();
+    void fetch();
   }, [setBanks, setIsLoading, country]);
 
   return {
@@ -95,11 +94,21 @@ export function GoCardlessExternalMsgModal({
   const { t } = useTranslation();
 
   const dispatch = useDispatch();
+  const [language] = useGlobalPref('language');
+
+  const browserTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const browserLocale = language || navigator.language || 'en-US';
+  const detectedCountry = getCountryFromBrowser(
+    browserTimezone,
+    browserLocale,
+    COUNTRY_OPTIONS,
+  );
 
   const [waiting, setWaiting] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
   const [institutionId, setInstitutionId] = useState<string>();
-  const [country, setCountry] = useState<string>();
+  const [country, setCountry] = useState<string | undefined>(detectedCountry);
   const [error, setError] = useState<{
     code: 'unknown' | 'timeout';
     message?: string;
@@ -219,9 +228,9 @@ export function GoCardlessExternalMsgModal({
         <Warning>
           <Trans>
             By enabling bank sync, you will be granting GoCardless (a third
-            party service) read-only access to your entire account’s transaction
+            party service) read-only access to your entire account's transaction
             history. This service is not affiliated with Actual in any way. Make
-            sure you’ve read and understand GoCardless’s{' '}
+            sure you've read and understand GoCardless's{' '}
             <Link
               variant="external"
               to="https://gocardless.com/privacy/"
@@ -259,11 +268,11 @@ export function GoCardlessExternalMsgModal({
       onClose={onClose}
       containerProps={{ style: { width: '30vw' } }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Link Your Bank')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View>
             <Paragraph style={{ fontSize: 15 }}>
@@ -284,7 +293,7 @@ export function GoCardlessExternalMsgModal({
                 />
                 <View style={{ marginTop: 10, color: theme.pageText }}>
                   {isConfigurationLoading
-                    ? t('Checking GoCardless configuration..')
+                    ? t('Checking GoCardless configuration...')
                     : waiting === 'browser'
                       ? t('Waiting on GoCardless...')
                       : waiting === 'accounts'

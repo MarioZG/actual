@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { ButtonWithLoading } from '@actual-app/components/button';
 import { Paragraph } from '@actual-app/components/paragraph';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-
-import { send } from 'loot-core/platform/client/fetch';
-import { type Handlers } from 'loot-core/types/handlers';
+import { send } from '@actual-app/core/platform/client/connection';
+import type { Handlers } from '@actual-app/core/types/handlers';
 
 import { Setting } from './UI';
 
@@ -25,6 +24,7 @@ function useRenderResults() {
       numTransfersFixed,
       mismatchedSplits,
       numNonParentErrorsFixed,
+      numParentTransactionsWithCategoryFixed,
     } = results;
     const result: string[] = [];
 
@@ -34,7 +34,8 @@ function useRenderResults() {
       numDeleted === 0 &&
       numTransfersFixed === 0 &&
       numNonParentErrorsFixed === 0 &&
-      mismatchedSplits.length === 0
+      mismatchedSplits.length === 0 &&
+      numParentTransactionsWithCategoryFixed === 0
     ) {
       result.push(t('No split transactions found needing repair.'));
     } else {
@@ -54,7 +55,7 @@ function useRenderResults() {
       }
       if (numDeleted > 0) {
         result.push(
-          t('Fixed {{count}} splits that weren’t properly deleted.', {
+          t("Fixed {{count}} splits that weren't properly deleted.", {
             count: numDeleted,
           }),
         );
@@ -83,6 +84,13 @@ function useRenderResults() {
             'Found {{count}} split transactions with mismatched amounts on the below dates. Please review them manually:',
             { count: mismatchedSplits.length },
           ) + `\n${mismatchedSplitInfo}`,
+        );
+      }
+      if (numParentTransactionsWithCategoryFixed > 0) {
+        result.push(
+          t('Fixed {{count}} split transactions with non-null category.', {
+            count: numParentTransactionsWithCategoryFixed,
+          }),
         );
       }
     }
@@ -139,10 +147,10 @@ export function RepairTransactions() {
       <Trans>
         <Text>
           <strong>Repair transactions</strong> if you are experiencing bugs
-          relating to split transactions or transfers and the “Reset budget
-          cache” button above does not help, this tool may fix them. Some
+          relating to split transactions or transfers and the "Reset budget
+          cache" button above does not help, this tool may fix them. Some
           examples of bugs include seeing blank payees on splits or incorrect
-          account balances. This tool does four things:
+          account balances. This tool does six things:
         </Text>
         <ul style={{ margin: 0, paddingLeft: '1.5em' }}>
           <li style={{ marginBottom: '0.5em' }}>
@@ -154,8 +162,8 @@ export function RepairTransactions() {
           </li>
           <li>
             Sync the payee and cleared flag of a split transaction to the main
-            or “parent” transaction, if appropriate. The payee will only be set
-            if it currently doesn’t have one.
+            or "parent" transaction, if appropriate. The payee will only be set
+            if it currently doesn't have one.
           </li>
           <li>
             Checks that the sum of all child transactions adds up to the total
@@ -167,8 +175,12 @@ export function RepairTransactions() {
             and removes the errors if found.
           </li>
           <li>
-            Check if you have any budget transfers that erroneous contain a
+            Check if you have any budget transfers that erroneously contain a
             category, and remove the category.
+          </li>
+          <li>
+            Checks for any parent transactions with a category and removes the
+            category if found.
           </li>
         </ul>
       </Trans>

@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { ConfigurationPage } from './page-models/configuration-page';
@@ -23,7 +23,7 @@ test.describe('Mobile Accounts', () => {
   });
 
   test.afterEach(async () => {
-    await page.close();
+    await page?.close();
   });
 
   test('opens the accounts page and asserts on balances', async () => {
@@ -46,7 +46,7 @@ test.describe('Mobile Accounts', () => {
 
     await expect(accountPage.heading).toHaveText('Bank of America');
     await expect(accountPage.transactionList).toBeVisible();
-    await expect(await accountPage.getBalance()).toBeGreaterThan(0);
+    expect(await accountPage.getBalance()).toBeGreaterThan(0);
     await expect(accountPage.noTransactionsMessage).not.toBeVisible();
     await expect(page).toMatchThemeScreenshots();
 

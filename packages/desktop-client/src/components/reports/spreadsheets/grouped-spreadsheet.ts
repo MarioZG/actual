@@ -1,32 +1,37 @@
-import { runQuery } from 'loot-core/client/query-helpers';
-import { type useSpreadsheet } from 'loot-core/client/SpreadsheetProvider';
-import { send } from 'loot-core/platform/client/fetch';
-import * as monthUtils from 'loot-core/shared/months';
-import { type GroupedEntity } from 'loot-core/types/models';
+import { send } from '@actual-app/core/platform/client/connection';
+import * as monthUtils from '@actual-app/core/shared/months';
+import type { GroupedEntity } from '@actual-app/core/types/models';
 
 import {
   categoryLists,
-  type QueryDataEntity,
   ReportOptions,
-} from '../ReportOptions';
+} from '#components/reports/ReportOptions';
+import type { QueryDataEntity } from '#components/reports/ReportOptions';
+import type { useSpreadsheet } from '#hooks/useSpreadsheet';
 
-import { type createCustomSpreadsheetProps } from './custom-spreadsheet';
+import type { createCustomSpreadsheetProps } from './custom-spreadsheet';
+import { fetchSpreadsheetQueryData } from './fetchSpreadsheetQueryData';
 import { filterEmptyRows } from './filterEmptyRows';
-import { makeQuery } from './makeQuery';
 import { recalculate } from './recalculate';
 import { sortData } from './sortData';
+import {
+  determineIntervalRange,
+  trimGroupedDataIntervals,
+} from './trimIntervals';
 
 export function createGroupedSpreadsheet({
   startDate,
   endDate,
   interval,
   categories,
+  budgetType = 'envelope',
   conditions = [],
   conditionsOp,
   showEmpty,
   showOffBudget,
   showHiddenCategories,
   showUncategorized,
+  trimIntervals,
   balanceTypeOp,
   sortByOp,
   firstDayOfWeekIdx,
@@ -38,6 +43,7 @@ export function createGroupedSpreadsheet({
     setData: (data: GroupedEntity[]) => void,
   ) => {
     if (categoryList.length === 0) {
+      setData([]);
       return;
     }
 
@@ -48,30 +54,22 @@ export function createGroupedSpreadsheet({
 
     let assets: QueryDataEntity[];
     let debts: QueryDataEntity[];
-    [assets, debts] = await Promise.all([
-      runQuery(
-        makeQuery(
-          'assets',
-          startDate,
-          endDate,
-          interval,
-          conditionsOpKey,
-          filters,
-        ),
-      ).then(({ data }) => data),
-      runQuery(
-        makeQuery(
-          'debts',
-          startDate,
-          endDate,
-          interval,
-          conditionsOpKey,
-          filters,
-        ),
-      ).then(({ data }) => data),
-    ]);
 
-    if (interval === 'Weekly') {
+    ({ assets, debts } = await fetchSpreadsheetQueryData({
+      balanceTypeOp,
+      startDate,
+      endDate,
+      interval,
+      categories: categories.list,
+      categoryGroups: categories.grouped,
+      conditions,
+      conditionsOp,
+      conditionsOpKey,
+      filters,
+      budgetType,
+    }));
+
+    if (interval === 'Weekly' && balanceTypeOp !== 'totalBudgeted') {
       debts = debts.map(d => {
         return {
           ...d,
@@ -141,6 +139,25 @@ export function createGroupedSpreadsheet({
     const groupedDataFiltered = groupedData.filter(i =>
       filterEmptyRows({ showEmpty, data: i, balanceTypeOp }),
     );
+
+    // Determine interval range across all groups and their nested categories
+    const allGroupsForTrimming: GroupedEntity[] = [];
+    groupedDataFiltered.forEach(group => {
+      allGroupsForTrimming.push(group);
+      if (group.categories) {
+        allGroupsForTrimming.push(...group.categories);
+      }
+    });
+
+    const { startIndex, endIndex } = determineIntervalRange(
+      allGroupsForTrimming,
+      groupedDataFiltered.length > 0 ? groupedDataFiltered[0].intervalData : [],
+      trimIntervals,
+      balanceTypeOp,
+    );
+
+    // Trim all groupedData intervals (including nested categories) based on the range
+    trimGroupedDataIntervals(groupedDataFiltered, startIndex, endIndex);
 
     const sortedGroupedDataFiltered = [...groupedDataFiltered]
       .sort(sortData({ balanceTypeOp, sortByOp }))

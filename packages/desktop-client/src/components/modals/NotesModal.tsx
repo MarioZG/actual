@@ -1,16 +1,15 @@
 // @ts-strict-ignore
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { SvgCheck } from '@actual-app/components/icons/v2';
 import { View } from '@actual-app/components/view';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-
-import { useNotes } from '../../hooks/useNotes';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { Notes } from '../Notes';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { Notes } from '#components/Notes';
+import { useNotes } from '#hooks/useNotes';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type NotesModalProps = Extract<ModalType, { name: 'notes' }>['options'];
 
@@ -34,11 +33,11 @@ export function NotesModal({ id, name, onSave }: NotesModalProps) {
         style: { height: '50vh' },
       }}
     >
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Notes: {{name}}', { name })}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -48,8 +47,8 @@ export function NotesModal({ id, name, onSave }: NotesModalProps) {
           >
             <Notes
               notes={notes}
-              editable={true}
-              focused={true}
+              editable
+              focused
               getStyle={() => ({
                 borderRadius: 6,
                 flex: 1,
@@ -75,11 +74,11 @@ export function NotesModal({ id, name, onSave }: NotesModalProps) {
                 }}
                 onPress={() => {
                   _onSave();
-                  close();
+                  state.close();
                 }}
               >
                 <SvgCheck width={17} height={17} style={{ paddingRight: 5 }} />
-                {t('Save notes')}
+                <Trans>Save notes</Trans>
               </Button>
             </View>
           </View>

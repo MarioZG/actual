@@ -1,5 +1,9 @@
-// @ts-strict-ignore
-const tmpl = ({ imports, interfaces, componentName, props, jsx }, { tpl }) => {
+import type { Config } from '@svgr/core';
+
+const tmpl: Config['template'] = (
+  { imports, interfaces, componentName, props, jsx },
+  { tpl },
+) => {
   return tpl`
 ${imports};
 
@@ -11,4 +15,4 @@ export const ${componentName} = (${props}) => (
 `;
 };
 
-module.exports = tmpl;
+export default tmpl;

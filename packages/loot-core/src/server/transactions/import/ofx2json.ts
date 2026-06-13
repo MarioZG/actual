@@ -1,7 +1,7 @@
 // @ts-strict-ignore
 import { parseStringPromise } from 'xml2js';
 
-import { dayFromDate } from '../../../shared/months';
+import { dayFromDate } from '#shared/months';
 
 type OFXTransaction = {
   amount: string;
@@ -33,13 +33,16 @@ export function html2Plain(value) {
   return value
     ?.replace(/&lt;/g, '<') // lessthan
     .replace(/&gt;/g, '>') // greaterthan
-    .replace(/&#39;/g, "'") // eslint-disable-line rulesdir/typography
-    .replace(/&quot;/g, '"') // eslint-disable-line rulesdir/typography
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
     .replace(/(&amp;|&#038;)/g, '&'); // ampersands
 }
 
 async function parseXml(content) {
-  return await parseStringPromise(content, { explicitArray: false });
+  return await parseStringPromise(content, {
+    explicitArray: false,
+    trim: true,
+  });
 }
 
 function getStmtTrn(data) {
@@ -122,7 +125,7 @@ function mapOfxTransaction(stmtTrn): OFXTransaction {
 
 export async function ofx2json(ofx: string): Promise<OFXParseResult> {
   // firstly, split into the header attributes and the footer sgml
-  const contents = ofx.split('<OFX>', 2);
+  const contents = ofx.split(/<OFX\s?>/, 2);
 
   // firstly, parse the headers
   const headerString = contents[0].split(/\r?\n/);
@@ -142,7 +145,7 @@ export async function ofx2json(ofx: string): Promise<OFXParseResult> {
   let dataParsed = null;
   try {
     dataParsed = await parseXml(content);
-  } catch (e) {
+  } catch {
     const sanitized = sgml2Xml(content);
     dataParsed = await parseXml(sanitized);
   }

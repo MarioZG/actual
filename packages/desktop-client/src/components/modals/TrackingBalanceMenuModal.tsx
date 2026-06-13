@@ -1,27 +1,27 @@
-import React, { type CSSProperties } from 'react';
-import { useTranslation } from 'react-i18next';
+import React from 'react';
+import type { CSSProperties } from 'react';
+import { Trans } from 'react-i18next';
 
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { trackingBudget } from 'loot-core/client/queries';
-
-import { useCategory } from '../../hooks/useCategory';
 import {
   BalanceWithCarryover,
   CarryoverIndicator,
-} from '../budget/BalanceWithCarryover';
-import { BalanceMenu } from '../budget/tracking/BalanceMenu';
+} from '#components/budget/BalanceWithCarryover';
+import { BalanceMenu } from '#components/budget/tracking/BalanceMenu';
 import {
   Modal,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
-} from '../common/Modal';
-import { CellValueText } from '../spreadsheet/CellValue';
+} from '#components/common/Modal';
+import { CellValueText } from '#components/spreadsheet/CellValue';
+import { useCategory } from '#hooks/useCategory';
+import type { Modal as ModalType } from '#modals/modalsSlice';
+import { trackingBudget } from '#spreadsheet/bindings';
 
 type TrackingBalanceMenuModalProps = Omit<
   Extract<ModalType, { name: 'tracking-balance-menu' }>['options'],
@@ -39,8 +39,7 @@ export function TrackingBalanceMenuModal({
     borderTop: `1px solid ${theme.pillBorder}`,
   };
 
-  const { t } = useTranslation();
-  const category = useCategory(categoryId);
+  const { data: category } = useCategory(categoryId);
 
   if (!category) {
     return null;
@@ -48,11 +47,11 @@ export function TrackingBalanceMenuModal({
 
   return (
     <Modal name="tracking-balance-menu">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={<ModalTitle title={category.name} shrinkOnOverflow />}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
           <View
             style={{
@@ -67,7 +66,7 @@ export function TrackingBalanceMenuModal({
                 fontWeight: 400,
               }}
             >
-              {t('Balance')}
+              <Trans>Balance</Trans>
             </Text>
             <BalanceWithCarryover
               isDisabled

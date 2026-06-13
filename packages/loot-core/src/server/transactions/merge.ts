@@ -1,5 +1,14 @@
-import { type TransactionEntity } from '../../types/models';
-import * as db from '../db';
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
+import { validForMergeExplanation } from '#shared/merge';
+import { q } from '#shared/query';
+import {
+  deleteTransaction as sharedDeleteTransaction,
+  ungroupTransactions,
+} from '#shared/transactions';
+import type { TransactionEntity } from '#types/models';
+
+import { batchUpdateTransactions } from '.';
 
 export async function mergeTransactions(
   transactions: Pick<TransactionEntity, 'id'>[],
@@ -12,29 +21,176 @@ export async function mergeTransactions(
         JSON.stringify(transactions),
     );
   }
+  const [a, b] = await mapAndValidateTransactions(txIds[0], txIds[1]);
+  const aTransferId = a.transfer_id;
+  const bTransferId = b.transfer_id;
 
-  // get most recent transactions
-  const [a, b]: TransactionEntity[] = await Promise.all(
-    txIds.map(db.getTransaction),
-  );
-  if (!a || !b) {
-    throw new Error('One of the provided transactions does not exist');
-  } else if (a.amount !== b.amount) {
-    throw new Error('Transaction amounts must match for merge');
+  // we don't need all the transfer logic if there are no transfers.
+  if (!aTransferId && !bTransferId) return mergeTransactionsNoTransfer(a, b);
+
+  const transferAccount = aTransferId ? a.payee : b.payee;
+
+  await setTransfers([a.id, b.id, aTransferId, bTransferId], null);
+  const transferId = await mergeTransfers(aTransferId, bTransferId);
+  const keptTxId = await mergeTransactionsNoTransfer(a, b);
+  if (transferId) {
+    await db.updateTransaction({
+      id: keptTxId,
+      transfer_id: transferId,
+      payee: transferAccount,
+    });
+    await db.updateTransaction({ id: transferId, transfer_id: keptTxId });
   }
+
+  // transfers to an off-budget account have a category. Transfers to on-budget do not, so
+  // when a regular transaction is merged with a non-transfer, we need to make sure any category
+  // in the non-transfer is cleared out.
+  //
+  // However, we cannot blindly clear categories because if the transfer is to an off-budget account then
+  // we need to keep the regular merge logic that was performed in mergeTransactionsNoTransfer.
+  //
+  // We don't have to worry about the transfer transactions in the other account because
+  // either there is one transaction or there are two transfers, which does not enter this error state
+  if (transferAccount && !(aTransferId && bTransferId)) {
+    const payee = await db.getPayee(transferAccount);
+    const account = await db.getAccount(payee?.transfer_acct ?? '');
+    if (account && !account.offbudget) {
+      await db.updateTransaction({ id: keptTxId, category: null });
+    }
+  }
+
+  return keptTxId;
+}
+
+function setTransfers(
+  txIds: (TransactionEntity['id'] | undefined)[],
+  transfer_id: string | null | undefined,
+) {
+  return Promise.all(
+    txIds
+      .filter(Boolean)
+      .map(txId =>
+        db.updateTransaction({ id: txId, transfer_id: transfer_id ?? null }),
+      ),
+  );
+}
+
+async function mergeTransfers(
+  aTransferId: TransactionEntity['id'] | undefined,
+  bTransferId: TransactionEntity['id'] | undefined,
+) {
+  // if only one is a transfer, we can skip merging
+  if (!aTransferId) return bTransferId;
+  if (!bTransferId) return aTransferId;
+
+  // clear transfers and merge
+  const [aTransfer, bTransfer] = await mapAndValidateTransactions(
+    aTransferId,
+    bTransferId,
+  );
+  await setTransfers([aTransfer.id, bTransfer.id], null);
+  return mergeTransactionsNoTransfer(aTransfer, bTransfer);
+}
+
+async function mapAndValidateTransactions(
+  aId: TransactionEntity['id'],
+  bId: TransactionEntity['id'],
+): Promise<TransactionEntity[]> {
+  // get most recent transactions
+  const a: TransactionEntity = await db.getTransaction(aId);
+  const b: TransactionEntity = await db.getTransaction(bId);
+
+  const validForMergeError = validForMergeExplanation(a, b);
+  if (validForMergeError) {
+    throw new Error(validForMergeError);
+  }
+  return [a, b];
+}
+
+export async function mergeTransactionsNoTransfer(
+  a: TransactionEntity,
+  b: TransactionEntity,
+): Promise<TransactionEntity['id']> {
   const { keep, drop } = determineKeepDrop(a, b);
 
-  await Promise.all([
-    db.updateTransaction({
+  // Load subtransactions with a single query, then split by parent_id in memory
+  const keepSubtransactions: TransactionEntity[] = [];
+  const dropSubtransactions: TransactionEntity[] = [];
+  const parents: string[] = [];
+  if (keep.is_parent) parents.push(keep.id);
+  if (drop.is_parent) parents.push(drop.id);
+
+  let rows: TransactionEntity[] = [];
+  if (parents.length === 2) {
+    rows = await db.all<TransactionEntity>(
+      'SELECT * FROM v_transactions WHERE parent_id IN (?, ?)',
+      parents,
+    );
+  } else if (parents.length === 1) {
+    rows = await db.all<TransactionEntity>(
+      'SELECT * FROM v_transactions WHERE parent_id = ?',
+      parents,
+    );
+  } // else: both are non-parents → rows stays []
+
+  for (const row of rows) {
+    if (row.parent_id === keep.id) keepSubtransactions.push(row);
+    else if (row.parent_id === drop.id) dropSubtransactions.push(row);
+  }
+
+  // Determine which transaction has subtransactions (split categories)
+  const keepHasSubtransactions = keepSubtransactions.length > 0;
+  const dropHasSubtransactions = dropSubtransactions.length > 0;
+
+  // If keep doesn't have subtransactions but drop does, transfer them
+  if (!keepHasSubtransactions && dropHasSubtransactions) {
+    // Update each subtransaction to point to the kept parent
+    await Promise.all(
+      dropSubtransactions.map(sub =>
+        db.updateTransaction({
+          id: sub.id,
+          parent_id: keep.id,
+        } as TransactionEntity),
+      ),
+    );
+    // Mark keep as a parent transaction
+    await db.updateTransaction({
+      id: keep.id,
+      is_parent: true,
+      category: null, // Parent transactions with splits shouldn't have a category
+      payee: keep.payee || drop.payee,
+      notes: keep.notes || drop.notes,
+      cleared: keep.cleared || drop.cleared,
+      reconciled: keep.reconciled || drop.reconciled,
+      schedule: keep.schedule || drop.schedule,
+    } as unknown as TransactionEntity);
+  } else {
+    // Normal merge without subtransactions
+    await db.updateTransaction({
       id: keep.id,
       payee: keep.payee || drop.payee,
       category: keep.category || drop.category,
       notes: keep.notes || drop.notes,
       cleared: keep.cleared || drop.cleared,
       reconciled: keep.reconciled || drop.reconciled,
-    } as TransactionEntity),
-    db.deleteTransaction(drop),
-  ]);
+      schedule: keep.schedule || drop.schedule,
+    } as TransactionEntity);
+  }
+
+  // Delete the dropped transaction using shared deleteTransaction to
+  // intelligently handle possible parent/child cascading logic
+  const { data: transactionsToDelete } = await aqlQuery(
+    q('transactions')
+      .filter({ id: drop.id })
+      .select('*')
+      .options({ splits: 'grouped' }),
+  );
+  const ungroupedTransactions = ungroupTransactions(transactionsToDelete);
+  if (ungroupedTransactions.length > 0) {
+    const { diff } = sharedDeleteTransaction(ungroupedTransactions, drop.id);
+    await batchUpdateTransactions(diff);
+  }
+
   return keep.id;
 }
 

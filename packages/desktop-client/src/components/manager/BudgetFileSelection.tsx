@@ -1,11 +1,5 @@
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  type CSSProperties,
-  useCallback,
-  type ComponentPropsWithoutRef,
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties } from 'react';
 import { GridList, GridListItem } from 'react-aria-components';
 import { Trans, useTranslation } from 'react-i18next';
 
@@ -34,6 +28,17 @@ import { theme } from '@actual-app/components/theme';
 import { tokens } from '@actual-app/components/tokens';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
+import {
+  isElectron,
+  isNonProductionEnvironment,
+} from '@actual-app/core/shared/environment';
+import type {
+  File,
+  LocalFile,
+  RemoteFile,
+  SyncableLocalFile,
+  SyncedLocalFile,
+} from '@actual-app/core/types/file';
 import { css } from '@emotion/css';
 
 import {
@@ -43,25 +48,14 @@ import {
   downloadBudget,
   loadAllFiles,
   loadBudget,
-} from 'loot-core/client/budgets/budgetsSlice';
-import { pushModal } from 'loot-core/client/modals/modalsSlice';
-import { getUserData } from 'loot-core/client/users/usersSlice';
-import {
-  isElectron,
-  isNonProductionEnvironment,
-} from 'loot-core/shared/environment';
-import {
-  type RemoteFile,
-  type File,
-  type LocalFile,
-  type SyncableLocalFile,
-  type SyncedLocalFile,
-} from 'loot-core/types/file';
-
-import { useInitialMount } from '../../hooks/useInitialMount';
-import { useMetadataPref } from '../../hooks/useMetadataPref';
-import { useSelector, useDispatch } from '../../redux';
-import { useMultiuserEnabled } from '../ServerContext';
+} from '#budgetfiles/budgetfilesSlice';
+import { useMultiuserEnabled } from '#components/ServerContext';
+import { useInitialMount } from '#hooks/useInitialMount';
+import { useMetadataPref } from '#hooks/useMetadataPref';
+import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
+import { pushModal } from '#modals/modalsSlice';
+import { useDispatch, useSelector } from '#redux';
+import { getUserData } from '#users/usersSlice';
 
 function getFileDescription(file: File, t: (key: string) => string) {
   if (file.state === 'unknown') {
@@ -129,6 +123,8 @@ function BudgetFileMenuButton({
   onDelete,
   onDuplicate,
 }: BudgetFileMenuButtonProps) {
+  const { t } = useTranslation();
+
   const triggerRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -137,7 +133,7 @@ function BudgetFileMenuButton({
       <Button
         ref={triggerRef}
         variant="bare"
-        aria-label="Menu"
+        aria-label={t('Menu')}
         onPress={() => {
           setMenuOpen(true);
         }}
@@ -182,18 +178,18 @@ function BudgetFileState({ file, currentUserId }: BudgetFileStateProps) {
         return 'Server';
       }
 
-      return userFound?.displayName ?? userFound?.userName ?? 'Unassigned';
+      return userFound?.displayName ?? userFound?.userName ?? t('Unassigned');
     }
 
-    return 'Unknown';
-  }, [file]);
+    return t('Unknown');
+  }, [file, t]);
 
   switch (file.state) {
     case 'unknown':
       Icon = SvgCloudUnknown;
       status = t('Network unavailable');
       color = theme.buttonNormalDisabledText;
-      ownerName = 'Unknown';
+      ownerName = t('Unknown');
       break;
     case 'remote':
       Icon = SvgCloudDownload;
@@ -202,14 +198,13 @@ function BudgetFileState({ file, currentUserId }: BudgetFileStateProps) {
       break;
     case 'local':
       Icon = SvgFileDouble;
-      status = 'Local';
-      ownerName = 'You';
+      status = t('Local');
+      ownerName = t('You');
       break;
     case 'broken':
-      ownerName = 'unknown';
       Icon = SvgFileDouble;
       status = t('Local');
-      ownerName = 'You';
+      ownerName = t('Unknown');
       break;
     default:
       Icon = SvgCloudCheck;
@@ -273,7 +268,7 @@ type BudgetFileListItemProps = ComponentPropsWithoutRef<
   typeof GridListItem<File>
 > & {
   quickSwitchMode: boolean;
-  onSelect: (file: File) => void;
+  onSelect: (file: File) => Promise<void>;
   onDelete: (file: File) => void;
   onDuplicate: (file: File) => void;
   currentUserId: string;
@@ -382,7 +377,7 @@ function BudgetFileListItem({
 type BudgetFileListProps = {
   files: File[];
   quickSwitchMode: boolean;
-  onSelect: (file: File) => void;
+  onSelect: (file: File) => Promise<void>;
   onDelete: (file: File) => void;
   onDuplicate: (file: File) => void;
   currentUserId: string;
@@ -444,11 +439,13 @@ type RefreshButtonProps = {
 };
 
 function RefreshButton({ style, onRefresh }: RefreshButtonProps) {
+  const { t } = useTranslation();
+
   const [loading, setLoading] = useState(false);
 
   async function _onRefresh() {
     setLoading(true);
-    await onRefresh();
+    onRefresh();
     setLoading(false);
   }
 
@@ -457,7 +454,7 @@ function RefreshButton({ style, onRefresh }: RefreshButtonProps) {
   return (
     <Button
       variant="bare"
-      aria-label="Refresh"
+      aria-label={t('Refresh')}
       style={{ padding: 10, ...style }}
       onPress={_onRefresh}
     >
@@ -491,7 +488,7 @@ function SettingsButton({ onOpenSettings }: SettingsButtonProps) {
 
 type BudgetFileSelectionHeaderProps = {
   quickSwitchMode: boolean;
-  onRefresh: () => void;
+  onRefresh?: () => void;
   onOpenSettings: () => void;
 };
 
@@ -522,7 +519,7 @@ function BudgetFileSelectionHeader({
             gap: '0.2rem',
           }}
         >
-          <RefreshButton onRefresh={onRefresh} />
+          {onRefresh && <RefreshButton onRefresh={onRefresh} />}
           {isElectron() && <SettingsButton onOpenSettings={onOpenSettings} />}
         </View>
       )}
@@ -540,11 +537,12 @@ export function BudgetFileSelection({
   quickSwitchMode = false,
 }: BudgetFileSelectionProps) {
   const dispatch = useDispatch();
-  const allFiles = useSelector(state => state.budgets.allFiles || []);
+  const allFiles = useSelector(state => state.budgetfiles.allFiles || []);
   const multiuserEnabled = useMultiuserEnabled();
   const [id] = useMetadataPref('id');
   const [currentUserId, setCurrentUserId] = useState('');
   const userData = useSelector(state => state.user.data);
+  const serverStatus = useSyncServerStatus();
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -556,7 +554,7 @@ export function BudgetFileSelection({
 
   useEffect(() => {
     if (multiuserEnabled && !userData?.offline) {
-      fetchUsers();
+      void fetchUsers();
     }
   }, [multiuserEnabled, userData?.offline, fetchUsers]);
 
@@ -583,13 +581,13 @@ export function BudgetFileSelection({
   const onCreate = ({ testMode = false } = {}) => {
     if (!creating) {
       setCreating(true);
-      dispatch(createBudget({ testMode }));
+      void dispatch(createBudget({ testMode }));
     }
   };
 
   const refresh = () => {
-    dispatch(getUserData());
-    dispatch(loadAllFiles());
+    void dispatch(getUserData());
+    void dispatch(loadAllFiles());
   };
 
   const initialMount = useInitialMount();
@@ -619,10 +617,12 @@ export function BudgetFileSelection({
         maxHeight: '100%',
         flex: 1,
         justifyContent: 'center',
-        ...(!quickSwitchMode && {
-          marginTop: 20,
-          width: '100vw',
-        }),
+        ...(quickSwitchMode
+          ? {
+              marginTop: 20,
+              width: '100vw',
+            }
+          : { marginBottom: 20 }),
         [`@media (min-width: ${tokens.breakpoint_small})`]: {
           maxWidth: tokens.breakpoint_small,
           width: '100%',
@@ -632,7 +632,7 @@ export function BudgetFileSelection({
       {showHeader && (
         <BudgetFileSelectionHeader
           quickSwitchMode={quickSwitchMode}
-          onRefresh={refresh}
+          onRefresh={serverStatus === 'online' ? refresh : undefined}
           onOpenSettings={() =>
             dispatch(pushModal({ modal: { name: 'files-settings' } }))
           }
@@ -671,8 +671,9 @@ export function BudgetFileSelection({
           style={{
             flexDirection: 'row',
             justifyContent: 'flex-end',
-            alignItems: 'center',
-            padding: 25,
+            alignItems: 'stretch',
+            margin: 10,
+            minHeight: 39,
           }}
         >
           <Button
@@ -724,7 +725,9 @@ type UserAccessForFileProps = {
 };
 
 function UserAccessForFile({ fileId, currentUserId }: UserAccessForFileProps) {
-  const allFiles = useSelector(state => state.budgets.allFiles || []);
+  const { t } = useTranslation();
+
+  const allFiles = useSelector(state => state.budgetfiles.allFiles || []);
   const remoteFiles = allFiles.filter(
     f => f.state === 'remote' || f.state === 'synced' || f.state === 'detached',
   ) as (SyncedLocalFile | RemoteFile)[];
@@ -736,9 +739,9 @@ function UserAccessForFile({ fileId, currentUserId }: UserAccessForFileProps) {
 
   const sortedUsersAccess = [...usersAccess].sort((a, b) => {
     const textA =
-      a.userId === currentUserId ? 'You' : (a.displayName ?? a.userName);
+      a.userId === currentUserId ? t('You') : (a.displayName ?? a.userName);
     const textB =
-      b.userId === currentUserId ? 'You' : (b.displayName ?? b.userName);
+      b.userId === currentUserId ? t('You') : (b.displayName ?? b.userName);
     return textA.localeCompare(textB);
   });
 
@@ -794,7 +797,7 @@ function UserAccessForFile({ fileId, currentUserId }: UserAccessForFileProps) {
                           }}
                         >
                           {user.userId === currentUserId
-                            ? 'You'
+                            ? t('You')
                             : (user.displayName ?? user.userName)}
                         </View>
                       </View>

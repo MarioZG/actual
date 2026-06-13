@@ -1,31 +1,29 @@
-import * as asyncStorage from '../../platform/server/asyncStorage';
-import * as fs from '../../platform/server/fs';
-import { stringToInteger } from '../../shared/util';
-import {
-  GlobalPrefs,
-  MetadataPrefs,
-  type SyncedPrefs,
-} from '../../types/prefs';
-import { createApp } from '../app';
-import * as db from '../db';
-import { getDefaultDocumentDir } from '../main';
-import { mutator } from '../mutators';
-import { post } from '../post';
+import * as asyncStorage from '#platform/server/asyncStorage';
+import * as fs from '#platform/server/fs';
+import { createApp } from '#server/app';
+import * as db from '#server/db';
+import { PostError } from '#server/errors';
+import { getDefaultDocumentDir } from '#server/main';
+import { mutator } from '#server/mutators';
+import { post } from '#server/post';
 import {
   getPrefs as _getMetadataPrefs,
   savePrefs as _saveMetadataPrefs,
-} from '../prefs';
-import { getServer } from '../server-config';
-import { undoable } from '../undo';
+} from '#server/prefs';
+import { getServer } from '#server/server-config';
+import { undoable } from '#server/undo';
+import { stringToInteger } from '#shared/util';
+import type { GlobalPrefs, MetadataPrefs, SyncedPrefs } from '#types/prefs';
 
-export interface PreferencesHandlers {
+export type PreferencesHandlers = {
   'preferences/save': typeof saveSyncedPrefs;
   'preferences/get': typeof getSyncedPrefs;
   'save-global-prefs': typeof saveGlobalPrefs;
   'load-global-prefs': typeof loadGlobalPrefs;
   'save-prefs': typeof saveMetadataPrefs;
   'load-prefs': typeof loadMetadataPrefs;
-}
+  'save-server-prefs': typeof saveServerPrefs;
+};
 
 export const app = createApp<PreferencesHandlers>();
 
@@ -35,6 +33,7 @@ app.method('save-global-prefs', saveGlobalPrefs);
 app.method('load-global-prefs', loadGlobalPrefs);
 app.method('save-prefs', saveMetadataPrefs);
 app.method('load-prefs', loadMetadataPrefs);
+app.method('save-server-prefs', saveServerPrefs);
 
 async function saveSyncedPrefs({
   id,
@@ -47,7 +46,10 @@ async function saveSyncedPrefs({
     return;
   }
 
-  await db.update('preferences', { id, value });
+  await db.update('preferences', {
+    id,
+    value,
+  });
 }
 
 async function getSyncedPrefs(): Promise<SyncedPrefs> {
@@ -69,7 +71,7 @@ async function saveGlobalPrefs(prefs: GlobalPrefs) {
   if (prefs.maxMonths !== undefined) {
     await asyncStorage.setItem('max-months', '' + prefs.maxMonths);
   }
-  if (prefs.categoryExpandedState) {
+  if (prefs.categoryExpandedState !== undefined) {
     await asyncStorage.setItem(
       'category-expanded-state',
       '' + prefs.categoryExpandedState,
@@ -93,6 +95,21 @@ async function saveGlobalPrefs(prefs: GlobalPrefs) {
       prefs.preferredDarkTheme,
     );
   }
+  if (prefs.installedCustomLightTheme !== undefined) {
+    await asyncStorage.setItem(
+      'installed-custom-theme',
+      prefs.installedCustomLightTheme,
+    );
+  }
+  if (prefs.installedCustomDarkTheme !== undefined) {
+    await asyncStorage.setItem(
+      'installed-custom-dark-theme',
+      prefs.installedCustomDarkTheme,
+    );
+  }
+  if (prefs.customCssOverride !== undefined) {
+    await asyncStorage.setItem('custom-css-override', prefs.customCssOverride);
+  }
   if (prefs.serverSelfSignedCert !== undefined) {
     await asyncStorage.setItem(
       'server-self-signed-cert',
@@ -101,6 +118,12 @@ async function saveGlobalPrefs(prefs: GlobalPrefs) {
   }
   if (prefs.syncServerConfig !== undefined) {
     await asyncStorage.setItem('syncServerConfig', prefs.syncServerConfig);
+  }
+  if (prefs.notifyWhenUpdateIsAvailable !== undefined) {
+    await asyncStorage.setItem(
+      'notifyWhenUpdateIsAvailable',
+      prefs.notifyWhenUpdateIsAvailable,
+    );
   }
   return 'ok';
 }
@@ -115,8 +138,12 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
     language,
     theme,
     'preferred-dark-theme': preferredDarkTheme,
+    'installed-custom-theme': installedCustomLightTheme,
+    'installed-custom-dark-theme': installedCustomDarkTheme,
+    'custom-css-override': customCssOverride,
     'server-self-signed-cert': serverSelfSignedCert,
     syncServerConfig,
+    notifyWhenUpdateIsAvailable,
   } = await asyncStorage.multiGet([
     'floating-sidebar',
     'category-expanded-state',
@@ -126,8 +153,12 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
     'language',
     'theme',
     'preferred-dark-theme',
+    'installed-custom-theme',
+    'installed-custom-dark-theme',
+    'custom-css-override',
     'server-self-signed-cert',
     'syncServerConfig',
+    'notifyWhenUpdateIsAvailable',
   ] as const);
   return {
     floatingSidebar: floatingSidebar === 'true',
@@ -140,7 +171,6 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
       theme === 'light' ||
       theme === 'dark' ||
       theme === 'auto' ||
-      theme === 'development' ||
       theme === 'midnight'
         ? theme
         : 'auto',
@@ -148,8 +178,15 @@ async function loadGlobalPrefs(): Promise<GlobalPrefs> {
       preferredDarkTheme === 'dark' || preferredDarkTheme === 'midnight'
         ? preferredDarkTheme
         : 'dark',
+    installedCustomLightTheme: installedCustomLightTheme || undefined,
+    installedCustomDarkTheme: installedCustomDarkTheme || undefined,
+    customCssOverride: customCssOverride || undefined,
     serverSelfSignedCert: serverSelfSignedCert || undefined,
     syncServerConfig: syncServerConfig || undefined,
+    notifyWhenUpdateIsAvailable:
+      notifyWhenUpdateIsAvailable === undefined
+        ? true
+        : notifyWhenUpdateIsAvailable, // default to true
   };
 }
 
@@ -182,4 +219,32 @@ async function saveMetadataPrefs(prefsToSet: MetadataPrefs) {
 
 async function loadMetadataPrefs(): Promise<MetadataPrefs> {
   return _getMetadataPrefs();
+}
+
+async function saveServerPrefs({ prefs }: { prefs: Record<string, string> }) {
+  const userToken = await asyncStorage.getItem('user-token');
+  if (!userToken) {
+    return { error: 'not-logged-in' };
+  }
+
+  try {
+    const serverConfig = getServer();
+    if (!serverConfig) {
+      throw new Error('No sync server configured.');
+    }
+    await post(serverConfig.SIGNUP_SERVER + '/server-prefs', {
+      token: userToken,
+      prefs,
+    });
+  } catch (err) {
+    if (err instanceof PostError) {
+      return {
+        error: err.reason || 'network-failure',
+      };
+    }
+
+    throw err;
+  }
+
+  return {};
 }

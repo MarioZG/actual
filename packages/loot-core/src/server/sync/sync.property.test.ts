@@ -1,11 +1,12 @@
 // @ts-strict-ignore
-import { merkle, getClock, Timestamp } from '@actual-app/crdt';
-import jsc, { type Arbitrary } from 'jsverify';
+import { getClock, merkle, Timestamp } from '@actual-app/crdt';
+import jsc from 'jsverify';
+import type { Arbitrary } from 'jsverify';
 
-import * as db from '../db';
-import * as prefs from '../prefs';
-import * as sheet from '../sheet';
-import * as mockSyncServer from '../tests/mockSyncServer';
+import * as db from '#server/db';
+import * as prefs from '#server/prefs';
+import * as sheet from '#server/sheet';
+import * as mockSyncServer from '#server/tests/mockSyncServer';
 
 import * as encoder from './encoder';
 import { isError } from './utils';
@@ -94,7 +95,7 @@ const baseTime = 1565374471903;
 const clientId1 = '80dd7da215247293';
 const clientId2 = '90xU1sd5124329ac';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 function makeGen<T extends Arbitrary<any>>({
   table,
   row,
@@ -224,8 +225,8 @@ async function run(msgs) {
     { firstMessages: [], secondMessages: [] },
   );
 
-  prefs.loadPrefs();
-  prefs.savePrefs({
+  void prefs.loadPrefs();
+  void prefs.savePrefs({
     groupId: 'group',
     lastSyncedTimestamp: new Timestamp(
       Date.now(),
@@ -235,7 +236,7 @@ async function run(msgs) {
   });
 
   await global.emptyDatabase()();
-  await sheet.loadSpreadsheet(db, () => {});
+  await sheet.loadSpreadsheet(db, vi.fn());
 
   // The test: split up the messages into chunks and in parallel send
   // them all through `sendMessages`. Then add some messages to the
@@ -312,7 +313,7 @@ async function run(msgs) {
 
 describe('sync property test', () => {
   it.skip('should always sync clients into the same state', async () => {
-    const test = await jsc.check(
+    const test = jsc.check(
       jsc.forall(
         jsc.tuple(Array.from(new Array(100)).map(() => jsc.oneof(generators))),
         async msgs => {

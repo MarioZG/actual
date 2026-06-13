@@ -4,14 +4,16 @@ import { Trans, useTranslation } from 'react-i18next';
 import { SvgRightArrow2 } from '@actual-app/components/icons/v0';
 import { SvgEquals } from '@actual-app/components/icons/v1';
 import { Select } from '@actual-app/components/select';
+import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
+import { View } from '@actual-app/components/view';
 
-import { Row, Cell, TableHeader } from '../table';
+import { Cell, Row, TableHeader } from '#components/table';
 
-import {
-  type MappableFieldWithExample,
-  type TransactionDirection,
+import type {
+  MappableFieldWithExample,
+  TransactionDirection,
 } from './EditSyncAccount';
 
 const useTransactionDirectionOptions = () => {
@@ -37,6 +39,7 @@ type FieldMappingProps = {
   fields: MappableFieldWithExample[];
   mapping: Map<string, string>;
   setMapping: (field: string, value: string) => void;
+  isMobile?: boolean;
 };
 
 export function FieldMapping({
@@ -45,10 +48,37 @@ export function FieldMapping({
   fields,
   mapping,
   setMapping,
+  isMobile = false,
 }: FieldMappingProps) {
   const { t } = useTranslation();
 
   const { transactionDirectionOptions } = useTransactionDirectionOptions();
+
+  const iconSpacing = isMobile ? 8 : 20;
+  const iconPadding = isMobile ? 8 : 6;
+  const arrowIconWidth = 15;
+  const equalsIconWidth = 12;
+
+  const calculatedSelectWidth = Math.max(
+    ...fields.flatMap(field =>
+      field.syncFields.map(({ field }) => field.length * 8 + 30),
+    ),
+  );
+
+  const calculatedActualFieldWidth = isMobile
+    ? Math.max(50, ...fields.map(field => field.actualField.length * 8 + 20))
+    : Math.max(75, ...fields.map(field => field.actualField.length * 8 + 20));
+
+  const arrowCellWidth = arrowIconWidth + iconSpacing + iconPadding;
+  const equalsCellWidth = equalsIconWidth + iconSpacing + iconPadding;
+
+  const commonCellStyle = { height: '100%', border: 0 };
+  const iconCellStyle = { ...commonCellStyle };
+
+  const selectStyle = {
+    minWidth: isMobile ? '10ch' : '30ch',
+    maxWidth: isMobile ? '15ch' : '50ch',
+  };
 
   return (
     <>
@@ -62,6 +92,7 @@ export function FieldMapping({
         style={{
           width: '25%',
           margin: '1em 0',
+          minWidth: '100px',
         }}
       />
 
@@ -73,22 +104,30 @@ export function FieldMapping({
           </Trans>
         </Text>
       ) : (
-        <>
+        <View style={styles.tableContainer}>
           <TableHeader>
             <Cell
-              value={t('Actual field')}
-              width={100}
+              width={calculatedActualFieldWidth}
               style={{ paddingLeft: '10px' }}
-            />
+              plain
+            >
+              <Text
+                style={{ whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500 }}
+              >
+                {calculatedActualFieldWidth > 70 ? t('Actual field') : 'Actual'}
+              </Text>
+            </Cell>
+            <Cell value="" width={arrowCellWidth} style={{ padding: 0 }} />
             <Cell
               value={t('Bank field')}
-              width={330}
-              style={{ paddingLeft: '10px' }}
+              width={calculatedSelectWidth}
+              style={{ paddingLeft: 0, ...selectStyle }}
             />
+            <Cell value="" width={equalsCellWidth} style={{ padding: 0 }} />
             <Cell
               value={t('Example')}
               width="flex"
-              style={{ paddingLeft: '10px' }}
+              style={{ paddingLeft: 0 }}
             />
           </TableHeader>
 
@@ -98,55 +137,82 @@ export function FieldMapping({
                 key={field.actualField}
                 style={{
                   fontSize: 13,
-                  backgroundColor: theme.tableRowBackgroundHover,
+                  backgroundColor: theme.tableBackground,
                   display: 'flex',
                   alignItems: 'center',
-                  border: '1px solid var(--color-tableBorder)',
                   minHeight: '40px',
+                  borderTop: '1px solid ' + theme.tableBorder,
                 }}
-                collapsed={true}
+                collapsed
               >
                 <Cell
-                  value={field.actualField}
-                  width={75}
-                  style={{ paddingLeft: '10px', height: '100%', border: 0 }}
-                />
+                  width={calculatedActualFieldWidth}
+                  style={{ ...commonCellStyle, paddingLeft: '10px' }}
+                  plain
+                >
+                  <Text style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                    {field.actualField}
+                  </Text>
+                </Cell>
 
-                <Text>
-                  <SvgRightArrow2
+                <Cell width={arrowCellWidth} style={iconCellStyle} plain>
+                  <View
                     style={{
-                      width: 15,
-                      height: 15,
-                      color: theme.tableText,
-                      marginRight: '20px',
+                      flex: 1,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <SvgRightArrow2
+                      style={{
+                        width: arrowIconWidth,
+                        height: 15,
+                        color: theme.tableText,
+                      }}
+                    />
+                  </View>
+                </Cell>
+
+                <Cell
+                  width={calculatedSelectWidth}
+                  style={{ ...iconCellStyle, ...selectStyle }}
+                  plain
+                >
+                  <Select
+                    aria-label={t('Synced field to map to {{field}}', {
+                      field: field.actualField,
+                    })}
+                    options={field.syncFields.map(({ field }) => [
+                      field,
+                      field,
+                    ])}
+                    value={mapping.get(field.actualField)}
+                    style={{
+                      width: '100%',
+                    }}
+                    onChange={newValue => {
+                      if (newValue) setMapping(field.actualField, newValue);
                     }}
                   />
-                </Text>
+                </Cell>
 
-                <Select
-                  aria-label={t('Synced field to map to {{field}}', {
-                    field: field.actualField,
-                  })}
-                  options={field.syncFields.map(({ field }) => [field, field])}
-                  value={mapping.get(field.actualField)}
-                  style={{
-                    width: 290,
-                  }}
-                  onChange={newValue => {
-                    if (newValue) setMapping(field.actualField, newValue);
-                  }}
-                />
-
-                <Text>
-                  <SvgEquals
+                <Cell width={equalsCellWidth} style={iconCellStyle} plain>
+                  <View
                     style={{
-                      width: 12,
-                      height: 12,
-                      color: theme.tableText,
-                      marginLeft: '20px',
+                      flex: 1,
+                      justifyContent: 'center',
+                      alignItems: 'center',
                     }}
-                  />
-                </Text>
+                  >
+                    <SvgEquals
+                      style={{
+                        width: equalsIconWidth,
+                        height: 12,
+                        color: theme.tableText,
+                      }}
+                    />
+                  </View>
+                </Cell>
 
                 <Cell
                   value={
@@ -155,12 +221,12 @@ export function FieldMapping({
                     )?.example
                   }
                   width="flex"
-                  style={{ paddingLeft: '10px', height: '100%', border: 0 }}
+                  style={{ ...commonCellStyle, paddingLeft: 0 }}
                 />
               </Row>
             );
           })}
-        </>
+        </View>
       )}
     </>
   );

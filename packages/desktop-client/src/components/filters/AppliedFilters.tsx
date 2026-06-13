@@ -1,8 +1,8 @@
 import React from 'react';
 
+import type { CSSProperties } from '@actual-app/components/styles';
 import { View } from '@actual-app/components/view';
-
-import { type RuleConditionEntity } from 'loot-core/types/models';
+import type { RuleConditionEntity } from '@actual-app/core/types/models';
 
 import { ConditionsOpMenu } from './ConditionsOpMenu';
 import { FilterExpression } from './FilterExpression';
@@ -14,8 +14,9 @@ type AppliedFiltersProps = {
     newFilter: RuleConditionEntity,
   ) => void;
   onDelete: (filter: RuleConditionEntity) => void;
-  conditionsOp: string;
+  conditionsOp: 'and' | 'or';
   onConditionsOpChange: (value: 'and' | 'or') => void;
+  style?: CSSProperties;
 };
 
 export function AppliedFilters({
@@ -24,6 +25,7 @@ export function AppliedFilters({
   onDelete,
   conditionsOp,
   onConditionsOpChange,
+  style = {},
 }: AppliedFiltersProps) {
   return (
     <View
@@ -31,6 +33,7 @@ export function AppliedFilters({
         flexDirection: 'row',
         alignItems: 'flex-start',
         flexWrap: 'wrap',
+        ...style,
       }}
     >
       <ConditionsOpMenu

@@ -1,38 +1,38 @@
 // @ts-strict-ignore
-import React, { useState, type CSSProperties } from 'react';
+import React, { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
 import { theme } from '@actual-app/components/theme';
+import type {
+  balanceTypeOpType,
+  DataEntity,
+  LegendEntity,
+  RuleConditionEntity,
+} from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
 import {
-  BarChart,
   Bar,
+  BarChart,
   CartesianGrid,
+  LabelList,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  LabelList,
-  ResponsiveContainer,
 } from 'recharts';
 
-import {
-  amountToCurrency,
-  amountToCurrencyNoDecimal,
-} from 'loot-core/shared/util';
-import {
-  type balanceTypeOpType,
-  type DataEntity,
-  type RuleConditionEntity,
-} from 'loot-core/types/models';
-
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { useNavigate } from '../../../hooks/useNavigate';
-import { usePrivacyMode } from '../../../hooks/usePrivacyMode';
-import { Container } from '../Container';
-import { getCustomTick } from '../getCustomTick';
-import { numberFormatterTooltip } from '../numberFormatter';
+import { FinancialText } from '#components/FinancialText';
+import { useRechartsAnimation } from '#components/reports/chart-theme';
+import { Container } from '#components/reports/Container';
+import { getCustomTick } from '#components/reports/getCustomTick';
+import { numberFormatterTooltip } from '#components/reports/numberFormatter';
+import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
+import { useFormat } from '#hooks/useFormat';
+import type { FormatType } from '#hooks/useFormat';
+import { useNavigate } from '#hooks/useNavigate';
+import { usePrivacyMode } from '#hooks/usePrivacyMode';
 
 import { renderCustomLabel } from './renderCustomLabel';
 import { showActivity } from './showActivity';
@@ -50,21 +50,46 @@ type PayloadItem = {
 type CustomTooltipProps = {
   compact: boolean;
   tooltip: string;
+  legend: LegendEntity[];
   active?: boolean;
   payload?: PayloadItem[];
   label?: string;
+  format: (value: unknown, type: FormatType) => string;
 };
 
 const CustomTooltip = ({
   compact,
   tooltip,
+  legend,
   active,
   payload,
   label,
+  format,
 }: CustomTooltipProps) => {
   const { t } = useTranslation();
-  if (active && payload && payload.length) {
-    let sumTotals = 0;
+
+  const dataKeyToName = useMemo(() => {
+    return new Map(legend.map(entry => [entry.dataKey, entry.name]));
+  }, [legend]);
+
+  const { sumTotals, items } = useMemo(() => {
+    return (payload ?? [])
+      .slice(0)
+      .reverse()
+      .reduce(
+        (acc, item) => {
+          acc.sumTotals += item.value;
+          acc.items.push(item);
+          return acc;
+        },
+        {
+          sumTotals: 0,
+          items: [] as PayloadItem[],
+        },
+      );
+  }, [payload]);
+
+  if (active && items.length) {
     return (
       <div
         className={css({
@@ -82,31 +107,34 @@ const CustomTooltip = ({
             <strong>{label}</strong>
           </div>
           <div style={{ lineHeight: 1.4 }}>
-            {payload
-              .slice(0)
-              .reverse()
-              .map((pay, i) => {
-                sumTotals += pay.value;
-                return (
-                  pay.value !== 0 &&
-                  (compact ? i < 5 : true) && (
-                    <AlignedText
-                      key={pay.name}
-                      left={pay.name}
-                      right={amountToCurrency(pay.value)}
-                      style={{
-                        color: pay.color,
-                        textDecoration:
-                          tooltip === pay.name ? 'underline' : 'inherit',
-                      }}
-                    />
-                  )
-                );
-              })}
+            {items.map((pay, i) => {
+              const displayName = dataKeyToName.get(pay.name) ?? pay.name;
+              return (
+                pay.value !== 0 &&
+                (compact ? i < 5 : true) && (
+                  <AlignedText
+                    key={pay.name}
+                    left={displayName}
+                    right={
+                      <FinancialText>
+                        {format(pay.value, 'financial')}
+                      </FinancialText>
+                    }
+                    style={{
+                      color: pay.color,
+                      textDecoration:
+                        tooltip === pay.name ? 'underline' : 'inherit',
+                    }}
+                  />
+                )
+              );
+            })}
             {payload.length > 5 && compact && '...'}
             <AlignedText
               left={t('Total')}
-              right={amountToCurrency(sumTotals)}
+              right={
+                <FinancialText>{format(sumTotals, 'financial')}</FinancialText>
+              }
               style={{
                 fontWeight: 600,
               }}
@@ -122,7 +150,8 @@ const customLabel = props => {
   const calcX = props.x + props.width / 2;
   const calcY = props.y + props.height / 2;
   const textAnchor = 'middle';
-  const display = props.value && `${amountToCurrencyNoDecimal(props.value)}`;
+  const display =
+    props.value && `${props.format(props.value, 'financial-no-decimals')}`;
   const textSize = '12px';
   const showLabel = props.height;
   const showLabelThreshold = 20;
@@ -167,10 +196,15 @@ export function StackedBarGraph({
   showTooltip = true,
   interval,
 }: StackedBarGraphProps) {
+  const animationProps = useRechartsAnimation();
   const navigate = useNavigate();
-  const categories = useCategories();
-  const accounts = useAccounts();
+  const { data: categories = { grouped: [], list: [] } } = useCategories();
+  const { data: accounts = [] } = useAccounts();
   const privacyMode = usePrivacyMode();
+  const format = useFormat();
+
+  const customLabelWithFormat = props => customLabel({ ...props, format });
+
   const [pointer, setPointer] = useState('');
   const [tooltip, setTooltip] = useState('');
 
@@ -189,93 +223,101 @@ export function StackedBarGraph({
     >
       {(width, height) =>
         data.intervalData && (
-          <ResponsiveContainer>
-            <div>
-              {!compact && <div style={{ marginTop: '15px' }} />}
-              <BarChart
-                width={width}
-                height={height}
-                data={data.intervalData}
-                margin={{ top: 0, right: 0, left: leftMargin, bottom: 10 }}
-                style={{ cursor: pointer }}
-                stackOffset="sign" //stacked by sign
-              >
-                {showTooltip && (
-                  <Tooltip
-                    content={
-                      <CustomTooltip compact={compact} tooltip={tooltip} />
-                    }
-                    formatter={numberFormatterTooltip}
-                    isAnimationActive={false}
-                    cursor={{ fill: 'transparent' }}
-                  />
-                )}
-                <XAxis
-                  dataKey="date"
+          <div>
+            {!compact && <div style={{ marginTop: '15px' }} />}
+            <BarChart
+              width={width}
+              height={height}
+              data={data.intervalData}
+              margin={{ top: 0, right: 0, left: leftMargin, bottom: 10 }}
+              style={{ cursor: pointer }}
+              stackOffset="sign" //stacked by sign
+            >
+              {showTooltip && (
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      compact={compact}
+                      tooltip={tooltip}
+                      legend={data.legend}
+                      format={format}
+                    />
+                  }
+                  formatter={numberFormatterTooltip}
+                  isAnimationActive={false}
+                  cursor={{ fill: 'transparent' }}
+                />
+              )}
+              <XAxis
+                dataKey="date"
+                tick={{ fill: theme.pageText }}
+                tickLine={{ stroke: theme.pageText }}
+              />
+              {!compact && <CartesianGrid strokeDasharray="3 3" />}
+              {!compact && (
+                <YAxis
+                  tickFormatter={value =>
+                    getCustomTick(
+                      format(value, 'financial-no-decimals'),
+                      privacyMode,
+                    )
+                  }
                   tick={{ fill: theme.pageText }}
                   tickLine={{ stroke: theme.pageText }}
+                  tickSize={0}
                 />
-                {!compact && <CartesianGrid strokeDasharray="3 3" />}
-                {!compact && (
-                  <YAxis
-                    tickFormatter={value =>
-                      getCustomTick(
-                        amountToCurrencyNoDecimal(value),
-                        privacyMode,
-                      )
-                    }
-                    tick={{ fill: theme.pageText }}
-                    tickLine={{ stroke: theme.pageText }}
-                    tickSize={0}
-                  />
-                )}
-                {data.legend
-                  .slice(0)
-                  .reverse()
-                  .map(entry => (
-                    <Bar
-                      key={entry.name}
-                      dataKey={entry.name}
-                      stackId="a"
-                      fill={entry.color}
-                      onMouseLeave={() => {
-                        setPointer('');
-                        setTooltip('');
-                      }}
-                      onMouseEnter={() => {
-                        setTooltip(entry.name);
-                        if (!['Group', 'Interval'].includes(groupBy)) {
-                          setPointer('pointer');
-                        }
-                      }}
-                      onClick={e =>
-                        ((compact && showTooltip) || !compact) &&
-                        !['Group', 'Interval'].includes(groupBy) &&
-                        showActivity({
-                          navigate,
-                          categories,
-                          accounts,
-                          balanceTypeOp,
-                          filters,
-                          showHiddenCategories,
-                          showOffBudget,
-                          type: 'time',
-                          startDate: e.intervalStartDate,
-                          endDate: e.intervalEndDate,
-                          field: groupBy.toLowerCase(),
-                          id: entry.id,
-                          interval,
-                        })
+              )}
+              {data.legend
+                .slice(0)
+                .reverse()
+                .map(entry => (
+                  <Bar
+                    key={entry.dataKey}
+                    dataKey={entry.dataKey}
+                    stackId="a"
+                    fill={entry.color}
+                    {...animationProps}
+                    onMouseLeave={() => {
+                      setPointer('');
+                      setTooltip('');
+                    }}
+                    onMouseEnter={() => {
+                      setTooltip(entry.dataKey);
+                      if (!['Group', 'Interval'].includes(groupBy)) {
+                        setPointer('pointer');
                       }
-                    >
-                      {viewLabels && !compact && (
-                        <LabelList dataKey={entry.name} content={customLabel} />
-                      )}
-                    </Bar>
-                  ))}
-              </BarChart>
-            </div>
-          </ResponsiveContainer>
+                    }}
+                    onClick={e =>
+                      ((compact && showTooltip) || !compact) &&
+                      !['Group', 'Interval'].includes(groupBy) &&
+                      showActivity({
+                        navigate,
+                        categories,
+                        accounts,
+                        balanceTypeOp,
+                        filters,
+                        showHiddenCategories,
+                        showOffBudget,
+                        type: 'time',
+                        startDate: e.payload?.intervalStartDate,
+                        endDate: e.payload?.intervalEndDate,
+                        field: groupBy.toLowerCase(),
+                        id: entry.id,
+                        uncategorizedId: entry.uncategorizedId,
+                        interval,
+                      })
+                    }
+                  >
+                    {viewLabels && !compact && (
+                      <LabelList
+                        dataKey={entry.dataKey}
+                        content={customLabelWithFormat}
+                      />
+                    )}
+                  </Bar>
+                ))}
+            </BarChart>
+          </div>
         )
       }
     </Container>

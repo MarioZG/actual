@@ -1,18 +1,17 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Stack } from '@actual-app/components/stack';
+import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
+import { sheetForMonth } from '@actual-app/core/shared/months';
+import * as monthUtils from '@actual-app/core/shared/months';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
-import { sheetForMonth } from 'loot-core/shared/months';
-import * as monthUtils from 'loot-core/shared/months';
-
-import { ExpenseTotal } from '../budget/tracking/budgetsummary/ExpenseTotal';
-import { IncomeTotal } from '../budget/tracking/budgetsummary/IncomeTotal';
-import { Saved } from '../budget/tracking/budgetsummary/Saved';
-import { Modal, ModalCloseButton, ModalHeader } from '../common/Modal';
-import { NamespaceContext } from '../spreadsheet/NamespaceContext';
+import { ExpenseTotal } from '#components/budget/tracking/budgetsummary/ExpenseTotal';
+import { IncomeTotal } from '#components/budget/tracking/budgetsummary/IncomeTotal';
+import { Saved } from '#components/budget/tracking/budgetsummary/Saved';
+import { Modal, ModalCloseButton, ModalHeader } from '#components/common/Modal';
+import { SheetNameProvider } from '#hooks/useSheetName';
+import type { Modal as ModalType } from '#modals/modalsSlice';
 
 type TrackingBudgetSummaryModalProps = Extract<
   ModalType,
@@ -26,29 +25,31 @@ export function TrackingBudgetSummaryModal({
   const currentMonth = monthUtils.currentMonth();
   return (
     <Modal name="tracking-budget-summary">
-      {({ state: { close } }) => (
+      {({ state }) => (
         <>
           <ModalHeader
             title={t('Budget Summary')}
-            rightContent={<ModalCloseButton onPress={close} />}
+            rightContent={<ModalCloseButton onPress={() => state.close()} />}
           />
-          <NamespaceContext.Provider value={sheetForMonth(month)}>
-            <Stack
-              spacing={2}
+          <SheetNameProvider name={sheetForMonth(month)}>
+            <SpaceBetween
+              direction="vertical"
+              gap={10}
               style={{
                 alignSelf: 'center',
+                alignItems: 'flex-start',
                 backgroundColor: 'transparent',
                 borderRadius: 4,
               }}
             >
               <IncomeTotal style={{ ...styles.mediumText }} />
               <ExpenseTotal style={{ ...styles.mediumText }} />
-            </Stack>
+            </SpaceBetween>
             <Saved
               projected={month >= currentMonth}
               style={{ ...styles.mediumText, marginTop: 20 }}
             />
-          </NamespaceContext.Provider>
+          </SheetNameProvider>
         </>
       )}
     </Modal>
