@@ -44,7 +44,8 @@ ENV NODE_ENV=production
 # sync-server entry flattened at /app so CMD stays `node app.js`.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/sync-server/package.json ./
-COPY --from=builder /app/packages/sync-server/build ./
+COPY --from=builder /app/packages/sync-server/src ./src
+COPY --from=builder /app/packages/sync-server/migrations ./migrations
 
 # script dir changed when we swapped build method, add the legacy dir in for compatibility
 RUN mkdir -p src && ln -s ../scripts src/scripts
