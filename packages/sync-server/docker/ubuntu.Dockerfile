@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y openssl
 WORKDIR /app
 
 COPY .yarn ./.yarn
-COPY yarn.lock package.json .yarnrc.yml ./
+COPY yarn.lock package.json tsconfig.json .yarnrc.yml ./
 COPY packages ./packages
 
 # Avoiding memory issues with ARMv7

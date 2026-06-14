@@ -7,7 +7,7 @@ RUN corepack enable
 WORKDIR /app
 
 COPY .yarn ./.yarn
-COPY yarn.lock package.json .yarnrc.yml ./
+COPY yarn.lock package.json tsconfig.json .yarnrc.yml ./
 COPY packages ./packages
 
 # Avoiding memory issues with ARMv7
