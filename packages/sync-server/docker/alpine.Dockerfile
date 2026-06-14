@@ -13,7 +13,12 @@ COPY packages ./packages
 # Avoiding memory issues with ARMv7
 RUN if [ "$(uname -m)" = "armv7l" ]; then yarn config set taskPoolConcurrency 2; yarn config set networkConcurrency 5; fi
 
-# Focus the workspaces in production mode
+# Focus the workspaces with dev deps available for build
+RUN if [ "$(uname -m)" = "armv7l" ]; then npm_config_build_from_source=true yarn workspaces focus @actual-app/sync-server; else yarn workspaces focus @actual-app/sync-server; fi
+
+RUN yarn workspace @actual-app/sync-server build
+
+# Re-focus for production-only runtime dependencies after the build
 RUN if [ "$(uname -m)" = "armv7l" ]; then npm_config_build_from_source=true yarn workspaces focus @actual-app/sync-server --production; else yarn workspaces focus @actual-app/sync-server --production; fi
 
 # Dereference yarn's workspace:* symlinks so the prod stage can copy just node_modules.
@@ -44,8 +49,7 @@ ENV NODE_ENV=production
 # sync-server entry flattened at /app so CMD stays `node app.js`.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/sync-server/package.json ./
-COPY --from=builder /app/packages/sync-server/src ./src
-COPY --from=builder /app/packages/sync-server/migrations ./migrations
+COPY --from=builder /app/packages/sync-server/build ./
 
 # script dir changed when we swapped build method, add the legacy dir in for compatibility
 RUN mkdir -p src && ln -s ../scripts src/scripts

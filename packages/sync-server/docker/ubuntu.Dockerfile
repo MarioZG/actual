@@ -12,7 +12,12 @@ COPY packages ./packages
 # Avoiding memory issues with ARMv7
 RUN if [ "$(uname -m)" = "armv7l" ]; then yarn config set taskPoolConcurrency 2; yarn config set networkConcurrency 5; fi
 
-# Focus the workspaces in production mode
+# Focus the workspaces with dev deps available for build
+RUN yarn workspaces focus @actual-app/sync-server
+
+RUN yarn workspace @actual-app/sync-server build
+
+# Re-focus for production-only runtime dependencies after the build
 RUN yarn workspaces focus @actual-app/sync-server --production
 
 # Dereference yarn's workspace:* symlinks so the prod stage can copy just node_modules.
